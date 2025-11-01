@@ -6,8 +6,11 @@
 import { onMounted, onUnmounted, ref } from 'vue'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-// ÚJ: Behozzuk a GLTF betöltőt
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
+
+// --- KONFIGURÁCIÓS VÁLTOZÓK ---
+const SNAP_INCREMENT = 0.5
+const SNAP_DISTANCE = 0.2
 
 // --- VÁLTOZÓK DEFINIÁLÁSA A KOMPONENS SZINTJÉN ---
 let scene: THREE.Scene
@@ -17,72 +20,43 @@ let controls: OrbitControls
 let raycaster: THREE.Raycaster
 const mouse = new THREE.Vector2()
 const intersectableObjects: THREE.Object3D[] = []
-// JAVÍTÁS: A draggedObject most már egy Group lehet, mert a GLTF modellek általában több mesht tartalmaznak
 let draggedObject: THREE.Group | null = null
-// ÚJ: Egy változó, ami a betöltött modell "sablonját" tárolja
+const placedObjects: THREE.Group[] = []
 let loadedModelTemplate: THREE.Group | null = null
 
-// ÚJ: Létrehozunk egy új, cserélhető anyagot
-const highlightMaterial = new THREE.MeshStandardMaterial({ 
-  color: 0xfcba03, // Egy feltűnő narancssárga szín
-  name: 'HighlightMaterial' // Adunk neki egy nevet a könnyebb azonosításért
-});
+const highlightMaterial = new THREE.MeshStandardMaterial({ color: 0xfcba03, name: 'HighlightMaterial' });
 
 const sceneContainer = ref<HTMLDivElement | null>(null)
 
 onMounted(() => {
   const container = sceneContainer.value
-  if (!container) {
-    console.error("A 3D jelenet konténere nem található a DOM-ban.")
-    return
-  }
+  if (!container) { return }
 
-  // --- OBJEKTUMOK INICIALIZÁLÁSA ---
+  // ... Inicializálás ...
   scene = new THREE.Scene()
   camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000)
   renderer = new THREE.WebGLRenderer({ antialias: true })
   raycaster = new THREE.Raycaster()
   controls = new OrbitControls(camera, renderer.domElement)
 
-  // --- ÚJ: A MODELL BETÖLTÉSE ---
+  // ... Modell betöltése (változatlan) ...
   const loader = new GLTFLoader()
-  loader.load(
-    '/models/szekreny_alap.glb', // Az útvonal a 'public' mappából indul
-    (gltf) => {
-      // Sikeres betöltés után ez a függvény fut le
-      console.log('Modell sikeresen betöltve!', gltf)
+  loader.load('/models/szekreny_alap.glb', (gltf) => {
       const model = gltf.scene;
-
-      // Végigmegyünk a modell minden részén
       model.traverse((child) => {
-        // A child.name a 3D szoftverben megadott objektumnév
-        console.log('Talált objektum:', child.name, child);
-
         if (child instanceof THREE.Mesh) {
-          // Minden mesh-re bekapcsoljuk az árnyékokat
           child.castShadow = true;
-          child.receiveShadow = true; // A bútor részei egymásra is vethetnek árnyékot
-
-          // KERESÉS ÉS CSERE:
-          // Ha az objektum neve tartalmazza az "Ajto" szót (kis- és nagybetű nem számít)
-          // FONTOS: Cseréld le az "Ajto" szót arra, amit a 3D szoftveredben használtál!
+          child.receiveShadow = true;
           if (child.name.toLowerCase().includes('ajto')) {
-            console.log(`MEGTALÁLTAM AZ AJTÓT: ${child.name}. Anyag cseréje...`);
-            // Lecseréljük az ajto anyagát a mi kiemelő anyagunkra
             child.material = highlightMaterial;
           }
         }
       });
-
-      loadedModelTemplate = model; // Elmentjük az előkészített modell sablonját
-    },
-    undefined,
-    (error) => {
-      console.error('Hiba történt a modell betöltése közben:', error)
+      loadedModelTemplate = model;
     }
   )
 
-  // ... a többi beállítás (színek, jelenet, stb.) változatlan ...
+  // ... Színek, Jelenet, Fények (változatlan) ...
   // --- SZÍNEK ---
   const backgroundColor = new THREE.Color(0x252525)
   const floorColor = new THREE.Color().copy(backgroundColor).offsetHSL(0, 0, 0.04)
@@ -90,8 +64,8 @@ onMounted(() => {
   const gridCenterColor = new THREE.Color().copy(backgroundColor).offsetHSL(0, 0, 0.09)
   // --- JELENET ---
   scene.background = backgroundColor
-  camera.position.set(4, 5, 7)
-  camera.lookAt(0, 0, 0)
+  // JAVÍTÁS: Kényelmesebb kezdő kamera pozíció
+  camera.position.set(0, 2, 3)
   renderer.setSize(window.innerWidth, window.innerHeight)
   renderer.shadowMap.enabled = true
   container.appendChild(renderer.domElement)
@@ -115,28 +89,24 @@ onMounted(() => {
   directionalLight.castShadow = true
   scene.add(directionalLight)
 
-
   // --- FÜGGVÉNYEK ---
- function createDraggableObject(point: THREE.Vector3): THREE.Group | null {
-    if (!loadedModelTemplate) {
-      console.warn("A modell még nem töltődött be, próbálja újra.")
-      return null
-    }
+  function createDraggableObject(point: THREE.Vector3): THREE.Group | null {
+    if (!loadedModelTemplate) { return null }
     const newObject = loadedModelTemplate.clone()
-
-    // JAVÍTÁS: Végigmegyünk a klónozott modellen, és áttetszővé tesszük
     newObject.traverse((child) => {
       if (child instanceof THREE.Mesh) {
-        // Fontos: klónozzuk az anyagot, hogy ne az eredeti sablon anyagát módosítsuk!
         child.material = child.material.clone();
         child.material.transparent = true;
         child.material.opacity = 0.3;
       }
     });
-
     newObject.position.copy(point)
     newObject.position.y = 0
     return newObject
+  }
+
+  function snapToGrid(value: number): number {
+    return Math.round(value / SNAP_INCREMENT) * SNAP_INCREMENT;
   }
 
   function endDrag() {
@@ -149,24 +119,20 @@ onMounted(() => {
 
   // --- EGÉRESEMÉNY-KEZELŐK ---
   function onMouseDown(event: MouseEvent) {
-    if (event.button !== 0) return
-    if (event.shiftKey) {
-      mouse.x = (event.clientX / window.innerWidth) * 2 - 1
-      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1
-      raycaster!.setFromCamera(mouse, camera!)
-      const intersects = raycaster!.intersectObjects(intersectableObjects)
-
-      if (intersects.length > 0) {
-        // JAVÍTÁS: A createDraggableObject most már null-t is visszaadhat
-        const newObject = createDraggableObject(intersects[0]!.point)
-        if (newObject) {
-          draggedObject = newObject
-          scene.add(draggedObject)
-          controls.enabled = false
-          window.addEventListener('mousemove', onMouseMove)
-          window.addEventListener('mouseup', onMouseUp)
-          window.addEventListener('contextmenu', onRightClickCancel)
-        }
+    if (event.button !== 0 || !event.shiftKey) return
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1
+    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1
+    raycaster!.setFromCamera(mouse, camera!)
+    const intersects = raycaster!.intersectObjects(intersectableObjects)
+    if (intersects.length > 0) {
+      const newObject = createDraggableObject(intersects[0]!.point)
+      if (newObject) {
+        draggedObject = newObject
+        scene.add(draggedObject)
+        controls.enabled = false
+        window.addEventListener('mousemove', onMouseMove)
+        window.addEventListener('mouseup', onMouseUp)
+        window.addEventListener('contextmenu', onRightClickCancel)
       }
     }
   }
@@ -179,25 +145,53 @@ onMounted(() => {
     const intersects = raycaster!.intersectObjects(intersectableObjects)
 
     if (intersects.length > 0) {
-      const point = intersects[0]!.point
-      draggedObject.position.x = Math.round(point.x)
-      draggedObject.position.z = Math.round(point.z)
-      // A magasságot fixen tartjuk, hogy ne süllyedjen a padlóba
-      draggedObject.position.y = 0
+      const point = intersects[0]!.point;
+      
+      const draggedBox = new THREE.Box3().setFromObject(draggedObject);
+      const draggedSize = new THREE.Vector3();
+      draggedBox.getSize(draggedSize);
+
+      // JAVÍTÁS: "Hátlap a rácshoz" logika
+      // A kurzor pozíciójához hozzáadjuk a tárgy fél mélységét, ezt igazítjuk a rácsra,
+      // majd az eredményből levonjuk a fél mélységet, hogy a tárgy középpontját kapjuk meg.
+      let snappedX = snapToGrid(point.x);
+      let snappedZ = snapToGrid(point.z + draggedSize.z / 2) - draggedSize.z / 2;
+
+      for (const targetObject of placedObjects) {
+        const targetBox = new THREE.Box3().setFromObject(targetObject);
+        const targetSize = new THREE.Vector3();
+        targetBox.getSize(targetSize);
+        const targetPos = targetObject.position;
+
+        const distX = Math.abs(point.x - targetPos.x) - (draggedSize.x / 2 + targetSize.x / 2);
+        if (distX < SNAP_DISTANCE) {
+          if (point.x > targetPos.x) {
+            snappedX = targetPos.x + targetSize.x / 2 + draggedSize.x / 2;
+          } else {
+            snappedX = targetPos.x - targetSize.x / 2 - draggedSize.x / 2;
+          }
+          // JAVÍTÁS: Ha X-tengelyen vonzódunk, a Z pozíciót is igazítjuk, hogy egy sorban legyenek.
+          snappedZ = targetPos.z;
+        }
+      }
+      
+      draggedObject.position.set(snappedX, 0, snappedZ);
     }
   }
 
   function onMouseUp(event: MouseEvent) {
     if (event.button !== 0) return
-
     if (draggedObject) {
-      // JAVÍTÁS: Végigmegyünk a lehelyezett objektumon, és visszaállítjuk az átlátszóságát
       draggedObject.traverse((child) => {
         if (child instanceof THREE.Mesh) {
           child.material.transparent = false;
           child.material.opacity = 1.0;
         }
       });
+      placedObjects.push(draggedObject);
+      // JAVÍTÁS: A kamera célpontját az utoljára letett objektumra állítjuk.
+      // Így a forgatás és zoomolás mindig a munkaterületre fókuszál.
+      controls.target.copy(draggedObject.position);
     }
     endDrag()
   }
@@ -207,10 +201,10 @@ onMounted(() => {
     if (draggedObject) {
       scene.remove(draggedObject)
     }
-    endDrag() // A cancel most már az endDrag-et hívja, ami mindent rendberak
+    endDrag()
   }
-
-  // ... a többi eseménykezelő és az animate loop változatlan ...
+  
+  // ... a többi kód változatlan ...
   function onWindowResize() {
     camera.aspect = window.innerWidth / window.innerHeight
     camera.updateProjectionMatrix()
