@@ -1,7 +1,21 @@
+<template>
+  <div ref="sceneContainer"></div>
+</template>
+
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
+
+// --- VÁLTOZÓK DEFINIÁLÁSA A KOMPONENS SZINTJÉN ---
+let scene: THREE.Scene
+let camera: THREE.PerspectiveCamera
+let renderer: THREE.WebGLRenderer
+let controls: OrbitControls
+let raycaster: THREE.Raycaster
+const mouse = new THREE.Vector2()
+const intersectableObjects: THREE.Object3D[] = []
+let draggedObject: THREE.Mesh<THREE.BoxGeometry, THREE.MeshStandardMaterial> | null = null
 
 const sceneContainer = ref<HTMLDivElement | null>(null)
 
@@ -12,37 +26,33 @@ onMounted(() => {
     return
   }
 
-  // --- VÁLTOZÓK INICIALIZÁLÁSA ---
-  const scene = new THREE.Scene()
-  const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000)
-  const renderer = new THREE.WebGLRenderer({ antialias: true })
-  
-  const raycaster = new THREE.Raycaster()
-  const mouse = new THREE.Vector2()
-  
-  const intersectableObjects: THREE.Object3D[] = []
+  // --- OBJEKTUMOK INICIALIZÁLÁSA ---
+  scene = new THREE.Scene()
+  camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000)
+  renderer = new THREE.WebGLRenderer({ antialias: true })
+  raycaster = new THREE.Raycaster()
+  controls = new OrbitControls(camera, renderer.domElement)
 
-  // --- SZÍN DEFINÍCIÓK (A TE ÚJ SZÍNEIDDEL) ---
+  // --- SZÍNEK ---
   const backgroundColor = new THREE.Color(0x252525)
   const floorColor = new THREE.Color().copy(backgroundColor).offsetHSL(0, 0, 0.04)
   const gridMainColor = new THREE.Color().copy(backgroundColor).offsetHSL(0, 0, 0.05)
   const gridCenterColor = new THREE.Color().copy(backgroundColor).offsetHSL(0, 0, 0.09)
 
-  // --- JELENET BEÁLLÍTÁSA ---
+  // --- JELENET ---
   scene.background = backgroundColor
   camera.position.set(4, 5, 7)
   camera.lookAt(0, 0, 0)
   renderer.setSize(window.innerWidth, window.innerHeight)
   renderer.shadowMap.enabled = true
   container.appendChild(renderer.domElement)
-
-  const controls = new OrbitControls(camera, renderer.domElement)
   controls.enableDamping = true
 
   // --- OBJEKTUMOK ---
-  const floorGeometry = new THREE.PlaneGeometry(20, 20)
-  const floorMaterial = new THREE.MeshStandardMaterial({ color: floorColor, side: THREE.DoubleSide })
-  const floor = new THREE.Mesh(floorGeometry, floorMaterial)
+  const floor = new THREE.Mesh(
+    new THREE.PlaneGeometry(20, 20),
+    new THREE.MeshStandardMaterial({ color: floorColor, side: THREE.DoubleSide })
+  )
   floor.rotation.x = -Math.PI / 2
   floor.receiveShadow = true
   scene.add(floor)
@@ -60,45 +70,94 @@ onMounted(() => {
   scene.add(directionalLight)
 
   // --- FÜGGVÉNYEK ---
-  function addObjectAtPoint(point: THREE.Vector3) {
-    const material = new THREE.MeshStandardMaterial({ color: 0xff6347 })
+  function createDraggableObject(point: THREE.Vector3): THREE.Mesh<THREE.BoxGeometry, THREE.MeshStandardMaterial> {
+    const material = new THREE.MeshStandardMaterial({ color: 0x33ff66, transparent: true, opacity: 0.7 })
     const geometry = new THREE.BoxGeometry(1, 1, 1)
     const newObject = new THREE.Mesh(geometry, material)
-    
     newObject.position.copy(point)
     newObject.position.y = 0.5
-    
     newObject.castShadow = true
-    scene.add(newObject)
+    return newObject
   }
 
-  // --- ESEMÉNYKEZELŐK ---
-  function onDoubleClick(event: MouseEvent) {
-    if (!raycaster || !camera) return
+  function endDrag() {
+    controls.enabled = true
+    draggedObject = null
+    window.removeEventListener('mousemove', onMouseMove)
+    window.removeEventListener('mouseup', onMouseUp)
+    window.removeEventListener('contextmenu', onRightClickCancel)
+  }
 
+  // --- EGÉRESEMÉNY-KEZELŐK ---
+  function onMouseDown(event: MouseEvent) {
+    // Csak a bal egérgomb érdekel minket
+    if (event.button !== 0) return
+
+    // JAVÍTÁS: A "KAPUŐR"
+    // Csak akkor lépünk be a lehelyezés módba, ha a Shift le van nyomva.
+    if (event.shiftKey) {
+      // Ha a Shift le van nyomva, a régi logika fut le:
+      mouse.x = (event.clientX / window.innerWidth) * 2 - 1
+      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1
+      raycaster!.setFromCamera(mouse, camera!)
+      const intersects = raycaster!.intersectObjects(intersectableObjects)
+
+      if (intersects.length > 0) {
+        controls.enabled = false // Kamera letiltása
+        draggedObject = createDraggableObject(intersects[0]!.point)
+        scene.add(draggedObject)
+        window.addEventListener('mousemove', onMouseMove)
+        window.addEventListener('mouseup', onMouseUp)
+        window.addEventListener('contextmenu', onRightClickCancel)
+      }
+    }
+    // Ha a Shift NINCS lenyomva, ez a függvény nem csinál semmit.
+    // Az esemény "átesik" a mi kódunkon, és a OrbitControls kezeli le,
+    // ami a kamera forgatását fogja eredményezni.
+  }
+
+  function onMouseMove(event: MouseEvent) {
+    if (!draggedObject) return
     mouse.x = (event.clientX / window.innerWidth) * 2 - 1
     mouse.y = -(event.clientY / window.innerHeight) * 2 + 1
-
-    raycaster.setFromCamera(mouse, camera)
-    const intersects = raycaster.intersectObjects(intersectableObjects)
+    raycaster!.setFromCamera(mouse, camera!)
+    const intersects = raycaster!.intersectObjects(intersectableObjects)
 
     if (intersects.length > 0) {
-      addObjectAtPoint(intersects[0].point)
+      const point = intersects[0]!.point
+      draggedObject.position.x = Math.round(point.x)
+      draggedObject.position.z = Math.round(point.z)
+      draggedObject.position.y = 0.5
     }
   }
 
-  // ÚJ: Ablak átméretezését kezelő függvény
+  function onMouseUp(event: MouseEvent) {
+    if (event.button !== 0) return
+    if (draggedObject) {
+      draggedObject.material.color.set(0xff6347)
+      draggedObject.material.opacity = 1.0
+      draggedObject.material.transparent = false
+    }
+    endDrag()
+  }
+
+  function onRightClickCancel(event: MouseEvent) {
+    event.preventDefault()
+    if (draggedObject) {
+      scene.remove(draggedObject)
+      draggedObject = null
+    }
+    window.removeEventListener('mousemove', onMouseMove)
+    window.removeEventListener('contextmenu', onRightClickCancel)
+  }
+
   function onWindowResize() {
-    // 1. Kamera képarányának frissítése
     camera.aspect = window.innerWidth / window.innerHeight
-    // 2. Kamera vetítési mátrixának frissítése (EZ KRITIKUS!)
     camera.updateProjectionMatrix()
-    // 3. Renderelő méretének frissítése
     renderer.setSize(window.innerWidth, window.innerHeight)
   }
   
-  window.addEventListener('dblclick', onDoubleClick)
-  // ÚJ: Eseményfigyelő az átméretezésre
+  container.addEventListener('mousedown', onMouseDown)
   window.addEventListener('resize', onWindowResize)
 
   // --- ANIMÁCIÓ ---
@@ -111,18 +170,13 @@ onMounted(() => {
 
   // --- TAKARÍTÁS ---
   onUnmounted(() => {
-    window.removeEventListener('dblclick', onDoubleClick)
-    // ÚJ: Átméretezés figyelőjének eltávolítása is
+    container.removeEventListener('mousedown', onMouseDown)
     window.removeEventListener('resize', onWindowResize)
+    endDrag()
   })
 })
 </script>
-<!-- EZ A BLOKK HIÁNYZOTT VAGY SÉRÜLT VOLT -->
-<template>
-  <div ref="sceneContainer"></div>
-</template>
 
-<!-- EZ A BLOKK IS FONTOS LEHET -->
 <style scoped>
 div {
   width: 100vw;
