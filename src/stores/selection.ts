@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import type * as THREE from 'three'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
+import { furnitureDatabase, type FurnitureConfig } from '@/config/furniture' // Új import
 
 export const useSelectionStore = defineStore('selection', () => {
   
@@ -16,6 +17,14 @@ export const useSelectionStore = defineStore('selection', () => {
     meshName: string;
     materialId: string;
   } | null>(null)
+
+ // ÚJ: Egy "számított tulajdonság", ami kikeresi a configot a kiválasztott objektum alapján
+  const selectedObjectConfig = computed<FurnitureConfig | undefined>(() => {
+    if (!selectedObject.value) return undefined
+    // Feltételezzük, hogy a Group objektum nevében tároljuk a bútor ID-jét
+    const furnitureId = selectedObject.value.name
+    return furnitureDatabase.find(f => f.id === furnitureId)
+  })
 
   function selectObject(object: THREE.Group | null) {
     selectedObject.value = object
@@ -63,6 +72,7 @@ export const useSelectionStore = defineStore('selection', () => {
     objectToDeleteUUID, 
     materialChangeRequest, // Ezt is visszaadjuk
     selectObject, 
+    selectedObjectConfig, 
     clearSelection, 
     deleteSelectedObject, 
     acknowledgeDeletion,

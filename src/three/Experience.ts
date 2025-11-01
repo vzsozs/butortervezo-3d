@@ -4,6 +4,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { useSelectionStore } from '@/stores/selection'
 import { availableMaterials } from '@/config/materials'
 import { watch } from 'vue'
+import { furnitureDatabase } from '@/config/furniture' // Importáljuk az adatbázist
 
 const SNAP_INCREMENT = 0.2
 const SNAP_DISTANCE = 0.2
@@ -290,8 +291,18 @@ export default class Experience {
   }
 
   private createDraggableObject(point: THREE.Vector3): THREE.Group | null {
-    if (!this.loadedModelTemplate) { return null }
-    const newObject = this.loadedModelTemplate.clone()
+    const furnitureConfig = furnitureDatabase[0]
+  if (!furnitureConfig) return null
+
+  // A modell betöltését át kell majd alakítani, hogy a configból vegye az URL-t,
+  // de egyelőre feltételezzük, hogy a loadedModelTemplate a helyes modell.
+  if (!this.loadedModelTemplate) { return null }
+  
+  const newObject = this.loadedModelTemplate.clone()
+  
+  // JAVÍTÁS: Beállítjuk a Group nevét a bútor ID-jére
+  newObject.name = furnitureConfig.id
+  
     newObject.traverse((child) => {
       if (child instanceof THREE.Mesh) {
         child.material = child.material.clone();
