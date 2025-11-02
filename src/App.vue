@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { RouterView } from 'vue-router'
-// ÚJ: Importáljuk a panel komponenst
 import InspectorPanel from './components/InspectorPanel.vue'
+import SidePanel from './components/SidePanel.vue' // ÚJ IMPORT
 </script>
 
 <template>
@@ -9,7 +9,8 @@ import InspectorPanel from './components/InspectorPanel.vue'
     <!-- A 3D vászon -->
     <RouterView />
 
-    <!-- JAVÍTÁS: A teszt panel helyett most az igazi komponenst használjuk -->
-    <InspectorPanel />
+    <!-- A FELHASZNÁLÓI FELÜLET RÉTEGEI -->
+    <SidePanel /> <!-- ÚJ KOMPONENS -->
+    <InspectorPanel /> 
   </div>
 </template>

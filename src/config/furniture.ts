@@ -72,3 +72,30 @@ export const furnitureDatabase: FurnitureConfig[] = [
     ],
   },
 ];
+
+export const globalMaterials = {
+  front: {
+    id: 'front',
+    name: 'Frontok',
+    type: 'material',
+    materialTarget: 'MAT_Frontok',
+  },
+  korpusz: {
+    id: 'korpusz',
+    name: 'Korpuszok',
+    type: 'material',
+    materialTarget: 'MAT_Korpusz',
+  },
+  munkalap: {
+    id: 'munkalap',
+    name: 'Munkalap',
+    type: 'material',
+    materialTarget: 'MAT_Munkapult',
+  },
+  fem_kiegeszitok: {
+    id: 'fem_kiegeszitok',
+    name: 'Fém Kiegészítők',
+    type: 'material',
+    materialTarget: 'MAT_Fem_Kiegeszitok',
+  }
+};

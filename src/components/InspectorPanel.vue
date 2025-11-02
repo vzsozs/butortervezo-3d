@@ -1,8 +1,22 @@
 <script setup lang="ts">
 import { useSelectionStore } from '@/stores/selection'
 import { availableMaterials } from '@/config/materials'
+import { ref } from 'vue'
+import { useDraggable } from '@vueuse/core'
 
 const selectionStore = useSelectionStore()
+
+// --- MOZGATÁS LOGIKA ---
+// 1. Létrehozunk egy ref-et, amit a mozgatható panelre kötünk
+const panelRef = ref<HTMLElement | null>(null)
+
+// 2. A useDraggable hook inicializálása
+//    - Az 'initialValue' megadja a panel kezdő pozícióját.
+//    - A 'handle' megmondja, hogy a panel melyik részét megfogva lehet húzni.
+//      Itt a teljes panelt mozgathatóvá tesszük.
+const { style } = useDraggable(panelRef, {
+  initialValue: { x: 400, y: 100 },
+})
 
 function handleDelete() {
   selectionStore.deleteSelectedObject()
@@ -27,7 +41,14 @@ function handleStyleChange(slotId: string, styleId: string) {
 </script>
 
 <template>
-  <div v-if="selectionStore.selectedObjectConfig" @mousedown.stop class="absolute top-4 left-4 bg-gray-800 text-gray-300 p-4 rounded-lg shadow-lg w-72 border border-gray-700">
+    <div 
+    v-if="selectionStore.selectedObjectConfig" 
+    ref="panelRef"
+    @mousedown.stop
+    :style="style"
+    style="position: fixed"
+    class="bg-gray-800 text-gray-300 p-4 rounded-lg shadow-lg w-72 border border-gray-700 cursor-move"
+  >
     <h1 class="text-lg font-semibold border-b border-gray-700 pb-2 mb-4">
       {{ selectionStore.selectedObjectConfig.name }}
     </h1>
