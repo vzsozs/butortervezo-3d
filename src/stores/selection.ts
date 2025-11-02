@@ -1,82 +1,100 @@
 import { defineStore } from 'pinia'
 import type * as THREE from 'three'
 import { ref, computed } from 'vue'
-import { furnitureDatabase, type FurnitureConfig } from '@/config/furniture' // Új import
+import { furnitureDatabase, type FurnitureConfig } from '@/config/furniture'
 
 export const useSelectionStore = defineStore('selection', () => {
   
   const selectedObject = ref<THREE.Group | null>(null)
-  // JAVÍTÁS: Most már csak az objektum UUID-jét (egy stringet) tároljuk
   const objectToDeleteUUID = ref<string | null>(null)
 
-  // ÚJ: Egy "esemény" jelző az anyagváltáshoz.
-  // A ref értéke egy objektum lesz, ami tartalmazza a cél-objektum UUID-jét,
-  // a cél-rész nevét (pl. 'ajto'), és az új anyag ID-jét.
   const materialChangeRequest = ref<{
     targetUUID: string;
-    meshName: string;
+    slotId: string; 
     materialId: string;
   } | null>(null)
 
- // ÚJ: Egy "számított tulajdonság", ami kikeresi a configot a kiválasztott objektum alapján
+  const styleChangeRequest = ref<{
+    targetUUID: string;
+    slotId: string;
+    newStyleId: string;
+  } | null>(null)
+
   const selectedObjectConfig = computed<FurnitureConfig | undefined>(() => {
     if (!selectedObject.value) return undefined
-    // Feltételezzük, hogy a Group objektum nevében tároljuk a bútor ID-jét
     const furnitureId = selectedObject.value.name
     return furnitureDatabase.find(f => f.id === furnitureId)
   })
 
   function selectObject(object: THREE.Group | null) {
     selectedObject.value = object
-    console.log('Pinia store frissítve, új kiválasztott objektum:', selectedObject.value)
   }
 
   function clearSelection() {
     selectedObject.value = null
-    console.log('Pinia store: Kijelölés megszüntetve.')
   }
 
   function deleteSelectedObject() {
     if (selectedObject.value) {
-      console.log('Pinia store: Törlési kérelem érkezett a következő UUID-re:', selectedObject.value.uuid)
-      // Az objektum helyett az UUID-jét adjuk át
       objectToDeleteUUID.value = selectedObject.value.uuid
       clearSelection()
     }
   }
 
-  // ÚJ: Egy akció, amivel a HomeView jelezheti, hogy végzett a törléssel
   function acknowledgeDeletion() {
     objectToDeleteUUID.value = null
   }
 
-   // ÚJ: Anyagváltás akció
-  function changeMaterial(meshName: string, materialId: string) {
+  function changeMaterial(slotId: string, materialId: string) {
+
+    console.log('changeMaterial akció meghívva. A selectedObject:', selectedObject.value);
+
     if (selectedObject.value) {
-      console.log(`Pinia store: Anyagváltási kérelem a(z) '${selectedObject.value.name}' objektum '${meshName}' részére, új anyag: '${materialId}'`)
+      console.log(`Kérelem generálása... Slot: ${slotId}, Anyag: ${materialId}`);
+
       materialChangeRequest.value = {
         targetUUID: selectedObject.value.uuid,
-        meshName,
+        slotId,
         materialId,
       }
     }
+    else {
+    console.warn('Anyagváltási kísérlet, de nincs kiválasztott objektum!');
+  }
   }
 
-  // ÚJ: "Kézfogás" akció az anyagváltás után
   function acknowledgeMaterialChange() {
     materialChangeRequest.value = null
   }
 
+  function changeStyle(slotId: string, newStyleId: string) {
+    if (selectedObject.value) {
+      console.log(`Pinia store: Stílusváltási kérelem a(z) '${selectedObject.value.name}' objektum '${slotId}' slotjára, új stílus: '${newStyleId}'`)
+      styleChangeRequest.value = {
+        targetUUID: selectedObject.value.uuid,
+        slotId,
+        newStyleId,
+      }
+    }
+  }
+
+  function acknowledgeStyleChange() {
+    styleChangeRequest.value = null
+  }
+
   return { 
     selectedObject, 
+    selectedObjectConfig,
     objectToDeleteUUID, 
-    materialChangeRequest, // Ezt is visszaadjuk
+    materialChangeRequest,
+    styleChangeRequest,
     selectObject, 
-    selectedObjectConfig, 
     clearSelection, 
     deleteSelectedObject, 
     acknowledgeDeletion,
-    changeMaterial, // Ezt is
-    acknowledgeMaterialChange, // Ezt is
+    changeMaterial,
+    acknowledgeMaterialChange,
+    changeStyle,
+    acknowledgeStyleChange,
   }
 })

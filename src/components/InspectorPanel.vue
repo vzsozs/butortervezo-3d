@@ -10,6 +10,9 @@ function handleDelete() {
 
 // JAVÍTÁS: A függvény most már a slot ID-jét is megkapja, hogy tudja, MIT kell megváltoztatni.
 function handleMaterialChange(slotId: string, materialId: string) {
+
+  console.log(`handleMaterialChange meghívva! Slot: ${slotId}, Anyag: ${materialId}`);
+
   if (materialId) {
     selectionStore.changeMaterial(slotId, materialId)
   }
@@ -18,14 +21,13 @@ function handleMaterialChange(slotId: string, materialId: string) {
 // ÚJ: Függvény a stílusváltás kezelésére
 function handleStyleChange(slotId: string, styleId: string) {
   if (styleId) {
-    console.log(`Stílusváltás kérés: Slot=${slotId}, Új stílus=${styleId}`)
-    // TODO: A Pinia store-ban létre kell majd hozni egy 'changeStyle' akciót
+    selectionStore.changeStyle(slotId, styleId)
   }
 }
 </script>
 
 <template>
-  <div v-if="selectionStore.selectedObjectConfig" class="absolute top-4 left-4 bg-gray-800 text-gray-300 p-4 rounded-lg shadow-lg w-72 border border-gray-700">
+  <div v-if="selectionStore.selectedObjectConfig" @mousedown.stop class="absolute top-4 left-4 bg-gray-800 text-gray-300 p-4 rounded-lg shadow-lg w-72 border border-gray-700">
     <h1 class="text-lg font-semibold border-b border-gray-700 pb-2 mb-4">
       {{ selectionStore.selectedObjectConfig.name }}
     </h1>

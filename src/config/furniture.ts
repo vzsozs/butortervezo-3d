@@ -36,61 +36,39 @@ export const furnitureDatabase: FurnitureConfig[] = [
         id: 'front',
         name: 'Front',
         type: 'material_and_style',
-        materialTarget: 'MAT_Frontok', // Az ajtó és fiók anyag-slotja
+        materialTarget: 'MAT_Frontok',
         styleOptions: [
-          { id: 'sima', name: 'Sima Ajtó', targetMesh: 'MESH_Ajto_Sima_Balos' },
-          { id: 'keretes', name: 'Keretes Ajtó', targetMesh: 'MESH_Ajto_Keretes_Balos' },
-          { id: '3fiokos', name: '3 Fiókos', targetMesh: 'MESH_Sima_3fiokos_front' },
+          // JAVÍTÁS: A targetMesh-ek most már a te neveidet használják, a felesleges prefix/suffix nélkül
+          { id: 'sima', name: 'Sima Ajtó', targetMesh: 'Ajto_Sima' },
+          { id: 'keretes', name: 'Keretes Ajtó', targetMesh: 'Ajto_Keretes' },
+          // { id: '3fiokos', name: '3 Fiókos', targetMesh: 'Sima_3fiokos_front' }, // Kikommentezve, amíg nincs ilyen
         ],
       },
       {
         id: 'korpusz',
         name: 'Korpusz',
-        type: 'material', // Csak az anyaga változtatható
+        type: 'material',
         materialTarget: 'MAT_Korpusz',
-        // Nincsenek styleOptions, mert a korpusz formája fix
       },
       {
         id: 'lab',
         name: 'Láb',
-        type: 'style', // A típust 'style'-ra változtatjuk, mert a színt máshonnan kapja
+        type: 'style',
         styleOptions: [
-          { id: 'standard_lab', name: 'Standard Láb', targetMesh: 'MESH_Labazat_Standard', inheritsMaterialFrom: 'korpusz' },
-          { id: 'design_lab', name: 'Design Láb', targetMesh: 'MESH_Labazat_Cso', materialTarget: 'MAT_Fem_Kiegeszitok' },
+          { id: 'standard_lab', name: 'Bútorlap Láb', targetMesh: 'Labazat_Standard', inheritsMaterialFrom: 'korpusz' },
+          { id: 'design_lab', name: 'Fém Láb', targetMesh: 'Labazat_Cso', materialTarget: 'MAT_Fem_Kiegeszitok' },
         ],
       },
       {
         id: 'fogantyu',
         name: 'Fogantyú',
-        type: 'style', // Csak a stílusa (modellje) változtatható, az anyaga a 'Láb'-bal közös
+        type: 'style',
         materialTarget: 'MAT_Fem_Kiegeszitok',
         styleOptions: [
-          { id: 'standard_fogantyu', name: 'Standard Fogantyú', targetMesh: 'MESH_Fogantyu_hosszukas' },
-          { id: 'gomb_fogantyu', name: 'Gomb Fogantyú', targetMesh: 'MESH_Fogantyu_cylinder' },
+          { id: 'standard_fogantyu', name: 'Hosszúkás', targetMesh: 'Fogantyu_hosszukas' },
+          { id: 'gomb_fogantyu', name: 'Cylinder', targetMesh: 'Fogantyu_cylinder' },
         ],
       },
     ],
   },
-  // Ide jöhet a jövőben a többi bútor definíciója...
-  // {
-  //   id: 'felso_szekreny_80',
-  //   name: 'Felső szekrény 80cm',
-  //   ...
-  // }
 ];
-
-// Létrehozunk egy dedikált részt a globális anyagoknak is
-export const globalMaterials = {
-  munkalap: {
-    id: 'munkalap',
-    name: 'Munkalap',
-    type: 'material',
-    materialTarget: 'MAT_Munkalap',
-  },
-  fem_kiegeszitok: {
-    id: 'fem_kiegeszitok',
-    name: 'Fém Kiegészítők',
-    type: 'material',
-    materialTarget: 'MAT_Fem_Kiegeszitok',
-  }
-}
