@@ -41,4 +41,22 @@
   .input-label {
     @apply block text-xs font-light text-gray-300 mb-1;
   }
+
+   /* === Bútorválasztó Stílusok === */
+  .furniture-category {
+    @apply bg-black/20 p-2 rounded-md; /* Enyhén sötétebb háttér a kategóriának */
+  }
+
+  .furniture-button {
+    @apply w-full rounded-md border-2 p-2 space-y-2 text-left transition-colors duration-150;
+    /* Alapértelmezett állapot */
+    @apply bg-gray-700/50 border-transparent;
+    /* Hover állapot */
+    @apply hover:border-gray-500;
+  }
+
+  .furniture-button-active {
+    /* Az aktív gomb stílusa */
+    @apply bg-yellow-500/20 border-yellow-500;
+  }
 }

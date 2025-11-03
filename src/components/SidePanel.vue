@@ -72,33 +72,36 @@ function getStyleOptionsForSlot(slotId: string) {
 
       </div>
     </div>
-
-    <!-- 3. Szekció: Bútorválasztó (TELJESEN ÚJ) -->
+    
+    <!-- 3. Szekció: Bútorválasztó -->
     <div class="flex-grow border-t border-panel-border pt-4 flex flex-col" style="min-height: 360px;">
       <h2 class="section-header mb-4 flex-shrink-0">Új Elem Hozzáadása</h2>
       
-      <!-- A görgethető tartalom konténere -->
-      <div class="flex-grow overflow-y-auto pr-2 space-y-4">
+      <!-- JAVÍTÁS: A sötétebb háttér és a görgetés most a külső konténeren van -->
+      <div class="flex-grow overflow-y-auto pr-2 furniture-category space-y-4">
         
-        <!-- Végigiterálunk a kategóriákon ("mappákon") -->
+        <!-- Végigiterálunk a kategóriákon -->
         <div v-for="category in furnitureDatabase" :key="category.id">
           <h3 class="text-sm font-semibold text-text-primary mb-2">{{ category.name }}</h3>
           
-          <!-- Rács a bútoroknak -->
-          <div class="grid grid-cols-2 gap-2">
-            <!-- Végigiterálunk a kategória elemein -->
+          <!-- JAVÍTÁS: A gridet egyetlen oszloposra állítjuk -->
+          <div class="grid grid-cols-1 gap-2">
             <div v-for="furniture in category.items" :key="furniture.id">
               <button 
                 @click="settingsStore.setActiveFurniture(furniture.id)"
-                class="w-full rounded-md border-2 p-2 space-y-2 transition-colors duration-150"
-                :class="settingsStore.activeFurnitureId === furniture.id ? 'bg-yellow-500/20 border-yellow-500' : 'bg-gray-700/50 border-transparent hover:border-gray-500'"
+                class="furniture-button"
+                :class="{ 'furniture-button-active': settingsStore.activeFurnitureId === furniture.id }"
               >
-                <!-- Nagy Ikon Helye -->
-                <div class="aspect-square w-full bg-gray-600 rounded flex items-center justify-center">
-                  <span class="text-xs text-gray-400">Ikon</span>
+                <div class="flex items-start space-x-2">
+                  <div class="flex-shrink-0 w-12 h-12 bg-gray-600 rounded flex items-center justify-center">
+                    <span class="text-xs text-gray-400">Ikon</span>
+                  </div>
+                  <div class="flex flex-col">
+                    <p class="text-xs font-semibold text-text-primary">{{ furniture.name }}</p>
+                    <p class="text-xxs font-light text-text-secondary">60 x 85 x 60 cm</p>
+                    <p class="text-xxs font-light text-text-secondary mt-1">Rövid leírás ide...</p>
+                  </div>
                 </div>
-                <!-- Leírás -->
-                <p class="text-xs font-light text-text-primary text-center">{{ furniture.name }}</p>
               </button>
             </div>
           </div>
