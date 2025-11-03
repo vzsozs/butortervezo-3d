@@ -1,3 +1,44 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer components {
+  .custom-select-wrapper {
+    @apply relative grid; /* Létrehozunk egy grid konténert */
+  }
+
+  .custom-select {
+    @apply col-start-1 row-start-1 w-full appearance-none bg-gray-700 border border-gray-600 text-gray-300 text-sm rounded-md py-1 px-2 focus:outline-none focus:ring-1 focus:ring-yellow-500 focus:border-yellow-500;
+  }
+    /* === NYÍLNAK === */
+  .select-arrow {
+    @apply col-start-1 row-start-1 pointer-events-none flex items-center justify-end pr-2; /* A nyíl is az 1,1 cellába kerül, a select FÖLÉ */
+    color: theme('colors.gray.400');
+  }
+  .btn {
+    @apply w-full h-10 rounded border border-gray-600 transition-all duration-150 flex items-center justify-center space-x-2 px-2 text-xs font-light hover:border-yellow-500 focus:outline-none focus:ring-1 focus:ring-yellow-500;
+  }
+
+  .btn-danger {
+    @apply w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded transition-colors duration-200;
+  }
+
+  .panel {
+    @apply fixed bg-gray-800 text-gray-300 p-4 rounded-lg shadow-lg border border-gray-700;
+  }
+
+  .panel-header {
+    @apply text-lg font-semibold border-b pb-2 mb-4;
+    border-color: theme('colors.panel-border');
+  }
+  
+  /* Ez a főcímekhez marad (pl. Globális Beállítások) */
+  .section-header {
+    @apply text-xs font-medium text-gray-400 uppercase tracking-wider mb-4;
+  }
+
+  /* ÚJ: Ez lesz az alcímekhez (pl. Frontok, Korpuszok) */
+  .input-label {
+    @apply block text-xs font-light text-gray-300 mb-1;
+  }
+}

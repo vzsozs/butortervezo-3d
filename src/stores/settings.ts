@@ -16,6 +16,9 @@ export const useSettingsStore = defineStore('settings', () => {
     lab: 'standard_lab', // Alapértelmezett láb stílus
     fogantyu: 'standard_fogantyu', // Alapértelmezett fogantyú stílus
   })
+  
+  // Az "aktív ecset", ami a lehelyezendő bútor ID-jét tárolja
+  const activeFurnitureId = ref<string | null>('also_szekreny_60'); // Alapból legyen kiválasztva az első
 
   function setGlobalMaterial(settingId: string, materialId: string) {
     if (materialId) {
@@ -23,7 +26,7 @@ export const useSettingsStore = defineStore('settings', () => {
     }
   }
 
-  // ÚJ: Akció a globális stílus frissítéséhez
+  // Akció a globális stílus frissítéséhez
   function setGlobalStyle(settingId: string, styleId: string) {
     if (styleId) {
       console.log(`Pinia settings store: Globális stílus frissítve. Beállítás: '${settingId}', Új stílus: '${styleId}'`)
@@ -31,10 +34,18 @@ export const useSettingsStore = defineStore('settings', () => {
     }
   }
 
+  // Akció az aktív bútor beállításához
+  function setActiveFurniture(furnitureId: string) {
+    activeFurnitureId.value = furnitureId;
+    console.log(`Aktív bútor beállítva: ${furnitureId}`);
+  }
+
   return { 
     globalMaterialSettings, 
     globalStyleSettings, // Visszaadjuk az új állapotot
+    activeFurnitureId, // Visszaadjuk az új állapotot
     setGlobalMaterial,
     setGlobalStyle, // Visszaadjuk az új akciót
+    setActiveFurniture, // Visszaadjuk az új akciót
   }
 })

@@ -22,11 +22,24 @@ export const useSelectionStore = defineStore('selection', () => {
 
   const selectedObjectConfig = computed<FurnitureConfig | undefined>(() => {
     if (!selectedObject.value) return undefined
+    
     const furnitureId = selectedObject.value.name
-    return furnitureDatabase.find(f => f.id === furnitureId)
+    // 1. "Kilapítjuk" a kategóriákat egyetlen bútorlistává
+    const allFurniture = furnitureDatabase.flatMap(category => category.items)
+    
+    // 2. Ebben a "lapos" listában keressük meg a megfelelő bútort
+    return allFurniture.find(furniture => furniture.id === furnitureId)
   })
 
   function selectObject(object: THREE.Group | null) {
+    // === KÉM KÓD ===
+  console.log('--- selectObject AKCIÓ MEGHÍVVA ---');
+  if (object) {
+    console.log('Objektum, amit ki kellene választani:', object.name, object);
+  } else {
+    console.log('Kijelölés megszüntetése.');
+  }
+  // === KÉM KÓD VÉGE ===
     selectedObject.value = object
   }
 

@@ -2,11 +2,10 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { useSelectionStore } from '@/stores/selection'
-import { availableMaterials } from '@/config/materials'
-import { furnitureDatabase } from '@/config/furniture'
-import { watch } from 'vue'
 import { useSettingsStore } from '@/stores/settings'
-import { globalMaterials } from '@/config/furniture'
+import { availableMaterials } from '@/config/materials'
+import { furnitureDatabase, globalMaterials } from '@/config/furniture'
+import { watch } from 'vue'
 
 const SNAP_INCREMENT = 0.2
 const SNAP_DISTANCE = 0.2
@@ -21,16 +20,14 @@ export default class Experience {
   
   private textureLoader!: THREE.TextureLoader
   private textureCache: Map<string, THREE.Texture> = new Map()
-
-  private loadedModelTemplate: THREE.Group | null = null
+  private modelCache: Map<string, THREE.Group> = new Map()
+  
   private placedObjects: THREE.Group[] = []
   private intersectableObjects: THREE.Object3D[] = []
-
   private mouse = new THREE.Vector2()
   private draggedObject: THREE.Group | null = null
   private selectionBoxHelper!: THREE.BoxHelper
   
-  private highlightMaterial = new THREE.MeshStandardMaterial({ color: 0xfcba03, name: 'HighlightMaterial' });
   private materials: { [key: string]: THREE.MeshStandardMaterial } = {}
   
   private selectionStore = useSelectionStore()
@@ -38,7 +35,6 @@ export default class Experience {
 
   constructor(canvas: HTMLDivElement) {
     this.canvas = canvas
-    
     this.initScene()
     this.loadModels()
     this.setupStoreWatchers()
@@ -95,7 +91,6 @@ export default class Experience {
     this.scene.add(this.selectionBoxHelper);
   }
 
-// ÚJ METÓDUS: Létrehozza és tárolja az alapértelmezett anyagainkat
   private createAppMaterials() {
     this.materials['MAT_Frontok'] = new THREE.MeshStandardMaterial({ name: 'MAT_Frontok', color: 0xffffff });
     this.materials['MAT_Korpusz'] = new THREE.MeshStandardMaterial({ name: 'MAT_Korpusz', color: 0x808080 });
@@ -104,58 +99,50 @@ export default class Experience {
   }
 
   private loadModels() {
-    const furnitureConfig = furnitureDatabase[0]
-    if (!furnitureConfig) return
-
     const loader = new GLTFLoader()
-    loader.load(furnitureConfig.modelUrl, (gltf) => {
-        const model = gltf.scene;
-        
-        // JAVÍTÁS: Anyagok lecserélése a sajátjainkra
-        model.traverse((child) => {
-          if (child instanceof THREE.Mesh) {
-            child.castShadow = true;
-            child.receiveShadow = true;
+    for (const category of furnitureDatabase) {
+    for (const furniture of category.items) {
+      // Ellenőrizzük, hogy ne töltsük be ugyanazt a modellt többször
+      if (this.modelCache.has(furniture.modelUrl)) continue;
 
-            // Logika a megfelelő anyag hozzárendeléséhez a mesh neve alapján
-            if (child.name.toLowerCase().includes('ajto') || child.name.toLowerCase().includes('fiokos')) {
-              child.material = this.materials['MAT_Frontok'];
-            } else if (child.name.toLowerCase().includes('korpusz')) {
-              child.material = this.materials['MAT_Korpusz'];
-            } else if (child.name.toLowerCase().includes('munkapult')) {
-              child.material = this.materials['MAT_Munkapult'];
-            } else if (child.name.toLowerCase().includes('fogantyu') || child.name.toLowerCase().includes('labazat_cso')) {
-              child.material = this.materials['MAT_Fem_Kiegeszitok'];
-            } else if (child.name.toLowerCase().includes('labazat_standard')) {
-              child.material = this.materials['MAT_Korpusz']; // A bútorlap láb a korpusz anyagát kapja
+      loader.load(furniture.modelUrl, (gltf) => {
+        const model = gltf.scene;
+          model.traverse((child) => {
+            if (child instanceof THREE.Mesh) {
+              child.castShadow = true;
+              child.receiveShadow = true;
+              if (child.name.toLowerCase().includes('ajto') || child.name.toLowerCase().includes('fiokos')) {
+                child.material = this.materials['MAT_Frontok'];
+              } else if (child.name.toLowerCase().includes('korpusz')) {
+                child.material = this.materials['MAT_Korpusz'];
+              } else if (child.name.toLowerCase().includes('munkapult')) {
+                child.material = this.materials['MAT_Munkapult'];
+              } else if (child.name.toLowerCase().includes('fogantyu') || child.name.toLowerCase().includes('labazat_cso')) {
+                child.material = this.materials['MAT_Fem_Kiegeszitok'];
+              } else if (child.name.toLowerCase().includes('labazat_standard')) {
+                child.material = this.materials['MAT_Korpusz'];
+              }
+            }
+          });
+          
+          for (const slot of furniture.componentSlots) {
+          if (slot.type.includes('style') && slot.styleOptions && slot.styleOptions.length > 0) {
+            slot.styleOptions.forEach((styleOption, index) => {
+              model.traverse((child) => {
+                if (child instanceof THREE.Mesh && child.name.toLowerCase().includes(styleOption.targetMesh.toLowerCase())) {
+                  child.visible = (index === 0);
+                  }
+                });
+              });
             }
           }
-        });
-      
-        // Alapértelmezett stílusok beállítása
-      console.log("Alapértelmezett stílusok beállítása...");
-      for (const slot of furnitureConfig.componentSlots) {
-        if (slot.type.includes('style') && slot.styleOptions && slot.styleOptions.length > 0) {
           
-          // A forEach sokkal tisztább és biztonságosabb itt
-          slot.styleOptions.forEach((styleOption, index) => {
-            
-            // Végigjárjuk a modellt, hogy megtaláljuk az ehhez az opcióhoz tartozó mesheket
-            model.traverse((child) => {
-              if (child instanceof THREE.Mesh && child.name.toLowerCase().includes(styleOption.targetMesh.toLowerCase())) {
-                // Az első opciót (index === 0) láthatóvá tesszük, a többit elrejtjük
-                child.visible = (index === 0);
-                console.log(`Stílus: ${child.name}, Láthatóság beállítva: ${child.visible}`);
-              }
-            });
-          });
-        }
+          console.log(`Modell előtöltve és cache-elve: ${furniture.id}`)
+          this.modelCache.set(furniture.modelUrl, model);
+        })
       }
-      
-      this.loadedModelTemplate = model;
     }
-  )
-}
+  }
 
   private setupStoreWatchers() {
   // --- TÖRLÉS FIGYELŐ ---
@@ -179,7 +166,11 @@ export default class Experience {
   // --- EGYEDI ANYAGVÁLTÁS FIGYELŐ ---
   watch(() => this.selectionStore.materialChangeRequest, (request) => {
     if (!this.scene || !request) { return; }
-    const furnitureConfig = furnitureDatabase.find(f => f.id === this.selectionStore.selectedObject?.name)
+
+    // JAVÍTÁS: Használjuk a flatMap-et itt is!
+    const allFurniture = furnitureDatabase.flatMap(cat => cat.items);
+    const furnitureConfig = allFurniture.find(f => f.id === this.selectionStore.selectedObject?.name)
+    
     if (!furnitureConfig) { this.selectionStore.acknowledgeMaterialChange(); return }
     const slotConfig = furnitureConfig.componentSlots.find(s => s.id === request.slotId)
     if (!slotConfig || !slotConfig.materialTarget) { this.selectionStore.acknowledgeMaterialChange(); return }
@@ -223,7 +214,8 @@ export default class Experience {
   // --- STÍLUSVÁLTÁS FIGYELŐ ---
   watch(() => this.selectionStore.styleChangeRequest, (request) => {
     if (!this.scene || !request) { return; }
-    const furnitureConfig = furnitureDatabase.find(f => f.id === this.selectionStore.selectedObject?.name)
+    const allFurniture = furnitureDatabase.flatMap(cat => cat.items);
+    const furnitureConfig = allFurniture.find(f => f.id === this.selectionStore.selectedObject?.name)
     if (!furnitureConfig) { this.selectionStore.acknowledgeStyleChange(); return }
     const slotConfig = furnitureConfig.componentSlots.find(s => s.id === request.slotId)
     if (!slotConfig || !slotConfig.styleOptions) { this.selectionStore.acknowledgeStyleChange(); return }
@@ -263,10 +255,8 @@ export default class Experience {
 
   // --- GLOBÁLIS ANYAGVÁLTÁS FIGYELŐ ---
   watch(() => this.settingsStore.globalMaterialSettings, (newSettings) => {
-    console.log('Experience észlelte a globális anyagok változását:', newSettings);
-
-    for (const placedObject of this.placedObjects) {
-      for (const [settingId, materialId] of Object.entries(newSettings)) {
+      for (const placedObject of this.placedObjects) {
+        for (const [settingId, materialId] of Object.entries(newSettings)) {
         const globalMaterialConfig = globalMaterials[settingId as keyof typeof globalMaterials];
         if (!globalMaterialConfig) continue;
 
@@ -306,31 +296,25 @@ export default class Experience {
     }
   }, { deep: true });
 
-  // ÚJ: Globális stílusváltás figyelő
-watch(() => this.settingsStore.globalStyleSettings, (newSettings) => {
-  console.log('Experience észlelte a globális stílusok változását:', newSettings);
-
-  // Végigiterálunk az összes lehelyezett objektumon
-  for (const placedObject of this.placedObjects) {
-    const furnitureConfig = furnitureDatabase.find(f => f.id === placedObject.name);
-    if (!furnitureConfig) continue;
-
-    // Végigiterálunk a globális stílus-beállításokon (front, lab, fogantyu)
-    for (const [slotId, newStyleId] of Object.entries(newSettings)) {
-      const slotConfig = furnitureConfig.componentSlots.find(s => s.id === slotId);
-      if (!slotConfig || !slotConfig.styleOptions) continue;
-
-      // Ugyanaz a stílusváltó logika, mint az egyedi váltásnál
-      for (const styleOption of slotConfig.styleOptions) {
-        placedObject.traverse((child) => {
-          if (child instanceof THREE.Mesh && child.name.toLowerCase().includes(styleOption.targetMesh.toLowerCase())) {
-            child.visible = styleOption.id === newStyleId;
+ // Globális stílusváltó
+    watch(() => this.settingsStore.globalStyleSettings, (newSettings) => {
+      const allFurniture = furnitureDatabase.flatMap(cat => cat.items);
+      for (const placedObject of this.placedObjects) {
+        const furnitureConfig = allFurniture.find(f => f.id === placedObject.name);
+        if (!furnitureConfig) continue;
+        for (const [slotId, newStyleId] of Object.entries(newSettings)) {
+          const slotConfig = furnitureConfig.componentSlots.find(s => s.id === slotId);
+          if (!slotConfig || !slotConfig.styleOptions) continue;
+          for (const styleOption of slotConfig.styleOptions) {
+            placedObject.traverse((child) => {
+              if (child instanceof THREE.Mesh && child.name.toLowerCase().includes(styleOption.targetMesh.toLowerCase())) {
+                child.visible = styleOption.id === newStyleId;
+              }
+            });
           }
-        });
+        }
       }
-    }
-  }
-}, { deep: true });
+    }, { deep: true });
 
 }
 
@@ -470,23 +454,40 @@ watch(() => this.settingsStore.globalStyleSettings, (newSettings) => {
     this.renderer.render(this.scene, this.camera)
   }
 
-  private createDraggableObject(point: THREE.Vector3): THREE.Group | null {
-    const furnitureConfig = furnitureDatabase[0]
-    if (!furnitureConfig || !this.loadedModelTemplate) { return null }
-    const newObject = this.loadedModelTemplate.clone()
-    newObject.name = furnitureConfig.id
-    newObject.traverse((child) => {
-      if (child instanceof THREE.Mesh) {
-        child.material = child.material.clone();
-        child.material.transparent = true;
-        child.material.opacity = 0.3;
-      }
-    });
-    newObject.rotation.y = -Math.PI / 2;
-    newObject.position.copy(point)
-    newObject.position.y = 0
-    return newObject
+   private createDraggableObject(point: THREE.Vector3): THREE.Group | null {
+  const activeId = this.settingsStore.activeFurnitureId;
+  if (!activeId) {
+    console.warn("Nincs aktív bútor kiválasztva a lehelyezéshez.");
+    return null;
   }
+
+  const allFurniture = furnitureDatabase.flatMap(cat => cat.items);
+  const furnitureConfig = allFurniture.find(f => f.id === activeId);
+  if (!furnitureConfig) return null;
+
+  const modelTemplate = this.modelCache.get(furnitureConfig.modelUrl);
+  if (!modelTemplate) {
+    console.error(`A(z) '${furnitureConfig.modelUrl}' modell nincs a cache-ben! Lehet, hogy még nem töltődött be.`);
+    return null;
+  }
+
+  const newObject = modelTemplate.clone();
+  newObject.name = furnitureConfig.id;
+  
+  newObject.traverse((child) => {
+    if (child instanceof THREE.Mesh) {
+      // Fontos, hogy itt is klónozzuk az anyagokat, hogy minden példány egyedi legyen
+      child.material = child.material.clone();
+      child.material.transparent = true;
+      child.material.opacity = 0.3;
+    }
+  });
+
+  newObject.rotation.y = -Math.PI / 2;
+  newObject.position.copy(point)
+  newObject.position.y = 0
+  return newObject
+}
 
   private snapToGrid(value: number): number {
     return Math.round(value / SNAP_INCREMENT) * SNAP_INCREMENT;
