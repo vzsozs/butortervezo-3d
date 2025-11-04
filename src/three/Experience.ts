@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
+import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { useSelectionStore } from '@/stores/selection'
 import { useSettingsStore } from '@/stores/settings'
@@ -17,6 +18,7 @@ export default class Experience {
   private renderer!: THREE.WebGLRenderer
   private controls!: OrbitControls
   private raycaster!: THREE.Raycaster
+  private transformControls!: TransformControls
   
   private textureLoader!: THREE.TextureLoader
   private textureCache: Map<string, THREE.Texture> = new Map()
@@ -35,6 +37,7 @@ export default class Experience {
 
   constructor(canvas: HTMLDivElement) {
     this.canvas = canvas
+    this.createAppMaterials()
     this.initScene()
     this.loadModels()
     this.setupStoreWatchers()
@@ -43,6 +46,7 @@ export default class Experience {
   }
 
   public destroy() {
+    this.transformControls.dispose()
     this.removeEventListeners()
   }
 
@@ -50,19 +54,25 @@ export default class Experience {
     this.scene = new THREE.Scene()
     this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000)
     this.renderer = new THREE.WebGLRenderer({ antialias: true })
-    this.raycaster = new THREE.Raycaster()
-    this.controls = new OrbitControls(this.camera, this.renderer.domElement)
-    this.textureLoader = new THREE.TextureLoader()
-    this.createAppMaterials()
-
-    const backgroundColor = new THREE.Color(0x252525)
-    this.scene.background = backgroundColor
-    this.camera.position.set(0, 2, 3)
     this.renderer.setSize(window.innerWidth, window.innerHeight)
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
     this.renderer.shadowMap.enabled = true
     this.canvas.appendChild(this.renderer.domElement)
+
+    this.raycaster = new THREE.Raycaster()
+    this.controls = new OrbitControls(this.camera, this.renderer.domElement)
+    this.transformControls = new TransformControls(this.camera, this.renderer.domElement)
+    this.textureLoader = new THREE.TextureLoader()
+    this.scene.add(this.transformControls);
+
     this.controls.enableDamping = true
+    this.transformControls.addEventListener('dragging-changed', (event) => {
+      this.controls.enabled = !event.value
+    })
+
+    const backgroundColor = new THREE.Color(0x252525)
+    this.scene.background = backgroundColor
+    this.camera.position.set(0, 2, 3)
 
     const floorColor = new THREE.Color().copy(backgroundColor).offsetHSL(0, 0, 0.04)
     const floor = new THREE.Mesh(
@@ -101,43 +111,43 @@ export default class Experience {
   private loadModels() {
     const loader = new GLTFLoader()
     for (const category of furnitureDatabase) {
-    for (const furniture of category.items) {
-      // Ellenőrizzük, hogy ne töltsük be ugyanazt a modellt többször
-      if (this.modelCache.has(furniture.modelUrl)) continue;
+      for (const furniture of category.items) {
+        if (!furniture || this.modelCache.has(furniture.modelUrl)) continue;
 
-      loader.load(furniture.modelUrl, (gltf) => {
-        const model = gltf.scene;
+        loader.load(furniture.modelUrl, (gltf) => {
+          const model = gltf.scene;
           model.traverse((child) => {
             if (child instanceof THREE.Mesh) {
               child.castShadow = true;
               child.receiveShadow = true;
               if (child.name.toLowerCase().includes('ajto') || child.name.toLowerCase().includes('fiokos')) {
-                child.material = this.materials['MAT_Frontok'];
+                child.material = this.materials['MAT_Frontok']!.clone();
               } else if (child.name.toLowerCase().includes('korpusz')) {
-                child.material = this.materials['MAT_Korpusz'];
+                child.material = this.materials['MAT_Korpusz']!.clone();
               } else if (child.name.toLowerCase().includes('munkapult')) {
-                child.material = this.materials['MAT_Munkapult'];
+                child.material = this.materials['MAT_Munkapult']!.clone();
               } else if (child.name.toLowerCase().includes('fogantyu') || child.name.toLowerCase().includes('labazat_cso')) {
-                child.material = this.materials['MAT_Fem_Kiegeszitok'];
+                child.material = this.materials['MAT_Fem_Kiegeszitok']!.clone();
               } else if (child.name.toLowerCase().includes('labazat_standard')) {
-                child.material = this.materials['MAT_Korpusz'];
+                child.material = this.materials['MAT_Korpusz']!.clone();
+              } else {
+                child.material = new THREE.MeshStandardMaterial({ color: 0xff00ff });
               }
             }
           });
           
           for (const slot of furniture.componentSlots) {
-          if (slot.type.includes('style') && slot.styleOptions && slot.styleOptions.length > 0) {
-            slot.styleOptions.forEach((styleOption, index) => {
-              model.traverse((child) => {
-                if (child instanceof THREE.Mesh && child.name.toLowerCase().includes(styleOption.targetMesh.toLowerCase())) {
-                  child.visible = (index === 0);
+            if (slot.type.includes('style') && slot.styleOptions && slot.styleOptions.length > 0) {
+              slot.styleOptions.forEach((styleOption, index) => {
+                model.traverse((child) => {
+                  if (child instanceof THREE.Mesh && child.name.toLowerCase().includes(styleOption.targetMesh.toLowerCase())) {
+                    child.visible = (index === 0);
                   }
                 });
               });
             }
           }
           
-          console.log(`Modell előtöltve és cache-elve: ${furniture.id}`)
           this.modelCache.set(furniture.modelUrl, model);
         })
       }
@@ -320,6 +330,8 @@ export default class Experience {
 
   private onMouseDown = (event: MouseEvent) => {
     if (event.button !== 0) return
+    if (this.transformControls.dragging) return;
+
     this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1
     this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1
     this.raycaster.setFromCamera(this.mouse, this.camera)
@@ -337,32 +349,38 @@ export default class Experience {
         }
       }
     } else {
-      const intersects = this.raycaster.intersectObjects(this.placedObjects, true);
-      if (intersects.length > 0) {
-        let objectToSelect = intersects[0]!.object;
-        while (objectToSelect.parent && objectToSelect.parent !== this.scene) {
-          objectToSelect = objectToSelect.parent;
-        }
-        if (objectToSelect instanceof THREE.Group) {
-          this.selectionStore.selectObject(objectToSelect);
-          this.selectionBoxHelper.setFromObject(objectToSelect);
-          this.selectionBoxHelper.visible = true;
+    // --- KIVÁLASZTÁS MÓD ---
+    const intersects = this.raycaster.intersectObjects(this.placedObjects, true);
 
-           // === ÚJ "KÉM" KÓD ===
-            console.log('--- KIVÁLASZTOTT OBJEKTUM ANYAGAINAK VIZSGÁLATA ---');
-            objectToSelect.traverse((child) => {
-              if (child instanceof THREE.Mesh) {
-                console.log(`Mesh neve: "${child.name}", Anyagának neve: "${child.material.name}"`);
-              }
-            });
-            console.log('-------------------------------------------------');
-            // === "KÉM" KÓD VÉGE ===
-
+    if (intersects.length > 0) {
+      let objectToSelect = intersects[0]!.object;
+      while (objectToSelect.parent && objectToSelect.parent !== this.scene) {
+        objectToSelect = objectToSelect.parent;
+      }
+      
+      if (objectToSelect instanceof THREE.Group) {
+        // Ha ugyanarra az objektumra kattintottunk, ami már ki van választva, ne csináljunk semmit.
+        if (this.selectionStore.selectedObject?.uuid === objectToSelect.uuid) {
+          return;
         }
+
+        this.selectionStore.selectObject(objectToSelect);
+        this.selectionBoxHelper.setFromObject(objectToSelect);
+        this.selectionBoxHelper.visible = true;
+        console.log("GIZMO ATTACH: Rákötés a következő objektumra:", objectToSelect.name);
+        this.transformControls.attach(objectToSelect);
+      }
       } else {
+      // Csak akkor szüntessük meg a kijelölést, ha NEM a gizmo-ra kattintottunk.
+      // A gizmo-nak van egy 'axis' tulajdonsága, ami null, ha nem egy tengelyre kattintottunk.
+      // A 'pointerOver' is használható.
+      if (!this.transformControls.axis) {
         this.selectionStore.clearSelection();
         this.selectionBoxHelper.visible = false;
+        console.log("GIZMO DETACH: Kijelölés megszüntetve, lekötés.");
+        this.transformControls.detach();
       }
+    }
     }
   }
 
@@ -434,10 +452,21 @@ export default class Experience {
     window.removeEventListener('mouseup', this.onMouseUp)
     window.removeEventListener('contextmenu', this.onRightClickCancel)
   }
-
+// Billentyűzet-eseménykezelő
+  private onKeyDown = (event: KeyboardEvent) => {
+    switch (event.key.toLowerCase()) {
+      case 'w': // W = Translate (mozgatás)
+        this.transformControls.setMode('translate')
+        break
+      case 'e': // E = Rotate (forgatás)
+        this.transformControls.setMode('rotate')
+        break
+  }
+}
   private addEventListeners() {
     this.renderer.domElement.addEventListener('mousedown', this.onMouseDown)
     window.addEventListener('resize', this.onWindowResize)
+    window.addEventListener('keydown', this.onKeyDown)
   }
 
   private removeEventListeners() {
@@ -445,6 +474,7 @@ export default class Experience {
       this.renderer.domElement.removeEventListener('mousedown', this.onMouseDown)
     }
     window.removeEventListener('resize', this.onWindowResize)
+    window.removeEventListener('keydown', this.onKeyDown)
     this.endDrag()
   }
 
@@ -475,11 +505,11 @@ export default class Experience {
   newObject.name = furnitureConfig.id;
   
   newObject.traverse((child) => {
-    if (child instanceof THREE.Mesh) {
-      // Fontos, hogy itt is klónozzuk az anyagokat, hogy minden példány egyedi legyen
-      child.material = child.material.clone();
+    if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshStandardMaterial) {
+      // Itt már nem kell klónozni, mert a 'newObject' már egy teljes klón,
+      // saját, független anyagokkal.
       child.material.transparent = true;
-      child.material.opacity = 0.3;
+      child.material.opacity = 0.5; // Legyen kicsit jobban látható
     }
   });
 
