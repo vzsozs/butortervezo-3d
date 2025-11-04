@@ -10,9 +10,11 @@ export default defineConfig({
     vue(),
     vueDevTools(),
   ],
+  // --- EZT A BLOKKOT ADD HOZZÁ ---
   resolve: {
+    dedupe: ['three'],
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url))
     },
-  },
+  }
 })
