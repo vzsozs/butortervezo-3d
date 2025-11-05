@@ -26,6 +26,7 @@ type SnapCandidate = {
   position: Vector3; // A bútor új pozíciója
   snapPoint: Vector3; // A pont, ahol a két bútor összeér
   distance: number;
+  targetObject: Group;
 };
 
 export default class Experience {
@@ -45,6 +46,7 @@ export default class Experience {
   private placedObjects: Group[] = []
   private intersectableObjects: Object3D[] = []
   private mouse = new Vector2()
+  private lastMousePosition = new Vector3();
   private draggedObject: Group | null = null
   private selectionBoxHelper!: BoxHelper
   
@@ -116,37 +118,47 @@ export default class Experience {
 
     this.controls.enableDamping = true
     
-    // 1. Esemény: A sárga doboz frissítése MOZGATÁS KÖZBEN.
+    // --- ÚJ, EGYSÉGES LOGIKA ---
+
     // @ts-expect-error - A TransformControls eseményei nincsenek helyesen definiálva.
     this.transformControls.addEventListener('objectChange', () => {
-      if (this.selectionStore.selectedObject) {
-        this.selectionBoxHelper.setFromObject(this.selectionStore.selectedObject);
+      console.log("--- 'objectChange' ESEMÉNY ---");
+      const selectedObject = this.selectionStore.selectedObject;
+      if (!selectedObject) {
+        console.log("Nincs kiválasztott objektum, kilépünk.");
+        return;
       }
+
+      // @ts-expect-error - A 'dragging' tulajdonság privátként van jelölve.
+      const isDragging = this.transformControls.dragging;
+      console.log(`Mozgatás aktív? -> ${isDragging}`);
+
+      if (isDragging) {
+        // --- VÉGLEGES JAVÍTÁS ITT ---
+        // Létrehozunk egy új, garantáltan tiszta listát.
+        const objectsToCompare = this.placedObjects.filter(obj => obj.uuid !== selectedObject.uuid);
+        const finalPosition = this.calculatePlacementSnapPosition(selectedObject, this.lastMousePosition, objectsToCompare);
+        selectedObject.position.copy(finalPosition);
+        // ---------------------------
+      }
+
+      // A sárga dobozt MINDIG frissítjük.
+      this.selectionBoxHelper.setFromObject(selectedObject);
+      console.log("Sárga doboz frissítve.");
     });
 
-    // 2. Esemény: A snappelés végrehajtása a MOZGATÁS VÉGÉN.
-    // @ts-expect-error
+    // @ts-expect-error - A TransformControls eseményei nincsenek helyesen definiálva.
     this.transformControls.addEventListener('dragging-changed', (event) => {
-      // @ts-expect-error
+      // @ts-expect-error - Az esemény objektumának van 'value' tulajdonsága.
       const isDragging = event.value;
+      console.log(`--- 'dragging-changed' ESEMÉNY --- Mozgatás: ${isDragging}`);
       this.controls.enabled = !isDragging;
 
-      // --- JAVÍTÁS ITT: EGYSÉGES SNAPPELÉSI LOGIKA ---
-      if (!isDragging) { // Ha a mozgatás BEFEJEZŐDÖTT...
-        const selectedObject = this.selectionStore.selectedObject;
-        if (selectedObject) {
-          // Ideiglenesen kikapcsoljuk a gizmo saját snappelését, hogy ne harcoljon a miénkkel.
-          // @ts-expect-error
-          this.transformControls.translationSnap = null;
-
-          // Lefuttatjuk a mi okos, "vonzó" snappelési logikánkat.
-          const finalPosition = this.calculatePlacementSnapPosition(selectedObject, selectedObject.position);
-          selectedObject.position.copy(finalPosition);
-
-          // Visszakapcsoljuk a gizmo snappelését a következő mozgatáshoz.
-          // @ts-expect-error
-          this.transformControls.translationSnap = SNAP_INCREMENT;
-        }
+      if (!isDragging) {
+        console.log("Mozgatás befejezve, debug eszközök elrejtése.");
+        this.movingBoxHelper.visible = false;
+        this.staticBoxHelper.visible = false;
+        this.snapPointHelper.visible = false;
       }
     });
 
@@ -470,10 +482,10 @@ export default class Experience {
 
       // Itt ellenőrizzük a Pinia store-ból érkező beállítást
       if (this.settingsStore.isSnappingEnabled) {
-        const finalPosition = this.calculatePlacementSnapPosition(this.draggedObject, point);
+        // Itt a teljes 'placedObjects' listát adjuk át, ami helyes.
+        const finalPosition = this.calculatePlacementSnapPosition(this.draggedObject, point, this.placedObjects);
         this.draggedObject.position.copy(finalPosition);
       } else {
-        // Ha a snappelés ki van kapcsolva, az objektum simán követi az egeret.
         this.draggedObject.position.set(point.x, 0, point.z);
       }
     }
@@ -546,10 +558,26 @@ export default class Experience {
     }
   }
 
+private onPointerMove = (event: MouseEvent) => {
+    this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+    // --- JAVÍTÁS ITT: A lastMousePosition frissítése itt történik ---
+    // Frissítjük a raycastert az új egérpozícióval
+    this.raycaster.setFromCamera(this.mouse, this.camera);
+    const intersects = this.raycaster.intersectObjects(this.intersectableObjects);
+    if (intersects.length > 0) {
+      // Elmentjük a padlóval való metszéspontot
+      this.lastMousePosition.copy(intersects[0].point);
+    }
+    // -------------------------------------------------------------
+  }
+
   private addEventListeners() {
     this.renderer.domElement.addEventListener('mousedown', this.onMouseDown)
     window.addEventListener('resize', this.onWindowResize)
     window.addEventListener('keydown', this.onKeyDown)
+    window.addEventListener('mousemove', this.onPointerMove); // <-- HOZZÁADVA
   }
 
   private removeEventListeners() {
@@ -558,15 +586,28 @@ export default class Experience {
     }
     window.removeEventListener('resize', this.onWindowResize)
     window.removeEventListener('keydown', this.onKeyDown)
+    window.removeEventListener('mousemove', this.onPointerMove); // <-- HOZZÁADVA
     this.endDrag()
   }
+
 
   private animate = () => {
     const delta = this.clock.getDelta();
     requestAnimationFrame(this.animate)
 
+    // @ts-expect-error - A 'dragging' tulajdonság privátként van jelölve.
+    if (this.transformControls.dragging) {
+      // Ez a blokk biztosítja, hogy a 'lastMousePosition' mindig naprakész legyen.
+      this.raycaster.setFromCamera(this.mouse, this.camera);
+      const intersects = this.raycaster.intersectObjects(this.intersectableObjects);
+      if (intersects.length > 0) {
+        this.lastMousePosition.copy(intersects[0].point);
+        console.log(`Kurzor pozíció frissítve: X=${this.lastMousePosition.x.toFixed(2)}, Z=${this.lastMousePosition.z.toFixed(2)}`);
+      }
+    }
+
     if (this.controls.enabled) {
-      // @ts-expect-error - A típusdefiníció hibás, a delta paraméter szükséges
+      // @ts-expect-error - A típusdefiníció hibás.
       this.controls.update(delta);
     }
 
@@ -586,7 +627,8 @@ export default class Experience {
     return box;
   }
 
-  private calculatePlacementSnapPosition(movingObject: Group, proposedPosition: Vector3): Vector3 {
+  private calculatePlacementSnapPosition(movingObject: Group, proposedPosition: Vector3, objectsToCompare: Group[]): Vector3 {
+    console.log(`Snappelés számítása a(z) '${movingObject.name}' objektumra, ${objectsToCompare.length} objektummal hasonlítva.`);
     const candidates: SnapCandidate[] = [];
     const movingBox = this.getAccurateBoundingBox(movingObject);
 
@@ -594,12 +636,9 @@ export default class Experience {
     this.movingBoxHelper.visible = false;
     this.staticBoxHelper.visible = false;
 
-    const objectsToCompare = this.placedObjects.filter(obj => obj !== movingObject);
-
     for (const staticObject of objectsToCompare) {
       const staticBox = this.getAccurateBoundingBox(staticObject);
 
-      // --- PRIORITÁS 1: HÁTFALAK IGAZÍTÁSA ---
       if (Math.abs(movingBox.max.z - staticBox.max.z) < SNAP_DISTANCE) {
         const offset = movingBox.max.z - staticBox.max.z;
         const newPosition = movingObject.position.clone().sub(new Vector3(0, 0, offset));
@@ -607,14 +646,12 @@ export default class Experience {
         candidates.push({
           priority: 1,
           position: new Vector3(snapPoint.x, 0, newPosition.z),
-          // --- JAVÍTÁS ITT: A kurzor és a CÉLPONT távolságát mérjük! ---
           distance: proposedPosition.distanceTo(snapPoint),
-          snapPoint: snapPoint
+          snapPoint: snapPoint,
+          targetObject: staticObject
         });
       }
 
-      // --- PRIORITÁS 2: OLDALAK CSATLAKOZTATÁSA ---
-      // Mozgó JOBB oldala -> Álló BAL oldalához
       if (Math.abs(movingBox.max.x - staticBox.min.x) < SNAP_DISTANCE) {
         const offset = movingBox.max.x - staticBox.min.x;
         const newPosition = movingObject.position.clone().sub(new Vector3(offset, 0, 0));
@@ -622,13 +659,12 @@ export default class Experience {
         candidates.push({
           priority: 2,
           position: new Vector3(newPosition.x, 0, snapPoint.z),
-          // --- JAVÍTÁS ITT: A kurzor és a CÉLPONT távolságát mérjük! ---
           distance: proposedPosition.distanceTo(snapPoint),
-          snapPoint: snapPoint
+          snapPoint: snapPoint,
+          targetObject: staticObject
         });
       }
       
-      // Mozgó BAL oldala -> Álló JOBB oldalához
       if (Math.abs(movingBox.min.x - staticBox.max.x) < SNAP_DISTANCE) {
         const offset = movingBox.min.x - staticBox.max.x;
         const newPosition = movingObject.position.clone().sub(new Vector3(offset, 0, 0));
@@ -636,27 +672,34 @@ export default class Experience {
         candidates.push({
           priority: 2,
           position: new Vector3(newPosition.x, 0, snapPoint.z),
-          // --- JAVÍTÁS ITT: A kurzor és a CÉLPONT távolságát mérjük! ---
           distance: proposedPosition.distanceTo(snapPoint),
-          snapPoint: snapPoint
+          snapPoint: snapPoint,
+          targetObject: staticObject
         });
       }
     }
 
     if (candidates.length === 0) {
+      console.log('NINCS JELÖLT, RÁCSHOZ IGAZÍTUNK.');
       return new Vector3(this.snapToGrid(proposedPosition.x), 0, this.snapToGrid(proposedPosition.z));
     }
 
     candidates.sort((a, b) => a.distance - b.distance || a.priority - b.priority);
     
     const bestCandidate = candidates[0];
-    if (bestCandidate) {
+    if (bestCandidate && bestCandidate.targetObject) {
+      console.log(`LEGJOBB JELÖLT: Prioritás=${bestCandidate.priority}, Célpont='${bestCandidate.targetObject.name}', Snap Pont: X=${bestCandidate.snapPoint.x.toFixed(2)}, Z=${bestCandidate.snapPoint.z.toFixed(2)}`);
       this.snapPointHelper.position.copy(bestCandidate.snapPoint);
       this.snapPointHelper.visible = true;
-      // ... (a többi debug helper kód változatlan) ...
+      this.movingBoxHelper.setFromObject(movingObject);
+      this.movingBoxHelper.visible = true;
+      this.staticBoxHelper.setFromObject(bestCandidate.targetObject);
+      this.staticBoxHelper.visible = true;
+      
       return bestCandidate.position;
     }
     
+    console.error('KRITIKUS HIBA: A legjobb jelölt hibás volt!');
     return new Vector3(this.snapToGrid(proposedPosition.x), 0, this.snapToGrid(proposedPosition.z));
   }
 
