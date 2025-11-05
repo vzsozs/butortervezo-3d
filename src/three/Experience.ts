@@ -3,7 +3,7 @@ import {
   Scene, PerspectiveCamera, WebGLRenderer, Raycaster, Vector2, BoxHelper, Object3D,
   MeshStandardMaterial, Color, PlaneGeometry, Mesh, DoubleSide, GridHelper,
   AmbientLight, DirectionalLight, TextureLoader, Texture, Group, Box3, Vector3,
-  Clock, SRGBColorSpace, RepeatWrapping
+  Clock, SRGBColorSpace, RepeatWrapping, SphereGeometry
 } from 'three';
 
 // --- KIEGÉSZÍTŐK A 'three-stdlib' CSOMAGBÓL ---
@@ -20,6 +20,13 @@ import { watch } from 'vue'
 
 const SNAP_INCREMENT = 0.2
 const SNAP_DISTANCE = 0.2
+
+type SnapCandidate = {
+  priority: number;
+  position: Vector3; // A bútor új pozíciója
+  snapPoint: Vector3; // A pont, ahol a két bútor összeér
+  distance: number;
+};
 
 export default class Experience {
   private canvas: HTMLDivElement
@@ -41,6 +48,13 @@ export default class Experience {
   private draggedObject: Group | null = null
   private selectionBoxHelper!: BoxHelper
   
+  // --- ÚJ DEBUG HELPEREK ---
+  private movingBoxHelper!: BoxHelper;
+  private staticBoxHelper!: BoxHelper;
+  private snapPointHelper!: Mesh;
+  // ------------------------------------
+
+
   private materials: { [key: string]: MeshStandardMaterial } = {}
   
   private selectionStore = useSelectionStore()
@@ -83,6 +97,23 @@ export default class Experience {
     this.scene.add(this.transformControls)
     this.textureLoader = new TextureLoader()
 
+    // --- DEBUG HELPEREK INICIALIZÁLÁSA ---
+    this.movingBoxHelper = new BoxHelper(new Object3D(), 0xff0000); // Piros
+    this.staticBoxHelper = new BoxHelper(new Object3D(), 0x0000ff); // Kék
+    this.movingBoxHelper.visible = false;
+    this.staticBoxHelper.visible = false;
+    this.scene.add(this.movingBoxHelper);
+    this.scene.add(this.staticBoxHelper);
+
+     // CÉLKERESZT INICIALIZÁLÁSA 
+    this.snapPointHelper = new Mesh(
+      new SphereGeometry(0.05), // Egy kis gömb
+      new MeshStandardMaterial({ color: 0x00ff00, emissive: 0x00ff00 }) // Világító zöld
+    );
+    this.snapPointHelper.visible = false;
+    this.scene.add(this.snapPointHelper);
+    // -------------------------------------------------
+
     this.controls.enableDamping = true
     
     // 1. Esemény: A sárga doboz frissítése MOZGATÁS KÖZBEN.
@@ -93,12 +124,33 @@ export default class Experience {
       }
     });
 
-    // 2. Esemény: A kamera vezérlésének ki/be kapcsolása a mozgatás alatt.
-    // @ts-expect-error - A TransformControls eseményei nincsenek helyesen definiálva.
+    // 2. Esemény: A snappelés végrehajtása a MOZGATÁS VÉGÉN.
+    // @ts-expect-error
     this.transformControls.addEventListener('dragging-changed', (event) => {
-      // @ts-expect-error - Az esemény objektumának van 'value' tulajdonsága.
-      this.controls.enabled = !event.value;
+      // @ts-expect-error
+      const isDragging = event.value;
+      this.controls.enabled = !isDragging;
+
+      // --- JAVÍTÁS ITT: EGYSÉGES SNAPPELÉSI LOGIKA ---
+      if (!isDragging) { // Ha a mozgatás BEFEJEZŐDÖTT...
+        const selectedObject = this.selectionStore.selectedObject;
+        if (selectedObject) {
+          // Ideiglenesen kikapcsoljuk a gizmo saját snappelését, hogy ne harcoljon a miénkkel.
+          // @ts-expect-error
+          this.transformControls.translationSnap = null;
+
+          // Lefuttatjuk a mi okos, "vonzó" snappelési logikánkat.
+          const finalPosition = this.calculatePlacementSnapPosition(selectedObject, selectedObject.position);
+          selectedObject.position.copy(finalPosition);
+
+          // Visszakapcsoljuk a gizmo snappelését a következő mozgatáshoz.
+          // @ts-expect-error
+          this.transformControls.translationSnap = SNAP_INCREMENT;
+        }
+      }
     });
+
+    
 
     const backgroundColor = new Color(0x252525)
     this.scene.background = backgroundColor
@@ -415,8 +467,15 @@ export default class Experience {
     const intersects = this.raycaster.intersectObjects(this.intersectableObjects);
     if (intersects.length > 0) {
       const point = intersects[0]!.point;
-      const finalPosition = this.calculatePlacementSnapPosition(this.draggedObject, point);
-      this.draggedObject.position.copy(finalPosition);
+
+      // Itt ellenőrizzük a Pinia store-ból érkező beállítást
+      if (this.settingsStore.isSnappingEnabled) {
+        const finalPosition = this.calculatePlacementSnapPosition(this.draggedObject, point);
+        this.draggedObject.position.copy(finalPosition);
+      } else {
+        // Ha a snappelés ki van kapcsolva, az objektum simán követi az egeret.
+        this.draggedObject.position.set(point.x, 0, point.z);
+      }
     }
   }
 
@@ -432,6 +491,13 @@ export default class Experience {
       this.placedObjects.push(this.draggedObject);
       this.controls.target.copy(this.draggedObject.position);
     }
+
+    // --- JAVÍTÁS ITT: DEBUG HELPEREK ELREJTÉSE ---
+    this.movingBoxHelper.visible = false;
+    this.staticBoxHelper.visible = false;
+    this.snapPointHelper.visible = false;
+    // -------------------------------------------
+    
     this.endDrag()
   }
 
@@ -506,50 +572,92 @@ export default class Experience {
 
     this.renderer.render(this.scene, this.camera);
   }
+  
+  private getAccurateBoundingBox(object: Group): Box3 {
+    const box = new Box3();
+    // Végigmegyünk az objektum gyerekein, és csak a látható Mesh-eket vesszük figyelembe.
+    object.traverse((child) => {
+      if (child instanceof Mesh) {
+        // A dobozt minden egyes Mesh-re kiterjesztjük, így a végeredmény
+        // a teljes látható geometria körüli PONTOS doboz lesz.
+        box.expandByObject(child);
+      }
+    });
+    return box;
+  }
 
   private calculatePlacementSnapPosition(movingObject: Group, proposedPosition: Vector3): Vector3 {
-    const snappedPosition = new Vector3(
-      this.snapToGrid(proposedPosition.x),
-      0,
-      this.snapToGrid(proposedPosition.z)
-    );
-    const movingBox = new Box3().setFromObject(movingObject);
-    const movingSize = new Vector3();
-    movingBox.getSize(movingSize);
+    const candidates: SnapCandidate[] = [];
+    const movingBox = this.getAccurateBoundingBox(movingObject);
+
+    this.snapPointHelper.visible = false;
+    this.movingBoxHelper.visible = false;
+    this.staticBoxHelper.visible = false;
+
     const objectsToCompare = this.placedObjects.filter(obj => obj !== movingObject);
-    let closestDistance = Infinity;
-    let snapAction: (() => void) | null = null;
+
     for (const staticObject of objectsToCompare) {
-      const staticBox = new Box3().setFromObject(staticObject);
-      const staticSize = new Vector3();
-      staticBox.getSize(staticSize);
-      const distZ = Math.abs(proposedPosition.z - staticObject.position.z) - (movingSize.z / 2 + staticSize.z / 2);
-      const distX = Math.abs(proposedPosition.x - staticObject.position.x) - (movingSize.x / 2 + staticSize.x / 2);
-      if (distZ < SNAP_DISTANCE && distZ < closestDistance) {
-        closestDistance = distZ;
-        snapAction = () => {
-          if (proposedPosition.z > staticObject.position.z) {
-            snappedPosition.z = staticObject.position.z + staticSize.z / 2 + movingSize.z / 2;
-          } else {
-            snappedPosition.z = staticObject.position.z - staticSize.z / 2 - movingSize.z / 2;
-          }
-        };
+      const staticBox = this.getAccurateBoundingBox(staticObject);
+
+      // --- PRIORITÁS 1: HÁTFALAK IGAZÍTÁSA ---
+      if (Math.abs(movingBox.max.z - staticBox.max.z) < SNAP_DISTANCE) {
+        const offset = movingBox.max.z - staticBox.max.z;
+        const newPosition = movingObject.position.clone().sub(new Vector3(0, 0, offset));
+        const snapPoint = new Vector3(this.snapToGrid(proposedPosition.x), 0, staticBox.max.z);
+        candidates.push({
+          priority: 1,
+          position: new Vector3(snapPoint.x, 0, newPosition.z),
+          // --- JAVÍTÁS ITT: A kurzor és a CÉLPONT távolságát mérjük! ---
+          distance: proposedPosition.distanceTo(snapPoint),
+          snapPoint: snapPoint
+        });
       }
-      if (distX < SNAP_DISTANCE && distX < closestDistance) {
-        closestDistance = distX;
-        snapAction = () => {
-          if (proposedPosition.x > staticObject.position.x) {
-            snappedPosition.x = staticObject.position.x + staticSize.x / 2 + movingSize.x / 2;
-          } else {
-            snappedPosition.x = staticObject.position.x - staticSize.x / 2 - movingSize.x / 2;
-          }
-        };
+
+      // --- PRIORITÁS 2: OLDALAK CSATLAKOZTATÁSA ---
+      // Mozgó JOBB oldala -> Álló BAL oldalához
+      if (Math.abs(movingBox.max.x - staticBox.min.x) < SNAP_DISTANCE) {
+        const offset = movingBox.max.x - staticBox.min.x;
+        const newPosition = movingObject.position.clone().sub(new Vector3(offset, 0, 0));
+        const snapPoint = new Vector3(staticBox.min.x, 0, this.snapToGrid(proposedPosition.z));
+        candidates.push({
+          priority: 2,
+          position: new Vector3(newPosition.x, 0, snapPoint.z),
+          // --- JAVÍTÁS ITT: A kurzor és a CÉLPONT távolságát mérjük! ---
+          distance: proposedPosition.distanceTo(snapPoint),
+          snapPoint: snapPoint
+        });
+      }
+      
+      // Mozgó BAL oldala -> Álló JOBB oldalához
+      if (Math.abs(movingBox.min.x - staticBox.max.x) < SNAP_DISTANCE) {
+        const offset = movingBox.min.x - staticBox.max.x;
+        const newPosition = movingObject.position.clone().sub(new Vector3(offset, 0, 0));
+        const snapPoint = new Vector3(staticBox.max.x, 0, this.snapToGrid(proposedPosition.z));
+        candidates.push({
+          priority: 2,
+          position: new Vector3(newPosition.x, 0, snapPoint.z),
+          // --- JAVÍTÁS ITT: A kurzor és a CÉLPONT távolságát mérjük! ---
+          distance: proposedPosition.distanceTo(snapPoint),
+          snapPoint: snapPoint
+        });
       }
     }
-    if (snapAction) {
-      snapAction();
+
+    if (candidates.length === 0) {
+      return new Vector3(this.snapToGrid(proposedPosition.x), 0, this.snapToGrid(proposedPosition.z));
     }
-    return snappedPosition;
+
+    candidates.sort((a, b) => a.distance - b.distance || a.priority - b.priority);
+    
+    const bestCandidate = candidates[0];
+    if (bestCandidate) {
+      this.snapPointHelper.position.copy(bestCandidate.snapPoint);
+      this.snapPointHelper.visible = true;
+      // ... (a többi debug helper kód változatlan) ...
+      return bestCandidate.position;
+    }
+    
+    return new Vector3(this.snapToGrid(proposedPosition.x), 0, this.snapToGrid(proposedPosition.z));
   }
 
   private createDraggableObject(point: Vector3): Group | null {

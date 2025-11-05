@@ -40,6 +40,8 @@ export const useSettingsStore = defineStore('settings', () => {
     console.log(`Aktív bútor beállítva: ${furnitureId}`);
   }
 
+  const isSnappingEnabled = ref(true)
+
   return { 
     globalMaterialSettings, 
     globalStyleSettings, // Visszaadjuk az új állapotot
@@ -47,5 +49,6 @@ export const useSettingsStore = defineStore('settings', () => {
     setGlobalMaterial,
     setGlobalStyle, // Visszaadjuk az új akciót
     setActiveFurniture, // Visszaadjuk az új akciót
+    isSnappingEnabled
   }
 })
