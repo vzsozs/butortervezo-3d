@@ -1,6 +1,6 @@
 // src/three/Managers/AssetManager.ts
 
-import { Mesh, MeshStandardMaterial, Group, TextureLoader, Texture, SRGBColorSpace, RepeatWrapping } from 'three';
+import { Mesh, MeshStandardMaterial, Group, TextureLoader, Texture, SRGBColorSpace, RepeatWrapping, Object3D } from 'three';
 import { GLTFLoader } from 'three-stdlib';
 import { furnitureDatabase } from '@/config/furniture';
 import Experience from '../Experience';
@@ -76,7 +76,20 @@ export default class AssetManager {
       console.error(`A(z) '${modelUrl}' modell nincs a cache-ben!`);
       return null;
     }
-    return modelTemplate.clone();
+    
+    const newModel = modelTemplate.clone();
+
+    // --- EZ A KULCSFONTOSSÁGÚ ÚJ RÉSZ ---
+    // A klónozás után végigmegyünk az ÚJ objektumon is, és klónozzuk az anyagait!
+    // Ez biztosítja, hogy minden lehelyezett bútor teljesen független legyen.
+    newModel.traverse((child: Object3D) => {
+      if (child instanceof Mesh && child.material instanceof MeshStandardMaterial) {
+        child.material = child.material.clone();
+      }
+    });
+    // ------------------------------------
+
+    return newModel;
   }
 
   public getTexture(url: string, callback: (texture: Texture) => void) {

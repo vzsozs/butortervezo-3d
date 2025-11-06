@@ -32,6 +32,7 @@ export default class InteractionManager {
   }
   
   private startDraggingNewObject(point: Vector3) {
+    console.log('--- startDraggingNewObject --- Kezdeti pont:', point);
     const newObject = this.createDraggableObject(point);
     if (newObject) {
       this.draggedObject = newObject;
@@ -69,11 +70,14 @@ export default class InteractionManager {
     }
   }
 
-  private onMouseMove = (event: MouseEvent) => {
+  private onMouseMove = (_event: MouseEvent) => {
     if (!this.draggedObject) return;
 
-    this.experience.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-    this.experience.mouse.y = -(event.clientY / window.innerHeight) * 2 - 1;
+    // EZEK A SOROK MÁR FELESLEGESEK, MERT AZ EXPERIENCE FOLYAMATOSAN FRISSÍTI AZ EGÉRPOZÍCIÓT
+    // this.experience.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    // this.experience.mouse.y = -(event.clientY / window.innerHeight) * 2 - 1;
+    
+    // A raycaster-t viszont itt kell frissíteni a legfrissebb egérpozícióval!
     this.experience.raycaster.setFromCamera(this.experience.mouse, this.experience.camera);
 
     const intersects = this.experience.raycaster.intersectObjects(this.experience.intersectableObjects);
@@ -85,6 +89,7 @@ export default class InteractionManager {
         point, 
         this.experience.placedObjects
       );
+      console.log('onMouseMove -> Egér pont:', point, 'Számított végleges pozíció:', finalPosition);
       this.draggedObject.position.copy(finalPosition);
     }
   }
@@ -100,7 +105,7 @@ export default class InteractionManager {
     });
 
     this.experience.placedObjects.push(this.draggedObject);
-    this.experience.controls.target.copy(this.draggedObject.position);
+    //this.experience.controls.target.copy(this.draggedObject.position); // zsozs: Kamera pozíciója követi a lehelyezett objectet 
     this.experience.debug.hideAll();
     this.endDrag();
   }

@@ -78,6 +78,7 @@ export default class Experience {
 
     // Event Listeners
     window.addEventListener('resize', this.onWindowResize);
+    window.addEventListener('mousemove', this.onPointerMove);
     this.setupTransformControlsListeners();
 
     // Start loop
@@ -88,6 +89,11 @@ export default class Experience {
     this.camera.aspect = window.innerWidth / window.innerHeight;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(window.innerWidth, window.innerHeight);
+  }
+
+    private onPointerMove = (event: MouseEvent) => {
+    this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
   }
 
     // --- NEVESÍTETT LISTENER FÜGGVÉNYEK ---
@@ -126,6 +132,8 @@ export default class Experience {
    public destroy() {
     // 1. Eseményfigyelők eltávolítása
     window.removeEventListener('resize', this.onWindowResize);
+    // A globális egérkövető listener eltávolítása
+    window.removeEventListener('mousemove', this.onPointerMove);
     this.interactionManager.removeEventListeners();
     // @ts-expect-error - Az 'objectChange' esemény nem része a standard Three.js típusoknak.
     this.transformControls.removeEventListener('objectChange', this.onObjectChange);

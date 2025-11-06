@@ -15,8 +15,21 @@ export default defineConfigWithVueTs(
   },
 
   globalIgnores(['**/dist/**', '**/dist-ssr/**', '**/coverage/**']),
-
-  pluginVue.configs['flat/essential'],
+  
   vueTsConfigs.recommended,
   skipFormatting,
+  pluginVue.configs['flat/essential'],
+   { 
+    rules: {
+       "@typescript-eslint/no-unused-vars": [
+        "warn", // Vagy "error", ha szigorúbb akarsz lenni
+        {
+          "argsIgnorePattern": "^_",
+          "varsIgnorePattern": "^_",
+          "caughtErrorsIgnorePattern": "^_"
+        }
+      ],
+      // --------------------
+    }
+  }
 )
