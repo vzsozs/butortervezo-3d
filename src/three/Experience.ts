@@ -3,7 +3,7 @@ import {
   Scene, PerspectiveCamera, WebGLRenderer, Raycaster, Vector2, BoxHelper, Object3D,
   MeshStandardMaterial, Color, PlaneGeometry, Mesh, DoubleSide, GridHelper,
   AmbientLight, DirectionalLight, TextureLoader, Texture, Group, Box3, Vector3,
-  Clock, SRGBColorSpace, RepeatWrapping, SphereGeometry
+  Clock, SRGBColorSpace, RepeatWrapping, SphereGeometry, LineSegments, EdgesGeometry, BoxGeometry, LineBasicMaterial
 } from 'three';
 
 // --- KIEGÉSZÍTŐK A 'three-stdlib' CSOMAGBÓL ---
@@ -51,7 +51,8 @@ export default class Experience {
   private selectionBoxHelper!: BoxHelper
   
   // --- ÚJ DEBUG HELPEREK ---
-  private movingBoxHelper!: BoxHelper;
+  //private movingBoxHelper!: BoxHelper;
+  private virtualBoxMesh!: LineSegments;      // <-- EZ AZ ÚJ
   private staticBoxHelper!: BoxHelper;
   private snapPointHelper!: Mesh;
   // ------------------------------------
@@ -100,12 +101,19 @@ export default class Experience {
     this.textureLoader = new TextureLoader()
 
     // --- DEBUG HELPEREK INICIALIZÁLÁSA ---
-    this.movingBoxHelper = new BoxHelper(new Object3D(), 0xff0000); // Piros
-    this.staticBoxHelper = new BoxHelper(new Object3D(), 0x0000ff); // Kék
-    this.movingBoxHelper.visible = false;
-    this.staticBoxHelper.visible = false;
-    this.scene.add(this.movingBoxHelper);
-    this.scene.add(this.staticBoxHelper);
+    //this.movingBoxHelper = new BoxHelper(new Object3D(), 0xff0000); // Piros
+    // Helyette létrehozunk egy saját, manuálisan vezérelhető doboz Mesht
+  const boxGeom = new BoxGeometry(1, 1, 1); // A méret mindegy, később átállítjuk
+  const boxEdges = new EdgesGeometry(boxGeom);
+  this.virtualBoxMesh = new LineSegments(boxEdges, new LineBasicMaterial({ color: 0xff0000 })); // Piros drótváz
+  this.virtualBoxMesh.visible = false;
+  this.scene.add(this.virtualBoxMesh);
+  
+  this.staticBoxHelper = new BoxHelper(new Object3D(), 0x0000ff); // Kék
+  // this.movingBoxHelper.visible = false; // <-- EZT TÖRÖLD VAGY KOMMENTELD KI
+  this.staticBoxHelper.visible = false;
+  // this.scene.add(this.movingBoxHelper); // <-- EZT TÖRÖLD VAGY KOMMENTELD KI
+  this.scene.add(this.staticBoxHelper);
 
      // CÉLKERESZT INICIALIZÁLÁSA 
     this.snapPointHelper = new Mesh(
@@ -122,7 +130,7 @@ export default class Experience {
 
     // @ts-expect-error - A TransformControls eseményei nincsenek helyesen definiálva.
     this.transformControls.addEventListener('objectChange', () => {
-      console.log("--- 'objectChange' ESEMÉNY ---");
+      
       const selectedObject = this.selectionStore.selectedObject;
       if (!selectedObject) {
         console.log("Nincs kiválasztott objektum, kilépünk.");
@@ -137,7 +145,12 @@ export default class Experience {
         // --- VÉGLEGES JAVÍTÁS ITT ---
         // Létrehozunk egy új, garantáltan tiszta listát.
         const objectsToCompare = this.placedObjects.filter(obj => obj.uuid !== selectedObject.uuid);
-        const finalPosition = this.calculatePlacementSnapPosition(selectedObject, this.lastMousePosition, objectsToCompare);
+        // A snappelő függvénynek már ezt a szűrt listát adjuk át.
+        const finalPosition = this.calculatePlacementSnapPosition(
+      selectedObject, 
+      selectedObject.position, // <-- ITT A VÁLTOZÁS!
+      objectsToCompare
+    );
         selectedObject.position.copy(finalPosition);
         // ---------------------------
       }
@@ -156,7 +169,7 @@ export default class Experience {
 
       if (!isDragging) {
         console.log("Mozgatás befejezve, debug eszközök elrejtése.");
-        this.movingBoxHelper.visible = false;
+        this.virtualBoxMesh.visible = false;
         this.staticBoxHelper.visible = false;
         this.snapPointHelper.visible = false;
       }
@@ -505,7 +518,7 @@ export default class Experience {
     }
 
     // --- JAVÍTÁS ITT: DEBUG HELPEREK ELREJTÉSE ---
-    this.movingBoxHelper.visible = false;
+    this.virtualBoxMesh.visible = false;
     this.staticBoxHelper.visible = false;
     this.snapPointHelper.visible = false;
     // -------------------------------------------
@@ -568,7 +581,7 @@ private onPointerMove = (event: MouseEvent) => {
     const intersects = this.raycaster.intersectObjects(this.intersectableObjects);
     if (intersects.length > 0) {
       // Elmentjük a padlóval való metszéspontot
-      this.lastMousePosition.copy(intersects[0].point);
+      this.lastMousePosition.copy(intersects[0]!.point);
     }
     // -------------------------------------------------------------
   }
@@ -601,7 +614,7 @@ private onPointerMove = (event: MouseEvent) => {
       this.raycaster.setFromCamera(this.mouse, this.camera);
       const intersects = this.raycaster.intersectObjects(this.intersectableObjects);
       if (intersects.length > 0) {
-        this.lastMousePosition.copy(intersects[0].point);
+        this.lastMousePosition.copy(intersects[0]!.point);
         console.log(`Kurzor pozíció frissítve: X=${this.lastMousePosition.x.toFixed(2)}, Z=${this.lastMousePosition.z.toFixed(2)}`);
       }
     }
@@ -627,81 +640,169 @@ private onPointerMove = (event: MouseEvent) => {
     return box;
   }
 
-  private calculatePlacementSnapPosition(movingObject: Group, proposedPosition: Vector3, objectsToCompare: Group[]): Vector3 {
-    console.log(`Snappelés számítása a(z) '${movingObject.name}' objektumra, ${objectsToCompare.length} objektummal hasonlítva.`);
-    const candidates: SnapCandidate[] = [];
-    const movingBox = this.getAccurateBoundingBox(movingObject);
+/**
+ * Ellenőrzi, hogy egy objektum egy adott pozícióban ütközne-e más objektumokkal.
+ * @param movingObject Az objektum, amit tesztelünk.
+ * @param position A pozíció, amit tesztelünk.
+ * @param objectsToCompare A többi objektum listája.
+ * @returns `true`, ha ütközés van, egyébként `false`.
+ */
+private isPositionColliding(movingObject: Group, position: Vector3, objectsToCompare: Group[]): boolean {
+  // Létrehozzuk a mozgó objektum virtuális dobozát a tesztelendő pozícióban.
+  const movingBoxTemplate = this.getAccurateBoundingBox(movingObject);
+  const movingBoxSize = new Vector3();
+  movingBoxTemplate.getSize(movingBoxSize);
+  
+  const virtualMovingBox = new Box3();
+  virtualMovingBox.setFromCenterAndSize(position, movingBoxSize);
 
-    this.snapPointHelper.visible = false;
-    this.movingBoxHelper.visible = false;
-    this.staticBoxHelper.visible = false;
-
-    for (const staticObject of objectsToCompare) {
-      const staticBox = this.getAccurateBoundingBox(staticObject);
-
-      if (Math.abs(movingBox.max.z - staticBox.max.z) < SNAP_DISTANCE) {
-        const offset = movingBox.max.z - staticBox.max.z;
-        const newPosition = movingObject.position.clone().sub(new Vector3(0, 0, offset));
-        const snapPoint = new Vector3(this.snapToGrid(proposedPosition.x), 0, staticBox.max.z);
-        candidates.push({
-          priority: 1,
-          position: new Vector3(snapPoint.x, 0, newPosition.z),
-          distance: proposedPosition.distanceTo(snapPoint),
-          snapPoint: snapPoint,
-          targetObject: staticObject
-        });
-      }
-
-      if (Math.abs(movingBox.max.x - staticBox.min.x) < SNAP_DISTANCE) {
-        const offset = movingBox.max.x - staticBox.min.x;
-        const newPosition = movingObject.position.clone().sub(new Vector3(offset, 0, 0));
-        const snapPoint = new Vector3(staticBox.min.x, 0, this.snapToGrid(proposedPosition.z));
-        candidates.push({
-          priority: 2,
-          position: new Vector3(newPosition.x, 0, snapPoint.z),
-          distance: proposedPosition.distanceTo(snapPoint),
-          snapPoint: snapPoint,
-          targetObject: staticObject
-        });
-      }
-      
-      if (Math.abs(movingBox.min.x - staticBox.max.x) < SNAP_DISTANCE) {
-        const offset = movingBox.min.x - staticBox.max.x;
-        const newPosition = movingObject.position.clone().sub(new Vector3(offset, 0, 0));
-        const snapPoint = new Vector3(staticBox.max.x, 0, this.snapToGrid(proposedPosition.z));
-        candidates.push({
-          priority: 2,
-          position: new Vector3(newPosition.x, 0, snapPoint.z),
-          distance: proposedPosition.distanceTo(snapPoint),
-          snapPoint: snapPoint,
-          targetObject: staticObject
-        });
-      }
+  // Végigmegyünk a többi objektumon.
+  for (const staticObject of objectsToCompare) {
+    const staticBox = this.getAccurateBoundingBox(staticObject);
+    // Ha bármelyikkel van metszés, azonnal `true`-t adunk vissza.
+    if (virtualMovingBox.intersectsBox(staticBox)) {
+      return true;
     }
-
-    if (candidates.length === 0) {
-      console.log('NINCS JELÖLT, RÁCSHOZ IGAZÍTUNK.');
-      return new Vector3(this.snapToGrid(proposedPosition.x), 0, this.snapToGrid(proposedPosition.z));
-    }
-
-    candidates.sort((a, b) => a.distance - b.distance || a.priority - b.priority);
-    
-    const bestCandidate = candidates[0];
-    if (bestCandidate && bestCandidate.targetObject) {
-      console.log(`LEGJOBB JELÖLT: Prioritás=${bestCandidate.priority}, Célpont='${bestCandidate.targetObject.name}', Snap Pont: X=${bestCandidate.snapPoint.x.toFixed(2)}, Z=${bestCandidate.snapPoint.z.toFixed(2)}`);
-      this.snapPointHelper.position.copy(bestCandidate.snapPoint);
-      this.snapPointHelper.visible = true;
-      this.movingBoxHelper.setFromObject(movingObject);
-      this.movingBoxHelper.visible = true;
-      this.staticBoxHelper.setFromObject(bestCandidate.targetObject);
-      this.staticBoxHelper.visible = true;
-      
-      return bestCandidate.position;
-    }
-    
-    console.error('KRITIKUS HIBA: A legjobb jelölt hibás volt!');
-    return new Vector3(this.snapToGrid(proposedPosition.x), 0, this.snapToGrid(proposedPosition.z));
   }
+
+  // Ha a ciklus lefutott anélkül, hogy ütközést találtunk volna, akkor a pozíció biztonságos.
+  return false;
+}
+
+private calculatePlacementSnapPosition(movingObject: Group, proposedPosition: Vector3, objectsToCompare: Group[]): Vector3 {
+  const candidates: SnapCandidate[] = [];
+
+  // --- INICIALIZÁLÁS ---
+  // Létrehozzuk a mozgó objektum méreteit és a "szándékot" reprezentáló virtuális dobozt.
+  const movingBoxTemplate = this.getAccurateBoundingBox(movingObject);
+  const movingBoxSize = new Vector3();
+  movingBoxTemplate.getSize(movingBoxSize);
+  const virtualMovingBox = new Box3();
+  virtualMovingBox.setFromCenterAndSize(proposedPosition, movingBoxSize);
+
+  // --- 1. LÉPÉS: ÖSSZES LEHETSÉGES SNAP-JELÖLT GYŰJTÉSE ---
+  // (Itt még nem foglalkozunk az ütközéssel, csak gyűjtjük a lehetőségeket)
+  for (const staticObject of objectsToCompare) {
+    const staticBox = this.getAccurateBoundingBox(staticObject);
+
+    // Oldal Z
+    if (Math.abs(virtualMovingBox.max.z - staticBox.max.z) < SNAP_DISTANCE) {
+      const offset = virtualMovingBox.max.z - staticBox.max.z;
+      const newPosition = proposedPosition.clone().sub(new Vector3(0, 0, offset));
+      const snapPoint = new Vector3(this.snapToGrid(proposedPosition.x), 0, staticBox.max.z);
+      candidates.push({
+        priority: 1,
+        position: new Vector3(snapPoint.x, 0, newPosition.z),
+        distance: proposedPosition.distanceTo(snapPoint),
+        snapPoint: snapPoint,
+        targetObject: staticObject
+      });
+    }
+
+    // Oldal X (pozitív)
+    if (Math.abs(virtualMovingBox.max.x - staticBox.min.x) < SNAP_DISTANCE) {
+      const offset = virtualMovingBox.max.x - staticBox.min.x;
+      const newPosition = proposedPosition.clone().sub(new Vector3(offset, 0, 0));
+      const snapPoint = new Vector3(staticBox.min.x, 0, this.snapToGrid(proposedPosition.z));
+      candidates.push({
+        priority: 2,
+        position: new Vector3(newPosition.x, 0, snapPoint.z),
+        distance: proposedPosition.distanceTo(snapPoint),
+        snapPoint: snapPoint,
+        targetObject: staticObject
+      });
+    }
+      
+    // Oldal X (negatív)
+    if (Math.abs(virtualMovingBox.min.x - staticBox.max.x) < SNAP_DISTANCE) {
+      const offset = virtualMovingBox.min.x - staticBox.max.x;
+      const newPosition = proposedPosition.clone().sub(new Vector3(offset, 0, 0));
+      const snapPoint = new Vector3(staticBox.max.x, 0, this.snapToGrid(proposedPosition.z));
+      candidates.push({
+        priority: 2,
+        position: new Vector3(newPosition.x, 0, snapPoint.z),
+        distance: proposedPosition.distanceTo(snapPoint),
+        snapPoint: snapPoint,
+        targetObject: staticObject
+      });
+    }
+  }
+
+  // --- 2. LÉPÉS: JELÖLTEK SZŰRÉSE ÜTKÖZÉS ALAPJÁN ---
+  const validCandidates = candidates.filter(c => 
+    !this.isPositionColliding(movingObject, c.position, objectsToCompare)
+  );
+
+  // --- 3. LÉPÉS: RÁCSHOZ IGAZÍTOTT POZÍCIÓ ÉRVÉNYESSÉGÉNEK ELLENŐRZÉSE ---
+  const gridSnapPosition = new Vector3(this.snapToGrid(proposedPosition.x), 0, this.snapToGrid(proposedPosition.z));
+  const isGridSnapValid = !this.isPositionColliding(movingObject, gridSnapPosition, objectsToCompare);
+
+  // --- 4. LÉPÉS: A LEGJOBB POZÍCIÓ KIVÁLASZTÁSA ÉS VISSZAADÁSA ---
+
+  if (validCandidates.length > 0) {
+    // ESET 1: Van érvényes (nem ütköző) snap-jelölt. Ez a legjobb eset.
+    validCandidates.sort((a, b) => a.distance - b.distance || a.priority - b.priority);
+    const bestCandidate = validCandidates[0]!;
+    
+    // Debug helper-ek megjelenítése a sikeres snaphez
+    this.snapPointHelper.position.copy(bestCandidate.snapPoint);
+    this.snapPointHelper.visible = true;
+    
+    const center = new Vector3();
+    const size = new Vector3();
+    virtualMovingBox.getCenter(center);
+    virtualMovingBox.getSize(size);
+    center.y = size.y / 2;
+    this.virtualBoxMesh.position.copy(center);
+    this.virtualBoxMesh.scale.copy(size);
+    this.virtualBoxMesh.visible = true;
+
+    this.staticBoxHelper.setFromObject(bestCandidate.targetObject);
+    this.staticBoxHelper.visible = true;
+      
+    return bestCandidate.position;
+
+  } else if (isGridSnapValid) {
+    // ESET 2: Nincs snap-jelölt, de a rácshoz igazítás érvényes (nem ütközik).
+    // Nincs mihez snappelni, ezért minden helpert elrejtünk.
+    this.snapPointHelper.visible = false;
+    this.virtualBoxMesh.visible = false;
+    this.staticBoxHelper.visible = false;
+    return gridSnapPosition;
+
+  } else if (candidates.length > 0) {
+    // ESET 3: A "gyors egér" esete. Nincs érvényes snap, és a rács is ütközik,
+    // de találtunk egy (ütköző) snap-pontot. Megállunk ennél a pontnál.
+    candidates.sort((a, b) => a.distance - b.distance || a.priority - b.priority);
+    const closestCollidingCandidate = candidates[0]!;
+
+    // Megjelenítjük a helper-eket, hogy a user lássa, miért akadt meg.
+    this.snapPointHelper.position.copy(closestCollidingCandidate.snapPoint);
+    this.snapPointHelper.visible = true;
+    this.staticBoxHelper.setFromObject(closestCollidingCandidate.targetObject);
+    this.staticBoxHelper.visible = true;
+    // A piros dobozt is kirajzoljuk, hogy látszódjon az "ütköző szándék".
+    const center = new Vector3();
+    const size = new Vector3();
+    virtualMovingBox.getCenter(center);
+    virtualMovingBox.getSize(size);
+    center.y = size.y / 2;
+    this.virtualBoxMesh.position.copy(center);
+    this.virtualBoxMesh.scale.copy(size);
+    this.virtualBoxMesh.visible = true;
+
+    return closestCollidingCandidate.position;
+
+  } else {
+    // ESET 4: Végső mentsvár. Semmilyen snap-pont nincs a közelben, és a rács is ütközik.
+    // Nem mozdulunk, és elrejtünk mindent.
+    this.snapPointHelper.visible = false;
+    this.virtualBoxMesh.visible = false;
+    this.staticBoxHelper.visible = false;
+    return movingObject.position;
+  }
+}
+    
 
   private createDraggableObject(point: Vector3): Group | null {
     const activeId = this.settingsStore.activeFurnitureId;
