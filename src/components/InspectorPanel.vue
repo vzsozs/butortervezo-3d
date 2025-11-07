@@ -22,6 +22,11 @@ function handleDelete() {
   selectionStore.deleteSelectedObject()
 }
 
+// ÚJ FÜGGVÉNY
+function handleDuplicate() {
+  selectionStore.duplicateSelectedObject()
+}
+
 // JAVÍTÁS: A függvény most már a slot ID-jét is megkapja, hogy tudja, MIT kell megváltoztatni.
 function handleMaterialChange(slotId: string, materialId: string) {
 
@@ -122,15 +127,25 @@ function handleStyleChange(slotId: string, styleId: string) {
         </div>
       </div>
 
-      <!-- Törlés gomb -->
-      <div class="pt-4 border-t border-panel-border">
-        <button 
-          @click="handleDelete"
-          class="btn-danger"
-        >
-          Törlés
-        </button>
-      </div>
+      <!-- Törlés és Duplikálás gombok -->
+        <div class="pt-4 border-t border-panel-border">
+          <div class="grid grid-cols-2 gap-2">
+            <!-- JAVÍTÁS: A duplikálás gomb került balra, és új stílusosztályt kapott -->
+            <button 
+              @click="handleDuplicate"
+              class="btn-secondary"
+            >
+              Duplikálás
+            </button>
+            <!-- JAVÍTÁS: A törlés gomb került jobbra -->
+            <button 
+              @click="handleDelete"
+              class="btn-danger"
+            >
+              Törlés
+            </button>
+          </div>
+        </div>
     </div>
   </div>
 </template>

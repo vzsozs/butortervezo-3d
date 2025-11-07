@@ -7,6 +7,7 @@ export const useSelectionStore = defineStore('selection', () => {
   
   const selectedObject = ref<THREE.Group | null>(null)
   const objectToDeleteUUID = ref<string | null>(null)
+  const objectToDuplicateUUID = ref<string | null>(null)
 
   const materialChangeRequest = ref<{
     targetUUID: string;
@@ -58,6 +59,19 @@ export const useSelectionStore = defineStore('selection', () => {
     objectToDeleteUUID.value = null
   }
 
+  // --- ÚJ AKCIÓK A DUPLIKÁLÁSHOZ ---
+  function duplicateSelectedObject() {
+    if (selectedObject.value) {
+      console.log("Duplikálási kérelem a store-ban:", selectedObject.value.name);
+      objectToDuplicateUUID.value = selectedObject.value.uuid;
+    }
+  }
+
+  function acknowledgeDuplication() {
+    objectToDuplicateUUID.value = null;
+  }
+  // ------------------------------------
+
   function changeMaterial(slotId: string, materialId: string) {
 
     console.log('changeMaterial akció meghívva. A selectedObject:', selectedObject.value);
@@ -101,6 +115,9 @@ export const useSelectionStore = defineStore('selection', () => {
     objectToDeleteUUID, 
     materialChangeRequest,
     styleChangeRequest,
+    objectToDuplicateUUID,
+    duplicateSelectedObject,
+    acknowledgeDuplication,
     selectObject, 
     clearSelection, 
     deleteSelectedObject, 

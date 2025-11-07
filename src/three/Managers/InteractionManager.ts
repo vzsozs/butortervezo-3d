@@ -58,6 +58,7 @@ export default class InteractionManager {
         this.experience.debug.selectionBoxHelper.setFromObject(objectToSelect);
         this.experience.debug.selectionBoxHelper.visible = true;
         this.experience.transformControls.attach(objectToSelect);
+        this.setTransformMode('translate');
       }
     } else {
       // JAVÍTÁS: Használjunk @ts-expect-error-t a privát property-k eléréséhez.
@@ -126,26 +127,46 @@ export default class InteractionManager {
     window.removeEventListener('contextmenu', this.onRightClickCancel);
   }
 
+  // ÚJ, PUBLIKUS METÓDUS
+  public setTransformMode(mode: 'translate' | 'rotate') {
+    this.experience.transformControls.setMode(mode);
+    if (mode === 'translate') {
+      // @ts-expect-error - A
+      this.experience.transformControls.showX = true;
+      // @ts-expect-error - A
+      this.experience.transformControls.showY = false;
+      // @ts-expect-error - A
+      this.experience.transformControls.showZ = true;
+    } else if (mode === 'rotate') {
+      // @ts-expect-error - A
+      this.experience.transformControls.showX = false;
+      // @ts-expect-error - A
+      this.experience.transformControls.showY = true;
+      // @ts-expect-error - A
+      this.experience.transformControls.showZ = false;
+    }
+  }
+
   private onKeyDown = (event: KeyboardEvent) => {
     // JAVÍTÁS: A transformControls-t az experience-en keresztül érjük el.
     switch (event.key.toLowerCase()) {
       case 'w':
-        this.experience.transformControls.setMode('translate');
+        this.setTransformMode('translate');
         // @ts-expect-error - A 'showX' tulajdonság hibásan privátként van deklarálva.
-        this.experience.transformControls.showX = true;
+        this.setTransformMode.showX = true;
         // @ts-expect-error - A 'showY' tulajdonság hibásan privátként van deklarálva.
-        this.experience.transformControls.showY = false;
+        this.setTransformMode.showY = false;
         // @ts-expect-error - A 'showZ' tulajdonság hibásan privátként van deklarálva.
-        this.experience.transformControls.showZ = true;
+        this.setTransformMode.showZ = true;
         break;
       case 'e':
-        this.experience.transformControls.setMode('rotate');
+        this.setTransformMode('rotate');
         // @ts-expect-error - A 'showX' tulajdonság hibásan privátként van deklarálva.
-        this.experience.transformControls.showX = false;
+        this.setTransformMode.showX = false;
         // @ts-expect-error - A 'showY' tulajdonság hibásan privátként van deklarálva.
-        this.experience.transformControls.showY = true;
+        this.setTransformMode.showY = true;
         // @ts-expect-error - A 'showZ' tulajdonság hibásan privátként van deklarálva.
-        this.experience.transformControls.showZ = false;
+        this.setTransformMode.showZ = false;
         break;
     }
   }

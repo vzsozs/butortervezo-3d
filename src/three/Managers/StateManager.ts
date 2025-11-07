@@ -4,8 +4,7 @@ import { watch } from 'vue';
 import Experience from '../Experience';
 import { availableMaterials } from '@/config/materials';
 import { furnitureDatabase, globalMaterials } from '@/config/furniture';
-// JAVÍTÁS: Töröltük a felesleges importokat.
-import { Mesh, MeshStandardMaterial, Object3D, Texture } from 'three';
+import { Mesh, MeshStandardMaterial, Object3D, Texture, Vector3 } from 'three';
 
 export default class StateManager {
   constructor(private experience: Experience) {
@@ -33,6 +32,48 @@ export default class StateManager {
         }
       }
       selectionStore.acknowledgeDeletion();
+    });
+
+    // --- ÚJ: DUPLIKÁLÁS FIGYELŐ ---
+    watch(() => selectionStore.objectToDuplicateUUID, (uuidToDuplicate) => {
+      if (!uuidToDuplicate) return;
+
+      const originalObject = this.experience.placedObjects.find(obj => obj.uuid === uuidToDuplicate);
+      if (!originalObject) {
+        selectionStore.acknowledgeDuplication();
+        return;
+      }
+
+      console.log("StateManager: Duplikálás végrehajtása...", originalObject.name);
+
+      // 1. Létrehozzuk a tökéletes másolatot az AssetManager segítségével,
+      //    ami már a mély klónozást is elvégzi az anyagokra.
+      const newObject = originalObject.clone();
+      newObject.traverse((child: Object3D) => {
+        if (child instanceof Mesh && child.material instanceof MeshStandardMaterial) {
+          child.material = child.material.clone();
+        }
+      });
+
+
+      // 2. Kiszámoljuk az új pozíciót az eredeti mellé.
+      const boundingBox = this.experience.placementManager.getAccurateBoundingBox(originalObject);
+      const size = new Vector3();
+      boundingBox.getSize(size);
+      
+      // Elhelyezzük jobbra tőle egy kis távolsággal (pl. 10 cm).
+      const offset = new Vector3(size.x + 0.1, 0, 0);
+      newObject.position.copy(originalObject.position).add(offset);
+
+      // 3. Hozzáadjuk az új objektumot a jelenethez és a listához.
+      this.experience.scene.add(newObject);
+      this.experience.placedObjects.push(newObject);
+
+      // 4. (UX JAVÍTÁS) Az új objektumot választjuk ki.
+      selectionStore.selectObject(newObject);
+
+      // 5. Visszajelzünk a store-nak, hogy a feladat kész.
+      selectionStore.acknowledgeDuplication();
     });
   
     // --- EGYEDI ANYAGVÁLTÁS FIGYELŐ ---
@@ -168,5 +209,30 @@ export default class StateManager {
         }
       }
     }, { deep: true });
+
+    // ÚJ FIGYELŐ: A frontok láthatóságának változását kezeli.
+    watch(() => settingsStore.areFrontsVisible, (isVisible) => {
+      console.log(`StateManager: Frontok láthatóságának beállítása -> ${isVisible}`);
+      
+      // Végigmegyünk az összes lehelyezett bútoron.
+      for (const placedObject of this.experience.placedObjects) {
+        // Végigmegyünk az adott bútor minden alkatrészén.
+        placedObject.traverse((child: Object3D) => {
+          // Ha az alkatrész egy Mesh, és a neve alapján frontnak minősül...
+          if (
+            child instanceof Mesh && 
+            (
+              child.name.toLowerCase().includes('ajto') || 
+              child.name.toLowerCase().includes('fiokos') ||
+              child.name.toLowerCase().includes('fogantyu')
+            )
+          ) {
+            // ...akkor a láthatóságát beállítjuk az új értékre.
+            child.visible = isVisible;
+          }
+        });
+      }
+    });
+
   }
 }

@@ -39,16 +39,26 @@ export const useSettingsStore = defineStore('settings', () => {
     activeFurnitureId.value = furnitureId;
     console.log(`Aktív bútor beállítva: ${furnitureId}`);
   }
-
+  
   const isSnappingEnabled = ref(true)
+
+  // Alapértelmezetten a frontok láthatóak.
+  const areFrontsVisible = ref(true);
+
+  function toggleFrontsVisibility() {
+    areFrontsVisible.value = !areFrontsVisible.value;
+    console.log('Frontok láthatósága:', areFrontsVisible.value);
+  }
 
   return { 
     globalMaterialSettings, 
-    globalStyleSettings, // Visszaadjuk az új állapotot
-    activeFurnitureId, // Visszaadjuk az új állapotot
+    globalStyleSettings, 
+    activeFurnitureId, 
     setGlobalMaterial,
-    setGlobalStyle, // Visszaadjuk az új akciót
-    setActiveFurniture, // Visszaadjuk az új akciót
-    isSnappingEnabled
+    setGlobalStyle, 
+    setActiveFurniture,
+    isSnappingEnabled,
+    areFrontsVisible,
+    toggleFrontsVisibility
   }
 })
