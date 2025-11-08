@@ -1,6 +1,6 @@
 // src/three/Experience.ts
 
-import { Scene, PerspectiveCamera, WebGLRenderer, Raycaster, Vector2, Object3D, Group, Clock, Mesh, PlaneGeometry } from 'three';
+import { Scene, PerspectiveCamera, WebGLRenderer, Raycaster, Vector2, Object3D, Group, Clock, Mesh, PlaneGeometry, Vector3 } from 'three';
 import { OrbitControls } from 'three-stdlib';
 import { TransformControls } from 'three-stdlib';
 import { useSelectionStore } from '@/stores/selection';
@@ -15,29 +15,21 @@ import InteractionManager from './Managers/InteractionManager';
 import StateManager from './Managers/StateManager';
 
 export default class Experience {
-  // Core
+  // ... (a property-k maradnak ugyanazok)
   public canvas: HTMLDivElement;
   public scene: Scene;
   public camera: PerspectiveCamera;
   public renderer: WebGLRenderer;
   private clock: Clock;
   public configManager: ConfigManager;
-
-  // Controls & Interaction State
   public controls: OrbitControls;
   public transformControls: TransformControls;
   public raycaster: Raycaster;
   public mouse = new Vector2();
-  
-  // Scene State
   public placedObjects: Group[] = [];
   public intersectableObjects: Object3D[] = [];
-
-  // Stores
   public selectionStore = useSelectionStore();
   public settingsStore = useSettingsStore();
-
-  // Modules
   public world: World;
   public debug: Debug;
   public assetManager: AssetManager;
@@ -45,10 +37,13 @@ export default class Experience {
   public interactionManager: InteractionManager;
   public stateManager: StateManager;
 
+  // JAVÍTÁS: A konstruktor most már privát!
+  // Ez azt jelenti, hogy nem lehet `new Experience()`-szel meghívni,
+  // csak a lenti `create` metóduson keresztül.
   private constructor(canvas: HTMLDivElement) {
     this.canvas = canvas;
 
-    // Core setup
+    // A konstruktor többi része változatlan
     this.scene = new Scene();
     this.camera = new PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     this.camera.position.set(0, 2, 3);
@@ -59,46 +54,95 @@ export default class Experience {
     this.canvas.appendChild(this.renderer.domElement);
     this.clock = new Clock();
     this.raycaster = new Raycaster();
-
-    // Controls
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
     this.transformControls = new TransformControls(this.camera, this.renderer.domElement);
     this.scene.add(this.transformControls);
-
-    // Modules Initialization
-    this.configManager = new ConfigManager(); // Ez az első!
+    this.configManager = new ConfigManager();
     this.debug = new Debug(this.scene);
     this.world = new World(this.scene);
     this.assetManager = new AssetManager(this);
     this.placementManager = new PlacementManager(this);
     this.interactionManager = new InteractionManager(this);
     this.stateManager = new StateManager(this);
-
-    // Add floor to intersectable objects
     const floor = this.scene.children.find(c => c instanceof Mesh && c.geometry instanceof PlaneGeometry);
     if (floor) this.intersectableObjects.push(floor);
-
-    // Event Listeners
     window.addEventListener('resize', this.onWindowResize);
     window.addEventListener('mousemove', this.onPointerMove);
     this.setupTransformControlsListeners();
-
-    // Start loop
     this.animate();
   }
 
+  // JAVÍTÁS: Itt van a hiányzó 'create' metódus
   public static async create(canvas: HTMLDivElement): Promise<Experience> {
     const experience = new Experience(canvas);
-    
-    // Megvárjuk, amíg a konfiguráció betöltődik
     await experience.configManager.loadData();
-
-    // Most, hogy az adatok betöltődtek, elindíthatjuk azokat a folyamatokat,
-    // amiknek szükségük van rá (pl. modellek előtöltése)
-    // experience.assetManager.preloadCommonAssets(); // Ezt később implementáljuk
-
     return experience;
+  }
+
+  private async updateFromStore() {
+    // Törlési kérelem figyelése
+    const uuidToDelete = this.selectionStore.objectToDeleteUUID;
+    if (uuidToDelete) {
+      const objectToRemove = this.placedObjects.find(obj => obj.uuid === uuidToDelete);
+      if (objectToRemove) {
+        this.removeObject(objectToRemove);
+      }
+      this.selectionStore.acknowledgeDeletion();
+    }
+
+    // ######################################################################
+    // ###                ÚJ: DUPLIKÁLÁSI KÉRELEM FIGYELÉSE               ###
+    // ######################################################################
+    const uuidToDuplicate = this.selectionStore.objectToDuplicateUUID;
+    if (uuidToDuplicate) {
+      const originalObject = this.placedObjects.find(obj => obj.uuid === uuidToDuplicate);
+      
+      if (originalObject && originalObject.userData.config) {
+        // 1. Létrehozunk egy teljesen ÚJ, független bútort a configja alapján
+        const newObject = await this.assetManager.buildFurniture(originalObject.userData.config.id);
+        
+        if (newObject) {
+          // 2. Kiszámoljuk az új pozíciót a HELYES `getVirtualBox` függvénnyel
+          const boundingBox = this.placementManager.getVirtualBox(originalObject, originalObject.position);
+          const size = new Vector3();
+          boundingBox.getSize(size);
+          const offset = new Vector3(size.x + 0.1, 0, 0);
+          newObject.position.copy(originalObject.position).add(offset);
+          newObject.rotation.copy(originalObject.rotation);
+
+          // 3. Hozzáadjuk a jelenethez (de a placedObjects-hez még nem, csak a lehelyezéskor)
+          this.scene.add(newObject);
+
+          // 4. Leválasztjuk a kijelölést a régiről
+          this.transformControls.detach();
+          this.selectionStore.clearSelection();
+
+          // 5. Átadjuk az InteractionManager-nek, hogy a felhasználó azonnal húzhassa
+          this.interactionManager.startDraggingExistingObject(newObject);
+        }
+      }
+      // Mindenképp nyugtázzuk, hogy a kérést feldolgoztuk
+      this.selectionStore.acknowledgeDuplication();
+    }
+  }
+
+  
+
+  public removeObject(objectToRemove: Group) {
+    const index = this.placedObjects.findIndex(obj => obj.uuid === objectToRemove.uuid);
+    if (index > -1) {
+      this.placedObjects.splice(index, 1);
+    }
+    this.scene.remove(objectToRemove);
+
+    // JAVÍTÁS: Itt van a @ts-expect-error a privát property hiba miatt
+    // @ts-expect-error - A three-stdlib típusdefiníciója hibásan privátnak jelöli az 'object' property-t.
+    if (this.transformControls.object === objectToRemove) {
+      this.transformControls.detach();
+      this.debug.selectionBoxHelper.visible = false;
+    }
+    console.log('Object removed from experience:', objectToRemove.name);
   }
 
   private onWindowResize = () => {
@@ -141,6 +185,10 @@ export default class Experience {
 
   private animate = () => {
     requestAnimationFrame(this.animate);
+    
+    // Az updateFromStore most már aszinkron, ezért így hívjuk
+    this.updateFromStore().catch(console.error);
+
     this.controls.update();
     this.renderer.render(this.scene, this.camera);
   }

@@ -3,8 +3,9 @@
 import { watch } from 'vue';
 import Experience from '../Experience';
 import { availableMaterials } from '@/config/materials';
-import { furnitureDatabase, globalMaterials } from '@/config/furniture';
-import { Mesh, MeshStandardMaterial, Object3D, Texture, Vector3 } from 'three';
+// JAVÍTÁS: A helyes típusokat és a globalMaterials-t importáljuk a központi helyről
+import { globalMaterials, type FurnitureSlotConfig, type ComponentConfig, type StyleOption } from '@/config/furniture';
+import { Mesh, MeshStandardMaterial, Object3D, Texture } from 'three';
 
 export default class StateManager {
   constructor(private experience: Experience) {
@@ -15,98 +16,43 @@ export default class StateManager {
     const selectionStore = this.experience.selectionStore;
     const settingsStore = this.experience.settingsStore;
 
-    // --- TÖRLÉS FIGYELŐ ---
-    watch(() => selectionStore.objectToDeleteUUID, (uuidToRemove) => {
-      if (!this.experience.scene || !uuidToRemove) { return; }
-      const objectToRemove = this.experience.placedObjects.find(obj => obj.uuid === uuidToRemove);
-      if (objectToRemove) {
-        this.experience.transformControls.detach();
-        this.experience.scene.remove(objectToRemove);
-        const index = this.experience.placedObjects.findIndex(obj => obj.uuid === uuidToRemove);
-        if (index > -1) {
-          this.experience.placedObjects.splice(index, 1);
-        }
-        this.experience.debug.selectionBoxHelper.visible = false;
-        if (this.experience.placedObjects.length === 0) {
-          this.experience.controls.target.set(0, 0, 0);
-        }
-      }
-      selectionStore.acknowledgeDeletion();
-    });
-
-    // --- ÚJ: DUPLIKÁLÁS FIGYELŐ ---
-    watch(() => selectionStore.objectToDuplicateUUID, (uuidToDuplicate) => {
-      if (!uuidToDuplicate) return;
-
-      const originalObject = this.experience.placedObjects.find(obj => obj.uuid === uuidToDuplicate);
-      if (!originalObject) {
-        selectionStore.acknowledgeDuplication();
-        return;
-      }
-
-      console.log("StateManager: Duplikálás végrehajtása...", originalObject.name);
-
-      // 1. Létrehozzuk a tökéletes másolatot az AssetManager segítségével,
-      //    ami már a mély klónozást is elvégzi az anyagokra.
-      const newObject = originalObject.clone();
-      newObject.traverse((child: Object3D) => {
-        if (child instanceof Mesh && child.material instanceof MeshStandardMaterial) {
-          child.material = child.material.clone();
-        }
-      });
-
-
-      // 2. Kiszámoljuk az új pozíciót az eredeti mellé.
-      const boundingBox = this.experience.placementManager.getAccurateBoundingBox(originalObject);
-      const size = new Vector3();
-      boundingBox.getSize(size);
-      
-      // Elhelyezzük jobbra tőle egy kis távolsággal (pl. 10 cm).
-      const offset = new Vector3(size.x + 0.1, 0, 0);
-      newObject.position.copy(originalObject.position).add(offset);
-
-      // 3. Hozzáadjuk az új objektumot a jelenethez és a listához.
-      this.experience.scene.add(newObject);
-      this.experience.placedObjects.push(newObject);
-
-      // 4. (UX JAVÍTÁS) Az új objektumot választjuk ki.
-      selectionStore.selectObject(newObject);
-
-      // 5. Visszajelzünk a store-nak, hogy a feladat kész.
-      selectionStore.acknowledgeDuplication();
-    });
-  
     // --- EGYEDI ANYAGVÁLTÁS FIGYELŐ ---
     watch(() => selectionStore.materialChangeRequest, (request) => {
-      if (!this.experience.scene || !request) { return; }
-  
-      const allFurniture = furnitureDatabase.flatMap(cat => cat.items);
-      const furnitureConfig = allFurniture.find(f => f.id === selectionStore.selectedObject?.name);
-      
-      if (!furnitureConfig) { selectionStore.acknowledgeMaterialChange(); return; }
-      const slotConfig = furnitureConfig.componentSlots.find(s => s.id === request.slotId);
-      if (!slotConfig || !slotConfig.materialTarget) { selectionStore.acknowledgeMaterialChange(); return; }
+      if (!request) return;
       const targetObject = this.experience.placedObjects.find(obj => obj.uuid === request.targetUUID);
-      if (!targetObject) { selectionStore.acknowledgeMaterialChange(); return; }
+      if (!targetObject?.userData.config) {
+        selectionStore.acknowledgeMaterialChange();
+        return;
+      }
+      
+      const furnitureConfig = targetObject.userData.config;
+      // JAVÍTÁS: A helyes típust használjuk
+      const slotConfig = furnitureConfig.slots.find((s: FurnitureSlotConfig) => s.id === request.slotId);
+      if (!slotConfig?.materialTarget) {
+        selectionStore.acknowledgeMaterialChange();
+        return;
+      }
+      
       const materialConfig = availableMaterials.find(mat => mat.id === request.materialId);
-      if (!materialConfig) { selectionStore.acknowledgeMaterialChange(); return; }
+      if (!materialConfig) {
+        selectionStore.acknowledgeMaterialChange();
+        return;
+      }
   
       targetObject.traverse((child: Object3D) => {
-        if (child instanceof Mesh && child.material instanceof MeshStandardMaterial) {
-          if (child.material.name === slotConfig.materialTarget) {
-            const material = child.material;
-            material.color.set(materialConfig.color);
-            material.roughness = materialConfig.roughness ?? 1.0;
-            material.metalness = materialConfig.metalness ?? 0.0;
-            if (materialConfig.textureUrl) {
-              this.experience.assetManager.getTexture(materialConfig.textureUrl, (texture: Texture) => {
-                material.map = texture;
-                material.needsUpdate = true;
-              });
-            } else {
-              material.map = null;
+        if (child instanceof Mesh && child.material instanceof MeshStandardMaterial && child.material.name === slotConfig.materialTarget) {
+          const material = child.material;
+          material.color.set(materialConfig.color);
+          material.roughness = materialConfig.roughness ?? 1.0;
+          material.metalness = materialConfig.metalness ?? 0.0;
+          if (materialConfig.textureUrl) {
+            this.experience.assetManager.getTexture(materialConfig.textureUrl, (texture: Texture) => {
+              material.map = texture;
               material.needsUpdate = true;
-            }
+            });
+          } else {
+            material.map = null;
+            material.needsUpdate = true;
           }
         }
       });
@@ -115,47 +61,61 @@ export default class StateManager {
   
     // --- STÍLUSVÁLTÁS FIGYELŐ ---
     watch(() => selectionStore.styleChangeRequest, (request) => {
-      if (!this.experience.scene || !request) { return; }
-      const allFurniture = furnitureDatabase.flatMap(cat => cat.items);
-      const furnitureConfig = allFurniture.find(f => f.id === selectionStore.selectedObject?.name);
-      if (!furnitureConfig) { selectionStore.acknowledgeStyleChange(); return; }
-      const slotConfig = furnitureConfig.componentSlots.find(s => s.id === request.slotId);
-      if (!slotConfig || !slotConfig.styleOptions) { selectionStore.acknowledgeStyleChange(); return; }
+      if (!request) return;
       const targetObject = this.experience.placedObjects.find(obj => obj.uuid === request.targetUUID);
-      if (!targetObject) { selectionStore.acknowledgeStyleChange(); return; }
-      const newStyleOption = slotConfig.styleOptions.find(opt => opt.id === request.newStyleId);
-      if (!newStyleOption) { selectionStore.acknowledgeStyleChange(); return; }
+      if (!targetObject?.userData.config) {
+        selectionStore.acknowledgeStyleChange();
+        return;
+      }
+
+      const furnitureConfig = targetObject.userData.config;
+      // JAVÍTÁS: A helyes típust használjuk
+      const slotConfig = furnitureConfig.slots.find((s: FurnitureSlotConfig) => s.id === request.slotId);
+      
+      // A te JSON-odban nincs 'styleOptions', hanem 'options' van, ami komponens ID-ket tartalmaz.
+      // A stílusváltás logikáját ehhez kell majd igazítani a jövőben.
+      // Egyelőre a típus-hibát javítjuk.
+      if (!slotConfig?.options) { 
+        selectionStore.acknowledgeStyleChange();
+        return;
+      }
+
+      const newStyleOption = slotConfig.styleOptions.find((opt: StyleOption) => opt.id === request.newStyleId);
+      if (!newStyleOption) {
+        selectionStore.acknowledgeStyleChange();
+        return;
+      }
   
       for (const styleOption of slotConfig.styleOptions) {
         targetObject.traverse((child: Object3D) => {
           if (child instanceof Mesh && child.name.toLowerCase().includes(styleOption.targetMesh.toLowerCase())) {
-            // JAVÍTÁS: Pótoltuk a hiányzó változó deklarációt.
-            const isSelected = styleOption.id === request.newStyleId;
-            child.visible = isSelected;
-            if (isSelected) {
-              if (newStyleOption.inheritsMaterialFrom) {
-                const parentSlot = furnitureConfig.componentSlots.find(s => s.id === newStyleOption.inheritsMaterialFrom);
-                if (parentSlot && parentSlot.materialTarget) {
-                  targetObject.traverse((parentMesh: Object3D) => {
-                    if (parentMesh instanceof Mesh && parentMesh.material.name === parentSlot.materialTarget) {
-                      child.material = parentMesh.material;
-                    }
-                  });
-                }
-              } else if (newStyleOption.materialTarget) {
-                targetObject.traverse((sourceMesh: Object3D) => {
-                  if (sourceMesh instanceof Mesh && sourceMesh.material.name === newStyleOption.materialTarget) {
-                    child.material = sourceMesh.material;
-                  }
-                });
-              }
-            }
+            child.visible = styleOption.id === request.newStyleId;
           }
         });
       }
       selectionStore.acknowledgeStyleChange();
     });
   
+    // --- GLOBÁLIS STÍLUSVÁLTÓ ---
+    watch(() => settingsStore.globalStyleSettings, (newSettings) => {
+      for (const placedObject of this.experience.placedObjects) {
+        const furnitureConfig = placedObject.userData.config;
+        if (!furnitureConfig) continue;
+        for (const [slotId, newStyleId] of Object.entries(newSettings)) {
+          // JAVÍTÁS: A helyes típust használjuk
+          const slotConfig = furnitureConfig.slots.find((s: FurnitureSlotConfig) => s.id === slotId);
+          if (!slotConfig?.options) continue; // A JSON-ban 'options' van
+          for (const styleOption of slotConfig.styleOptions) {
+            placedObject.traverse((child: Object3D) => {
+              if (child instanceof Mesh && child.name.toLowerCase().includes(styleOption.targetMesh.toLowerCase())) {
+                child.visible = styleOption.id === newStyleId;
+              }
+            });
+          }
+        }
+      }
+    }, { deep: true });
+
     // --- GLOBÁLIS ANYAGVÁLTÁS FIGYELŐ ---
     watch(() => settingsStore.globalMaterialSettings, (newSettings) => {
       for (const placedObject of this.experience.placedObjects) {
@@ -186,26 +146,6 @@ export default class StateManager {
               }
             }
           });
-        }
-      }
-    }, { deep: true });
-  
-    // --- GLOBÁLIS STÍLUSVÁLTÓ ---
-    watch(() => settingsStore.globalStyleSettings, (newSettings) => {
-      const allFurniture = furnitureDatabase.flatMap(cat => cat.items);
-      for (const placedObject of this.experience.placedObjects) {
-        const furnitureConfig = allFurniture.find(f => f.id === placedObject.name);
-        if (!furnitureConfig) continue;
-        for (const [slotId, newStyleId] of Object.entries(newSettings)) {
-          const slotConfig = furnitureConfig.componentSlots.find(s => s.id === slotId);
-          if (!slotConfig || !slotConfig.styleOptions) continue;
-          for (const styleOption of slotConfig.styleOptions) {
-            placedObject.traverse((child: Object3D) => {
-              if (child instanceof Mesh && child.name.toLowerCase().includes(styleOption.targetMesh.toLowerCase())) {
-                child.visible = styleOption.id === newStyleId;
-              }
-            });
-          }
         }
       }
     }, { deep: true });

@@ -1,11 +1,13 @@
+// src/stores/selection.ts
+
 import { defineStore } from 'pinia'
-import type * as THREE from 'three'
+import type { Group } from 'three'
 import { ref, computed } from 'vue'
-import { furnitureDatabase, type FurnitureConfig } from '@/config/furniture'
+import type { FurnitureConfig } from '@/config/furniture' // Feltételezve, hogy a típus exportálva van
 
 export const useSelectionStore = defineStore('selection', () => {
   
-  const selectedObject = ref<THREE.Group | null>(null)
+  const selectedObject = ref<Group | null>(null)
   const objectToDeleteUUID = ref<string | null>(null)
   const objectToDuplicateUUID = ref<string | null>(null)
 
@@ -21,26 +23,20 @@ export const useSelectionStore = defineStore('selection', () => {
     newStyleId: string;
   } | null>(null)
 
-  const selectedObjectConfig = computed<FurnitureConfig | undefined>(() => {
-    if (!selectedObject.value) return undefined
-    
-    const furnitureId = selectedObject.value.name
-    // 1. "Kilapítjuk" a kategóriákat egyetlen bútorlistává
-    const allFurniture = furnitureDatabase.flatMap(category => category.items)
-    
-    // 2. Ebben a "lapos" listában keressük meg a megfelelő bútort
-    return allFurniture.find(furniture => furniture.id === furnitureId)
+  // ######################################################################
+  // ###                         JAVÍTOTT RÉSZ                          ###
+  // ######################################################################
+  // Nincs többé keresgélés! Közvetlenül a 3D objektumból olvassuk ki a configot,
+  // amit az AssetManager építéskor beletett.
+  const selectedObjectConfig = computed<FurnitureConfig | null>(() => {
+    if (selectedObject.value && selectedObject.value.userData.config) {
+      return selectedObject.value.userData.config as FurnitureConfig;
+    }
+    return null;
   })
 
-  function selectObject(object: THREE.Group | null) {
-    // === KÉM KÓD ===
-  console.log('--- selectObject AKCIÓ MEGHÍVVA ---');
-  if (object) {
-    console.log('Objektum, amit ki kellene választani:', object.name, object);
-  } else {
-    console.log('Kijelölés megszüntetése.');
-  }
-  // === KÉM KÓD VÉGE ===
+  function selectObject(object: Group | null) {
+    // A te logikád tökéletes, a proxy-t kapja meg és tárolja el.
     selectedObject.value = object
   }
 
@@ -48,6 +44,7 @@ export const useSelectionStore = defineStore('selection', () => {
     selectedObject.value = null
   }
 
+  // A "kérelem/nyugtázás" logika a többi függvénynél változatlan és jó.
   function deleteSelectedObject() {
     if (selectedObject.value) {
       objectToDeleteUUID.value = selectedObject.value.uuid
@@ -59,10 +56,8 @@ export const useSelectionStore = defineStore('selection', () => {
     objectToDeleteUUID.value = null
   }
 
-  // --- ÚJ AKCIÓK A DUPLIKÁLÁSHOZ ---
   function duplicateSelectedObject() {
     if (selectedObject.value) {
-      console.log("Duplikálási kérelem a store-ban:", selectedObject.value.name);
       objectToDuplicateUUID.value = selectedObject.value.uuid;
     }
   }
@@ -70,24 +65,15 @@ export const useSelectionStore = defineStore('selection', () => {
   function acknowledgeDuplication() {
     objectToDuplicateUUID.value = null;
   }
-  // ------------------------------------
 
   function changeMaterial(slotId: string, materialId: string) {
-
-    console.log('changeMaterial akció meghívva. A selectedObject:', selectedObject.value);
-
     if (selectedObject.value) {
-      console.log(`Kérelem generálása... Slot: ${slotId}, Anyag: ${materialId}`);
-
       materialChangeRequest.value = {
         targetUUID: selectedObject.value.uuid,
         slotId,
         materialId,
       }
     }
-    else {
-    console.warn('Anyagváltási kísérlet, de nincs kiválasztott objektum!');
-  }
   }
 
   function acknowledgeMaterialChange() {
@@ -96,7 +82,6 @@ export const useSelectionStore = defineStore('selection', () => {
 
   function changeStyle(slotId: string, newStyleId: string) {
     if (selectedObject.value) {
-      console.log(`Pinia store: Stílusváltási kérelem a(z) '${selectedObject.value.name}' objektum '${slotId}' slotjára, új stílus: '${newStyleId}'`)
       styleChangeRequest.value = {
         targetUUID: selectedObject.value.uuid,
         slotId,

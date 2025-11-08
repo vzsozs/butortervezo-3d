@@ -1,32 +1,6 @@
 // src/three/Managers/ConfigManager.ts
 
-// A típusokat érdemes lenne egy közös types.ts fájlba szervezni a jövőben
-export type ComponentConfig = {
-  name: string;
-  modelUrl?: string;
-  modelUrl_L?: string;
-  modelUrl_R?: string;
-  isSymmetric: boolean;
-  slots: SlotConfig[];
-  height?: number;
-}
-
-export type SlotConfig = {
-  id: string;
-  name: string;
-  attachmentPoint?: string;
-  attachmentPoints?: string[];
-  defaultOption: string;
-  options: string[];
-}
-
-export type FurnitureConfig = {
-  id: string;
-  name: string;
-  category: string;
-  baseModelUrl: string;
-  slots: SlotConfig[];
-}
+import type { FurnitureConfig, ComponentConfig } from '@/config/furniture';
 
 export default class ConfigManager {
   private furnitureList: FurnitureConfig[] = [];

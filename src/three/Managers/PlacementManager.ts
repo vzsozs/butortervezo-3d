@@ -143,7 +143,7 @@ export default class PlacementManager {
   }
 
 
-  private getVirtualBox(proxyObject: Group, centerPosition: Vector3): Box3 {
+  public getVirtualBox(proxyObject: Group, centerPosition: Vector3): Box3 {
     const box = new Box3().setFromObject(proxyObject);
     const size = new Vector3();
     box.getSize(size);

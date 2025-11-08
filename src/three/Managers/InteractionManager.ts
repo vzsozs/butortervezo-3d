@@ -198,6 +198,31 @@ export default class InteractionManager {
   }
 
   // ######################################################################
+  // ###                  ÚJ METÓDUS A DUPLIKÁLÁSHOZ                    ###
+  // ######################################################################
+  public startDraggingExistingObject(object: Group) {
+    // 1. Átlátszóvá tesszük, mintha most hoztuk volna létre
+    object.traverse((child: Object3D) => {
+      if (child instanceof Mesh && child.material instanceof MeshStandardMaterial) {
+        // Fontos, hogy itt is klónozzuk az anyagot, hogy az átlátszóság
+        // ne hasson ki a többi, azonos anyagú objektumra.
+        child.material = child.material.clone();
+        child.material.transparent = true;
+        child.material.opacity = 0.5;
+      }
+    });
+
+    // 2. Beállítjuk a húzott objektumnak
+    this.draggedObject = object;
+
+    // 3. Elindítjuk a húzási logikát
+    this.experience.controls.enabled = false;
+    window.addEventListener('mousemove', this.onMouseMove);
+    window.addEventListener('mouseup', this.onMouseUp);
+    window.addEventListener('contextmenu', this.onRightClickCancel);
+  }
+
+  // ######################################################################
   // ###         EZ A FÜGGVÉNY MOST MÁR A PROXY-T KEZELI              ###
   // ######################################################################
   private async createDraggableObject(point: Vector3): Promise<Group | null> {

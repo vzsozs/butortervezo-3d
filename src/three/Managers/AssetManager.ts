@@ -3,7 +3,8 @@
 import { Mesh, Group, TextureLoader, Texture, Object3D, SRGBColorSpace, RepeatWrapping, Vector3, Box3 } from 'three';
 import { GLTFLoader } from 'three-stdlib';
 import Experience from '../Experience';
-import type { ComponentConfig } from './ConfigManager';
+// JAVÍTÁS: A típusokat a központi helyről importáljuk
+import type { ComponentConfig } from '@/config/furniture';
 
 export default class AssetManager {
   private textureLoader: TextureLoader;
@@ -26,8 +27,7 @@ export default class AssetManager {
     return foundObject;
   }
 
-  // --- ÚJ, TISZTA SEGÉDFÜGGVÉNY ---
-   private findFirstMesh(parent: Object3D): Mesh | undefined {
+  private findFirstMesh(parent: Object3D): Mesh | undefined {
     let foundMesh: Mesh | undefined = undefined;
     parent.traverse((child) => {
       if (!foundMesh && child instanceof Mesh) {
@@ -38,23 +38,18 @@ export default class AssetManager {
   }
 
   private async loadModel(url: string): Promise<Group> {
-    // A loadModel most már a teljes betöltött jelenetet adja vissza,
-    // a "kibontást" a hívó fél fogja elvégezni.
     if (this.modelCache.has(url)) {
       return this.modelCache.get(url)!.clone();
     }
-
     try {
       const gltf = await this.loader.loadAsync(url);
-      const scene = gltf.scene; // A teljes jelenetet adjuk vissza
-      
+      const scene = gltf.scene;
       scene.traverse((child: Object3D) => {
         if (child instanceof Mesh) {
           child.castShadow = true;
           child.receiveShadow = true;
         }
       });
-
       this.modelCache.set(url, scene);
       return scene.clone();
     } catch (error) {
@@ -63,11 +58,6 @@ export default class AssetManager {
     }
   }
 
-   
-
-  // ######################################################################
-  // ###                    ÁTALAKÍTOTT FŐ FÜGGVÉNY                     ###
-  // ######################################################################
   public async buildFurniture(furnitureId: string): Promise<Group | null> {
     const config = this.experience.configManager.getFurnitureById(furnitureId);
     if (!config) {
@@ -75,7 +65,11 @@ export default class AssetManager {
       return null;
     }
 
-    // 1. LÉPÉS: A bútor vizuális modelljének összeállítása, ahogy eddig is.
+    if (!config.baseModelUrl) {
+      console.error(`A(z) '${config.id}' bútor konfigurációjában HIÁNYZIK a 'baseModelUrl' mező!`);
+      return null;
+    }
+
     const visualModelRoot = await this.loadModel(config.baseModelUrl);
     const furnitureMesh = this.findFirstMesh(visualModelRoot);
 
@@ -83,6 +77,9 @@ export default class AssetManager {
       console.error(`Nem található MESH objektum a(z) ${config.baseModelUrl} fájlban.`);
       return visualModelRoot;
     }
+
+    furnitureMesh.name = config.id;
+    furnitureMesh.userData.config = config;
 
     let legHeight = 0;
     for (const slot of config.slots) {
@@ -108,38 +105,23 @@ export default class AssetManager {
     }
     visualModelRoot.position.y = legHeight;
 
-    // 2. LÉPÉS: A PROXY OBJEKTUM LÉTREHOZÁSA
-    // Frissítjük a mátrixokat, hogy a befoglaló doboz számítása pontos legyen.
     visualModelRoot.updateWorldMatrix(true, true);
     const box = new Box3().setFromObject(visualModelRoot);
     const center = new Vector3();
     box.getCenter(center);
-
-    // A látható modellt eltoljuk a saját középpontjával ellentétesen.
-    // Így amikor a proxy (0,0,0) pontjában van, a modell vizuálisan középen lesz.
     visualModelRoot.position.sub(center);
-
-    // Létrehozzuk a proxyt, ami egy sima Group. Ez lesz a mozgatható objektum.
     const furnitureProxy = new Group();
-    furnitureProxy.add(visualModelRoot); // A látható modellt beletesszük a proxyba.
-
-    // A proxy pozícióját a kiszámolt középpontra állítjuk.
-    // Így a bútor vizuálisan ugyanott marad, de most már a proxy irányítja.
+    furnitureProxy.add(visualModelRoot);
     furnitureProxy.position.copy(center);
-
-    // Fontos adatokat átmásolunk a proxyra, hogy a többi menedzser is elérje.
     furnitureProxy.name = `proxy_${config.id}`;
     furnitureProxy.userData.config = config;
-    furnitureProxy.userData.isProxy = true; // Jelölő, hogy tudjuk, ez egy proxy.
+    furnitureProxy.userData.isProxy = true;
     
-    console.log(`Proxy létrehozva a(z) '${config.id}' bútorhoz. A vizuális modell eltolása:`, visualModelRoot.position);
-
-    // A proxy-t adjuk vissza, nem a vizuális modellt!
+    console.log(`Proxy létrehozva a(z) '${config.id}' bútorhoz.`);
     return furnitureProxy;
   }
 
   private async buildComponent(config: ComponentConfig): Promise<Object3D | null> {
-    // ... (ez a függvény változatlan)
     if (!config.modelUrl) {
       console.error(`A(z) '${config.name}' komponensnek nincs modelUrl-je.`);
       return null;
@@ -175,13 +157,11 @@ export default class AssetManager {
     return componentMesh;
   }
   
-  // JAVÍTÁS: A metódus most már a visszaállított textureCache-t használja.
   public getTexture(url: string, callback: (texture: Texture) => void) {
     if (this.textureCache.has(url)) {
       callback(this.textureCache.get(url)!);
       return;
     }
-    
     this.textureLoader.load(url, (texture) => {
       texture.colorSpace = SRGBColorSpace;
       texture.wrapS = RepeatWrapping;
