@@ -8,10 +8,13 @@ const SNAP_INCREMENT = 0.2;
 type SnapCandidate = {
   priority: number;
   position: Vector3;
-  snapPoint: Vector3;
+  snapPoint: Vector3 | null; 
   distance: number;
   targetObject: Group;
 };
+
+// ÚJ, SZIGORÚBB TÍPUS A DEBUGGER SZÁMÁRA
+type SnapCandidateWithPoint = SnapCandidate & { snapPoint: Vector3 };
 
 export default class PlacementManager {
   constructor(private experience: Experience) {}
@@ -23,7 +26,6 @@ export default class PlacementManager {
 
     for (const staticObject of objectsToCompare) {
       if (movingObject === staticObject) continue;
-      // A statikus objektum dobozát is a proxy alapján számoljuk.
       const staticBoxWorld = new Box3().setFromObject(staticObject);
       if (movingBoxWorld.intersectsBox(staticBoxWorld)) {
         return true;
@@ -37,46 +39,72 @@ export default class PlacementManager {
   }
 
   public calculateFinalPosition(movingObject: Group, proposedPosition: Vector3, objectsToCompare: Group[]): Vector3 {
-    const finalHeight = movingObject.position.y; // A magasságot a proxy eredeti pozíciójából vesszük
+    const finalHeight = movingObject.position.y;
     const candidates: SnapCandidate[] = [];
     const otherObjects = objectsToCompare.filter(obj => obj.uuid !== movingObject.uuid);
 
-    // A mozgó objektum méretét most már egyszerűen lekérhetjük.
     const movingBox = new Box3().setFromObject(movingObject);
     const movingBoxSize = new Vector3();
     movingBox.getSize(movingBoxSize);
 
     for (const staticObject of otherObjects) {
       const staticBox = new Box3().setFromObject(staticObject);
-      
-      const MAX_SNAP_CHECK_DISTANCE = 1.0; 
-      const distanceToBoxEdgeX = Math.min(
-        Math.abs(proposedPosition.x - staticBox.min.x),
-        Math.abs(proposedPosition.x - staticBox.max.x)
-      );
-      if (distanceToBoxEdgeX > MAX_SNAP_CHECK_DISTANCE) continue;
+      const MAX_SNAP_CHECK_DISTANCE = 1.0;
 
-      // A logika változatlan, de most már garantáltan helyes méretekkel és pozíciókkal dolgozik.
+      const potentialSnapPosition = proposedPosition.clone();
+      let isSnappingOnX = false;
+      let isSnappingOnZ = false;
+
+      const distanceToBoxEdgeZ = Math.abs(proposedPosition.z - staticBox.max.z);
+      if (distanceToBoxEdgeZ <= MAX_SNAP_CHECK_DISTANCE) {
+        isSnappingOnZ = true;
+        potentialSnapPosition.z = staticBox.max.z - movingBoxSize.z / 2;
+      }
+
       const distanceToLeftEdge = Math.abs(proposedPosition.x - staticBox.min.x);
       const distanceToRightEdge = Math.abs(proposedPosition.x - staticBox.max.x);
+      
+      if (Math.min(distanceToLeftEdge, distanceToRightEdge) <= MAX_SNAP_CHECK_DISTANCE) {
+        isSnappingOnX = true;
+        if (distanceToLeftEdge < distanceToRightEdge) {
+          potentialSnapPosition.x = staticBox.min.x - movingBoxSize.x / 2;
+        } else {
+          potentialSnapPosition.x = staticBox.max.x + movingBoxSize.x / 2;
+        }
+      }
 
-      if (distanceToLeftEdge < distanceToRightEdge) {
-        const snapPosition = new Vector3(staticBox.min.x - movingBoxSize.x / 2, finalHeight, proposedPosition.z);
-        candidates.push({ 
-            priority: 2, 
-            position: snapPosition, 
-            distance: distanceToLeftEdge,
-            snapPoint: new Vector3(staticBox.min.x, finalHeight, snapPosition.z), 
-            targetObject: staticObject 
-        });
-      } else {
-        const snapPosition = new Vector3(staticBox.max.x + movingBoxSize.x / 2, finalHeight, proposedPosition.z);
-        candidates.push({ 
-            priority: 2, 
-            position: snapPosition, 
-            distance: distanceToRightEdge,
-            snapPoint: new Vector3(staticBox.max.x, finalHeight, snapPosition.z), 
-            targetObject: staticObject 
+      if (isSnappingOnX || isSnappingOnZ) {
+        // ######################################################################
+        // ###                  JAVÍTOTT SNAP POINT LOGIKA                    ###
+        // ######################################################################
+        // A snap point a statikus objektum felületén van.
+        // A koordinátáit a VÉGLEGESEN igazított pozícióból vezetjük le.
+        let snapPointX, snapPointZ;
+
+        if (isSnappingOnX) {
+          // Ha X-ben igazítunk, a snap pont X-koordinátája a statikus doboz éle.
+          snapPointX = (distanceToLeftEdge < distanceToRightEdge) ? staticBox.min.x : staticBox.max.x;
+        } else {
+          // Ha X-ben nem, akkor a vonal párhuzamos a Z-tengellyel, az X-koordináta a bútor végső X-pozíciója.
+          snapPointX = potentialSnapPosition.x;
+        }
+
+        if (isSnappingOnZ) {
+          // Ha Z-ben igazítunk, a snap pont Z-koordinátája a statikus doboz éle.
+          snapPointZ = staticBox.max.z;
+        } else {
+          // Ha Z-ben nem, akkor a vonal párhuzamos az X-tengellyel, a Z-koordináta a bútor végső Z-pozíciója.
+          snapPointZ = potentialSnapPosition.z;
+        }
+        
+        const primarySnapPoint = new Vector3(snapPointX, finalHeight, snapPointZ);
+
+        candidates.push({
+          priority: isSnappingOnZ ? 1 : 2,
+          position: potentialSnapPosition,
+          distance: proposedPosition.distanceTo(potentialSnapPosition),
+          snapPoint: primarySnapPoint,
+          targetObject: staticObject,
         });
       }
     }
@@ -85,10 +113,21 @@ export default class PlacementManager {
 
     if (candidates.length > 0) {
       candidates.sort((a, b) => a.priority - b.priority || a.distance - b.distance);
+      
       const bestValidSnap = candidates.find(c => !this.isPositionColliding(movingObject, c.position, otherObjects));
+      
       if (bestValidSnap) {
         const virtualBox = this.getVirtualBox(movingObject, bestValidSnap.position);
-        this.experience.debug.updateSnapHelpers(virtualBox, bestValidSnap);
+        
+        if (bestValidSnap.snapPoint) {
+          this.experience.debug.updateSnapHelpers(
+            virtualBox, 
+            bestValidSnap as SnapCandidateWithPoint
+          );
+        } else {
+          this.experience.debug.updateVirtualBox(virtualBox);
+        }
+        
         return bestValidSnap.position;
       }
     }
@@ -103,16 +142,11 @@ export default class PlacementManager {
     return proposedPosition; 
   }
 
-  // ######################################################################
-  // ###             LEEGYSZERŰSÖDÖTT, ROBUSZTUS FÜGGVÉNY               ###
-  // ######################################################################
+
   private getVirtualBox(proxyObject: Group, centerPosition: Vector3): Box3 {
-    // Mivel a proxyObject a befoglaló, a méretét egyszerűen lekérhetjük.
     const box = new Box3().setFromObject(proxyObject);
     const size = new Vector3();
     box.getSize(size);
-    
-    // Létrehozunk egy új dobozt a megfelelő mérettel a kívánt pozícióban.
     return new Box3().setFromCenterAndSize(centerPosition, size);
   }
 }
