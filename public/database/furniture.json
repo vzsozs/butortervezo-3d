@@ -23,6 +23,11 @@
         ],
         "defaultOption": "standard_leg",
         "options": [ "standard_leg" ]
+      },
+      {
+        "id": "corpus",
+        "name": "Korpusz",
+        "materialTarget": "MAT_Korpusz"
       }
     ]
   }

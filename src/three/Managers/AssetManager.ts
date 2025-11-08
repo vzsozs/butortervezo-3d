@@ -16,7 +16,7 @@ export default class AssetManager {
     this.textureLoader = new TextureLoader();
   }
 
-  private findObjectByBaseName(parent: Object3D, baseName: string): Object3D | undefined {
+  public findObjectByBaseName(parent: Object3D, baseName: string): Object3D | undefined {
     let foundObject: Object3D | undefined = undefined;
     parent.traverse((child) => {
       if (foundObject) return;
@@ -79,10 +79,16 @@ export default class AssetManager {
     }
 
     furnitureMesh.name = config.id;
+
     furnitureMesh.userData.config = config;
+    // ÚJ: Létrehozzuk az állapot tárolót
+    const componentState: Record<string, string> = {};
+    const materialState: Record<string, string | null> = {};
 
     let legHeight = 0;
     for (const slot of config.slots) {
+      componentState[slot.id] = slot.defaultOption;
+      materialState[slot.id] = null; 
       const componentConfig = this.experience.configManager.getComponentById(slot.defaultOption);
       if (componentConfig) {
         if (slot.id === 'leg') {
@@ -116,12 +122,14 @@ export default class AssetManager {
     furnitureProxy.name = `proxy_${config.id}`;
     furnitureProxy.userData.config = config;
     furnitureProxy.userData.isProxy = true;
+    furnitureProxy.userData.componentState = componentState;
+    furnitureProxy.userData.materialState = materialState;
     
-    console.log(`Proxy létrehozva a(z) '${config.id}' bútorhoz.`);
+    console.log(`Proxy létrehozva a(z) '${config.id}' bútorhoz.`, { state: componentState });
     return furnitureProxy;
   }
 
-  private async buildComponent(config: ComponentConfig): Promise<Object3D | null> {
+  public async buildComponent(config: ComponentConfig): Promise<Object3D | null> {
     if (!config.modelUrl) {
       console.error(`A(z) '${config.name}' komponensnek nincs modelUrl-je.`);
       return null;

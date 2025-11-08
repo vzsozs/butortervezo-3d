@@ -30,6 +30,7 @@ export interface ComponentConfig {
   isSymmetric: boolean;
   slots: ComponentSlotConfig[];
   height?: number;
+  materialTarget?: string; // JAVÍTÁS: Ez a sor hiányzott!
 }
 
 // A 'furniture.json' fájlban lévő slotok leírása

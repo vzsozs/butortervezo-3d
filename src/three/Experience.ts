@@ -99,30 +99,42 @@ export default class Experience {
       const originalObject = this.placedObjects.find(obj => obj.uuid === uuidToDuplicate);
       
       if (originalObject && originalObject.userData.config) {
-        // 1. Létrehozunk egy teljesen ÚJ, független bútort a configja alapján
+        // 1. Létrehozzuk az új, alapértelmezett bútort
         const newObject = await this.assetManager.buildFurniture(originalObject.userData.config.id);
         
         if (newObject) {
-          // 2. Kiszámoljuk az új pozíciót a HELYES `getVirtualBox` függvénnyel
+          // ######################################################################
+          // ###                         JAVÍTOTT RÉSZ                          ###
+          // ######################################################################
+
+          // 2. MÉLYEN átmásoljuk az állapotot a régiről az újra
+          // A JSON.stringify/parse egy egyszerű trükk a mély klónozásra
+          if (originalObject.userData.componentState) {
+            newObject.userData.componentState = JSON.parse(JSON.stringify(originalObject.userData.componentState));
+          }
+          if (originalObject.userData.materialState) {
+            newObject.userData.materialState = JSON.parse(JSON.stringify(originalObject.userData.materialState));
+          }
+
+          // 3. Alkalmazzuk a másolt állapotot a 3D modellre
+          await this.stateManager.applyStateToObject(newObject);
+
+          // 4. Beállítjuk a pozíciót és a forgatást
           const boundingBox = this.placementManager.getVirtualBox(originalObject, originalObject.position);
           const size = new Vector3();
           boundingBox.getSize(size);
           const offset = new Vector3(size.x + 0.1, 0, 0);
           newObject.position.copy(originalObject.position).add(offset);
           newObject.rotation.copy(originalObject.rotation);
+          newObject.scale.copy(originalObject.scale);
 
-          // 3. Hozzáadjuk a jelenethez (de a placedObjects-hez még nem, csak a lehelyezéskor)
+          // 5. A többi lépés változatlan
           this.scene.add(newObject);
-
-          // 4. Leválasztjuk a kijelölést a régiről
           this.transformControls.detach();
           this.selectionStore.clearSelection();
-
-          // 5. Átadjuk az InteractionManager-nek, hogy a felhasználó azonnal húzhassa
           this.interactionManager.startDraggingExistingObject(newObject);
         }
       }
-      // Mindenképp nyugtázzuk, hogy a kérést feldolgoztuk
       this.selectionStore.acknowledgeDuplication();
     }
   }

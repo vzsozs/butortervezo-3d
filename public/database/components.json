@@ -3,6 +3,7 @@
     "name": "Sima Front 60cm",
     "modelUrl": "/models/fronts/front_sima_60_L.glb",
     "isSymmetric": true,
+    "materialTarget": "MAT_Frontok", 
     "slots": [
       {
         "id": "handle",
@@ -17,12 +18,14 @@
     "name": "Standard Fogantyú",
     "modelUrl": "/models/handles/handle_standard.glb",
     "isSymmetric": true,
+    "materialTarget": "MAT_Fem_Kiegeszitok", 
     "slots": []
   },
   "design_handle": {
     "name": "Design Fogantyú",
     "modelUrl": "/models/handles/handle_design.glb",
     "isSymmetric": true,
+    "materialTarget": "MAT_Fem_Kiegeszitok", 
     "slots": []
   },
   "standard_leg": {
