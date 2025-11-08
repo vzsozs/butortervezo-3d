@@ -1,0 +1,29 @@
+[
+  {
+    "id": "also_szekreny_60",
+    "name": "Alsó szekrény 60cm",
+    "category": "bottom_cabinets",
+    "baseModelUrl": "/models/corpus/corpus_bottom_60.glb",
+    "slots": [
+      {
+        "id": "front",
+        "name": "Front",
+        "attachmentPoint": "attach_front",
+        "defaultOption": "sima_front_60",
+        "options": [ "sima_front_60" ]
+      },
+      {
+        "id": "leg",
+        "name": "Láb",
+        "attachmentPoints": [
+          "attach_leg_frontLeft",
+          "attach_leg_frontRight",
+          "attach_leg_backLeft",
+          "attach_leg_backRight"
+        ],
+        "defaultOption": "standard_leg",
+        "options": [ "standard_leg" ]
+      }
+    ]
+  }
+]

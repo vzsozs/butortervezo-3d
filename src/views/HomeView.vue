@@ -13,9 +13,11 @@ let experience: Experience | null = null
 
 const experienceStore = useExperienceStore();
 
-onMounted(() => {
+// JAVÍTÁS: Az onMounted most már egy async függvény
+onMounted(async () => {
   if (sceneContainer.value) {
-    experience = new Experience(sceneContainer.value)
+    // JAVÍTÁS: Az új, aszinkron create metódust hívjuk
+    experience = await Experience.create(sceneContainer.value);
     experienceStore.setExperience(experience);
   }
 })

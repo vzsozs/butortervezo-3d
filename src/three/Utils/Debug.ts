@@ -48,19 +48,25 @@ export default class Debug {
     this.snapPointHelper.visible = false;
   }
 
-  // 3. JAVÍTÁS: Az 'any' típust a konkrét 'SnapCandidate' típusra cseréljük.
-  public updateSnapHelpers(virtualMovingBox: Box3, bestCandidate: SnapCandidate) {
-    this.snapPointHelper.position.copy(bestCandidate.snapPoint);
-    this.snapPointHelper.visible = true;
+  
 
+  // ÚJ METÓDUS
+  public updateVirtualBox(virtualMovingBox: Box3) {
     const center = new Vector3();
     const size = new Vector3();
     virtualMovingBox.getCenter(center);
     virtualMovingBox.getSize(size);
-    center.y = size.y / 2;
+    
     this.virtualBoxMesh.position.copy(center);
     this.virtualBoxMesh.scale.copy(size);
     this.virtualBoxMesh.visible = true;
+  }
+
+  public updateSnapHelpers(virtualMovingBox: Box3, bestCandidate: SnapCandidate) {
+    this.updateVirtualBox(virtualMovingBox); // Újrahasználjuk a fenti logikát
+
+    this.snapPointHelper.position.copy(bestCandidate.snapPoint);
+    this.snapPointHelper.visible = true;
 
     this.staticBoxHelper.setFromObject(bestCandidate.targetObject);
     this.staticBoxHelper.visible = true;

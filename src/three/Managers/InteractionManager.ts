@@ -2,8 +2,6 @@
 
 import { Group, Mesh, MeshStandardMaterial, Object3D, Vector3 } from 'three';
 import Experience from '../Experience';
-// JAVÍTÁS: Importáljuk a config fájlt, amire szükségünk van.
-import { furnitureDatabase } from '@/config/furniture';
 
 export default class InteractionManager {
   private draggedObject: Group | null = null;
@@ -31,9 +29,9 @@ export default class InteractionManager {
     }
   }
   
-  private startDraggingNewObject(point: Vector3) {
-    console.log('--- startDraggingNewObject --- Kezdeti pont:', point);
-    const newObject = this.createDraggableObject(point);
+  private async startDraggingNewObject(point: Vector3) {
+    // JAVÍTÁS: Megvárjuk, amíg a bútor felépül
+    const newObject = await this.createDraggableObject(point);
     if (newObject) {
       this.draggedObject = newObject;
       this.experience.scene.add(this.draggedObject);
@@ -44,22 +42,36 @@ export default class InteractionManager {
     }
   }
 
+
   private handleObjectSelection() {
     const intersects = this.experience.raycaster.intersectObjects(this.experience.placedObjects, true);
     if (intersects.length > 0) {
-      let objectToSelect = intersects[0]!.object;
-      while (objectToSelect.parent && objectToSelect.parent !== this.experience.scene) {
-        objectToSelect = objectToSelect.parent;
+      const clickedObject = intersects[0]!.object;
+
+      // --- JAVÍTOTT LOGIKA: MÁSSZUNK FEL A HIERARCHIÁBAN ---
+      let parentGroup: Group | null = null;
+
+      // Addig megyünk felfelé a szülőkön, amíg meg nem találjuk azt az objektumot,
+      // ami a 'placedObjects' listában is szerepel.
+      let current: Object3D | null = clickedObject;
+      while (current !== null) {
+        if (this.experience.placedObjects.find(obj => obj.uuid === current?.uuid)) {
+          parentGroup = current as Group;
+          break;
+        }
+        current = current.parent;
       }
-      if (objectToSelect instanceof Group) {
+      // ----------------------------------------------------
+
+      if (parentGroup) {
+        const objectToSelect = parentGroup;
         this.experience.selectionStore.selectObject(objectToSelect);
-        // JAVÍTÁS: Az opcionális láncolás (?) nem működik értékadás bal oldalán.
-        // Mivel a debug modul biztosan létezik, használhatunk !-t vagy egyszerűen elhagyhatjuk.
         this.experience.debug.selectionBoxHelper.setFromObject(objectToSelect);
         this.experience.debug.selectionBoxHelper.visible = true;
         this.experience.transformControls.attach(objectToSelect);
         this.setTransformMode('translate');
       }
+
     } else {
       // JAVÍTÁS: Használjunk @ts-expect-error-t a privát property-k eléréséhez.
       // @ts-expect-error - Az 'axis' tulajdonság hibásan privátként van deklarálva a three-stdlib típusdefiníciójában.
@@ -84,6 +96,8 @@ export default class InteractionManager {
     const intersects = this.experience.raycaster.intersectObjects(this.experience.intersectableObjects);
     if (intersects.length > 0) {
       const point = intersects[0]!.point;
+
+      point.y = this.draggedObject.position.y;
 
       const finalPosition = this.experience.placementManager.calculateFinalPosition(
         this.draggedObject, 
@@ -187,35 +201,30 @@ export default class InteractionManager {
     // A 'drag' közbeni listenereket az endDrag() már eltávolítja.
   }
 
-  private createDraggableObject(point: Vector3): Group | null {
-    // JAVÍTÁS: A store-okat és managereket az experience-en keresztül érjük el.
+  private async createDraggableObject(point: Vector3): Promise<Group | null> {
     const activeId = this.experience.settingsStore.activeFurnitureId;
     if (!activeId) {
       console.warn("Nincs aktív bútor kiválasztva a lehelyezéshez.");
       return null;
     }
-    const allFurniture = furnitureDatabase.flatMap(cat => cat.items);
-    const furnitureConfig = allFurniture.find(f => f.id === activeId);
-    if (!furnitureConfig) return null;
-    
-    // Az AssetManager-t használjuk a modell klónozásához.
-    const modelTemplate = this.experience.assetManager.getModel(furnitureConfig.modelUrl);
-    if (!modelTemplate) {
-      // Az AssetManager már logolja a hibát, itt nem kell újra.
+
+    // Az AssetManager-t használjuk a bútor felépítéséhez
+    const newObject = await this.experience.assetManager.buildFurniture(activeId);
+    if (!newObject) {
       return null;
     }
     
-    const newObject = modelTemplate; // A getModel már klónozott.
-    newObject.name = furnitureConfig.id;
-    newObject.traverse((child: Object3D) => { // JAVÍTÁS: Típus megadása a child-nak
+    newObject.traverse((child: Object3D) => {
       if (child instanceof Mesh && child.material instanceof MeshStandardMaterial) {
+        child.material = child.material.clone(); // Mély klónozás az anyagokra!
         child.material.transparent = true;
         child.material.opacity = 0.5;
       }
     });
+    
+    // A forgatást és pozicionálást a végén végezzük el
     newObject.rotation.y = -Math.PI / 2;
-    newObject.position.copy(point);
-    newObject.position.y = 0;
+    newObject.position.set(point.x, newObject.position.y, point.z);
     return newObject;
   }
 }

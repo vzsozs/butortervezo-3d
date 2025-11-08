@@ -18,7 +18,7 @@ export const useSettingsStore = defineStore('settings', () => {
   })
   
   // Az "aktív ecset", ami a lehelyezendő bútor ID-jét tárolja
-  const activeFurnitureId = ref<string | null>('also_szekreny_60'); // Alapból legyen kiválasztva az első
+  const activeFurnitureId = ref<string | null>('also_szekreny_60');
 
   function setGlobalMaterial(settingId: string, materialId: string) {
     if (materialId) {

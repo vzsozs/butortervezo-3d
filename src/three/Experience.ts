@@ -5,6 +5,7 @@ import { OrbitControls } from 'three-stdlib';
 import { TransformControls } from 'three-stdlib';
 import { useSelectionStore } from '@/stores/selection';
 import { useSettingsStore } from '@/stores/settings';
+import ConfigManager from './Managers/ConfigManager';
 
 import World from './World/World';
 import Debug from './Utils/Debug';
@@ -20,6 +21,7 @@ export default class Experience {
   public camera: PerspectiveCamera;
   public renderer: WebGLRenderer;
   private clock: Clock;
+  public configManager: ConfigManager;
 
   // Controls & Interaction State
   public controls: OrbitControls;
@@ -43,7 +45,7 @@ export default class Experience {
   public interactionManager: InteractionManager;
   public stateManager: StateManager;
 
-  constructor(canvas: HTMLDivElement) {
+  private constructor(canvas: HTMLDivElement) {
     this.canvas = canvas;
 
     // Core setup
@@ -65,6 +67,7 @@ export default class Experience {
     this.scene.add(this.transformControls);
 
     // Modules Initialization
+    this.configManager = new ConfigManager(); // Ez az első!
     this.debug = new Debug(this.scene);
     this.world = new World(this.scene);
     this.assetManager = new AssetManager(this);
@@ -83,6 +86,19 @@ export default class Experience {
 
     // Start loop
     this.animate();
+  }
+
+  public static async create(canvas: HTMLDivElement): Promise<Experience> {
+    const experience = new Experience(canvas);
+    
+    // Megvárjuk, amíg a konfiguráció betöltődik
+    await experience.configManager.loadData();
+
+    // Most, hogy az adatok betöltődtek, elindíthatjuk azokat a folyamatokat,
+    // amiknek szükségük van rá (pl. modellek előtöltése)
+    // experience.assetManager.preloadCommonAssets(); // Ezt később implementáljuk
+
+    return experience;
   }
 
   private onWindowResize = () => {
