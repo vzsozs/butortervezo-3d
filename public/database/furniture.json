@@ -10,7 +10,10 @@
         "name": "Front",
         "attachmentPoint": "attach_front",
         "defaultOption": "sima_front_60",
-        "options": [ "sima_front_60" ]
+        "options": [ 
+          "sima_front_60",
+          "keretes_front_60"
+        ]
       },
       {
         "id": "leg",
@@ -22,12 +25,16 @@
           "attach_leg_backRight"
         ],
         "defaultOption": "standard_leg",
-        "options": [ "standard_leg" ]
+        "options": [ 
+          "standard_leg",
+          "design_leg"
+        ]
       },
       {
         "id": "corpus",
         "name": "Korpusz",
-        "materialTarget": "MAT_Korpusz"
+        "materialTarget": "MAT_Korpusz",
+        "meshTarget": "also_szekreny_60"
       }
     ]
   }

@@ -80,6 +80,41 @@ export default class Experience {
     return experience;
   }
 
+  // ######################################################################
+  // ###                  ÚJ METÓDUS AZ ÚJRAÉPÍTÉSHEZ                   ###
+  // ######################################################################
+  public async rebuildObject(oldObject: Group, newState: Record<string, string>) {
+    const config = oldObject.userData.config;
+    if (!config) return;
+
+    // 1. Építsük meg az új bútort a frissített állapottal
+    const newObject = await this.assetManager.buildFurniture(config.id, newState);
+    if (!newObject) return;
+
+    // 2. Másoljuk át a régi objektum transzformációit
+    newObject.position.copy(oldObject.position);
+    newObject.rotation.copy(oldObject.rotation);
+    newObject.scale.copy(oldObject.scale);
+
+    // 3. Másoljuk át a régi anyag-állapotot is!
+    newObject.userData.materialState = oldObject.userData.materialState;
+    // És azonnal alkalmazzuk is rá
+    await this.stateManager.applyStateToObject(newObject);
+
+    // 4. Cseréljük le a régit az újra a jelenetben és a listákban
+    const index = this.placedObjects.findIndex(obj => obj.uuid === oldObject.uuid);
+    if (index > -1) {
+      this.placedObjects[index] = newObject;
+    }
+    this.scene.remove(oldObject);
+    this.scene.add(newObject);
+
+    // 5. Frissítsük a kijelölést, hogy az új objektumra mutasson
+    this.selectionStore.selectObject(newObject);
+    this.transformControls.attach(newObject);
+    this.debug.selectionBoxHelper.setFromObject(newObject);
+  }
+
   private async updateFromStore() {
     // Törlési kérelem figyelése
     const uuidToDelete = this.selectionStore.objectToDeleteUUID;

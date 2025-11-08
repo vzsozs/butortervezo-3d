@@ -1,9 +1,24 @@
 {
   "sima_front_60": {
-    "name": "Sima Front 60cm",
+    "name": "Sima Front",
     "modelUrl": "/models/fronts/front_sima_60_L.glb",
     "isSymmetric": true,
-    "materialTarget": "MAT_Frontok", 
+    "materialTarget": "MAT_Frontok",
+    "slots": [
+      {
+        "id": "handle",
+        "name": "Fogantyú",
+        "attachmentPoint": "attach_handle_vertical",
+        "defaultOption": "standard_handle",
+        "options": [ "standard_handle", "design_handle" ]
+      }
+    ]
+  },
+  "keretes_front_60": {
+    "name": "Keretes Front",
+    "modelUrl": "/models/fronts/front_keretes_60_L.glb",
+    "isSymmetric": true,
+    "materialTarget": "MAT_Frontok",
     "slots": [
       {
         "id": "handle",
@@ -18,21 +33,31 @@
     "name": "Standard Fogantyú",
     "modelUrl": "/models/handles/handle_standard.glb",
     "isSymmetric": true,
-    "materialTarget": "MAT_Fem_Kiegeszitok", 
+    "materialTarget": "MAT_Fem_Kiegeszitok",
     "slots": []
   },
   "design_handle": {
     "name": "Design Fogantyú",
     "modelUrl": "/models/handles/handle_design.glb",
     "isSymmetric": true,
-    "materialTarget": "MAT_Fem_Kiegeszitok", 
+    "materialTarget": "MAT_Fem_Kiegeszitok",
     "slots": []
   },
   "standard_leg": {
-    "name": "Standard Láb",
+    "name": "Bútorlap Láb",
     "modelUrl": "/models/legs/leg_standard.glb",
     "height": 0.1,
     "isSymmetric": true,
+    "inheritsMaterialFrom": "corpus",
+    "attachmentPoint": "attach_leg_frontLeft",
+    "slots": []
+  },
+  "design_leg": {
+    "name": "Design Láb (Cső)",
+    "modelUrl": "/models/legs/leg_design.glb",
+    "height": 0.1,
+    "isSymmetric": true,
+    "materialTarget": "MAT_Fem_Kiegeszitok",
     "slots": []
   }
 }

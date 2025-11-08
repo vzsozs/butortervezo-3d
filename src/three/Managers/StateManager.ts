@@ -154,80 +154,24 @@ export default class StateManager {
     });
   
   
-    // --- STÍLUSVÁLTÁS FIGYELŐ (TELJESEN ÚJRAÍRVA) ---
+    // --- STÍLUSVÁLTÁS FIGYELŐ (EGYSZERŰSÍTVE) ---
     watch(() => selectionStore.styleChangeRequest, async (request) => {
       if (!request) return;
 
       const { targetUUID, slotId, newStyleId } = request;
       const targetObject = this.experience.placedObjects.find(obj => obj.uuid === targetUUID);
-      
-      if (!targetObject || !targetObject.userData.config || !targetObject.userData.componentState) {
+      if (!targetObject?.userData.config) {
         selectionStore.acknowledgeStyleChange();
         return;
       }
 
-      console.log(`Stílusváltás kérése: Slot='${slotId}', Új ID='${newStyleId}'`);
+      // 1. Frissítjük a bútor állapotát
+      const currentState = targetObject.userData.componentState;
+      currentState[slotId] = newStyleId;
 
-      const furnitureConfig = targetObject.userData.config;
-      const componentState = targetObject.userData.componentState;
-      const slotConfig = furnitureConfig.slots.find((s: FurnitureSlotConfig) => s.id === slotId);
-      
-      const oldComponentId = componentState[slotId];
-      const oldComponentConfig = this.experience.configManager.getComponentById(oldComponentId);
-      const newComponentConfig = this.experience.configManager.getComponentById(newStyleId);
+      // 2. Szólunk az Experience-nek, hogy építse újra a bútort
+      this.experience.rebuildObject(targetObject, currentState);
 
-      if (!slotConfig || !newComponentConfig || !oldComponentConfig) {
-        console.error("Hiányzó konfiguráció a stílusváltáshoz.");
-        selectionStore.acknowledgeStyleChange();
-        return;
-      }
-
-      // 1. Keressük meg a bútor alaptestét (ahova a komponensek csatlakoznak)
-      let baseMesh: Object3D | undefined;
-      targetObject.traverse((child) => {
-        if (child.userData.config?.id === furnitureConfig.id) {
-          baseMesh = child;
-        }
-      });
-      if (!baseMesh) {
-        console.error("Nem található a bútor alapteste a proxy-n belül.");
-        selectionStore.acknowledgeStyleChange();
-        return;
-      }
-
-      // 2. Keressük meg és töröljük a régi komponenst
-      const oldComponentObject = baseMesh.children.find(child => child.name === oldComponentConfig.name);
-      if (oldComponentObject) {
-        baseMesh.remove(oldComponentObject);
-      }
-
-      // 3. Építsük meg az új komponenst
-      const newComponentObject = await this.experience.assetManager.buildComponent(newComponentConfig);
-      if (!newComponentObject) {
-        selectionStore.acknowledgeStyleChange();
-        return;
-      }
-
-      // 4. Helyezzük el az új komponenst a megfelelő csatlakozási ponton
-      const attachmentNames = slotConfig.attachmentPoints || (slotConfig.attachmentPoint ? [slotConfig.attachmentPoint] : []);
-      for (const pointName of attachmentNames) {
-        const attachmentPoint = this.experience.assetManager.findObjectByBaseName(baseMesh, pointName);
-        if (attachmentPoint) {
-          const instance = (attachmentNames.length > 1) ? newComponentObject.clone() : newComponentObject;
-          instance.position.copy(attachmentPoint.position);
-          instance.rotation.copy(attachmentPoint.rotation);
-          baseMesh.add(instance);
-        }
-      }
-
-      // 5. Frissítsük az állapotot
-      componentState[slotId] = newStyleId;
-      // Frissítsük a defaultOption-t is, hogy a UI szinkronban maradjon
-      slotConfig.defaultOption = newStyleId;
-
-      targetObject.userData.componentState[slotId] = newStyleId;
-
-      console.log("Stílusváltás sikeres. Új állapot:", componentState);
       selectionStore.acknowledgeStyleChange();
     });
 

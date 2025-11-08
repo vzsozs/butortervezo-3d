@@ -4,15 +4,51 @@ import { availableMaterials } from '@/config/materials'
 import { ref, computed } from 'vue'
 import { useDraggable } from '@vueuse/core'
 import { useExperienceStore } from '@/stores/experience';
-import type { ComponentConfig } from '@/config/furniture';
+// JAVÍTÁS: Hiányzó típusok importálása
+import type { ComponentConfig, FurnitureSlotConfig } from '@/config/furniture';
 
 const selectionStore = useSelectionStore()
 const experienceStore = useExperienceStore();
 
 const panelRef = ref<HTMLElement | null>(null)
+// JAVÍTÁS: A 'style' változó most már használatban lesz
 const { style } = useDraggable(panelRef, {
   initialValue: { x: window.innerWidth - 320, y: 40 },
 })
+
+function getComponent(componentId: string): ComponentConfig | undefined {
+  return experienceStore.instance?.configManager.getComponentById(componentId);
+}
+
+const allVisibleSlots = computed(() => {
+  const config = selectionStore.selectedObjectConfig;
+  const state = selectionStore.selectedObject?.userData.componentState;
+  if (!config || !state) return [];
+
+  const visibleSlots: FurnitureSlotConfig[] = [];
+
+  for (const mainSlot of config.slots) {
+    visibleSlots.push(mainSlot);
+    const selectedComponentId = state[mainSlot.id];
+    if (selectedComponentId) {
+      const selectedComponent = getComponent(selectedComponentId);
+      if (selectedComponent?.slots) {
+        // A TypeScriptnek segítünk, hogy tudja, ez a tömb is a megfelelő típust tartalmazza
+        visibleSlots.push(...(selectedComponent.slots as unknown as FurnitureSlotConfig[]));
+      }
+    }
+  }
+  return visibleSlots;
+});
+
+// JAVÍTÁS: Ez a computed property hiányzott
+const selectedComponentForSlot = computed(() => (slotId: string) => {
+  const componentId = selectionStore.selectedObject?.userData.componentState?.[slotId];
+  if (componentId) {
+    return getComponent(componentId);
+  }
+  return undefined;
+});
 
 function handleDelete() {
   selectionStore.deleteSelectedObject()
@@ -34,35 +70,23 @@ function handleStyleChange(slotId: string, componentId: string) {
   }
 }
 
-function getComponent(componentId: string): ComponentConfig | undefined {
-  return experienceStore.instance?.configManager.getComponentById(componentId);
-}
 
-// Computed property, ami visszaadja a kiválasztott komponens configját egy adott slothoz.
-const selectedComponentForSlot = computed(() => (slotId: string) => {
-  const componentId = selectionStore.selectedObject?.userData.componentState?.[slotId];
-  if (componentId) {
-    return getComponent(componentId);
-  }
-  return undefined;
-});
 </script>
 
 <template>
+  <!-- JAVÍTÁS: A 'style' property-t rákötjük a div-re -->
   <div 
-    v-if="selectionStore.selectedObjectConfig && selectionStore.selectedObject" 
+    v-if="selectionStore.selectedObjectConfig && selectionStore.selectedObject"
     ref="panelRef"
-    @mousedown.stop
     :style="style"
     style="position: fixed"
     class="panel w-72 cursor-move"
+    @mousedown.stop
   >
-    <h1 class="panel-header">
-      {{ selectionStore.selectedObjectConfig.name }}
-    </h1>
-    
+    <h1 class="panel-header">{{ selectionStore.selectedObjectConfig.name }}</h1>
     <div class="space-y-6">
-      <div v-for="slot in selectionStore.selectedObjectConfig.slots" :key="slot.id">
+      
+      <div v-for="slot in allVisibleSlots" :key="slot.id">
         <label class="input-label mb-2">{{ slot.name }}</label>
 
         <!-- Stílus/Komponens választó -->
@@ -104,7 +128,7 @@ const selectedComponentForSlot = computed(() => (slotId: string) => {
               {{ material.name }}
             </option>
           </select>
-          <div class="select-arrow">
+           <div class="select-arrow">
              <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
           </div>
         </div>

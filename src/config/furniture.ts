@@ -30,7 +30,9 @@ export interface ComponentConfig {
   isSymmetric: boolean;
   slots: ComponentSlotConfig[];
   height?: number;
-  materialTarget?: string; // JAVÍTÁS: Ez a sor hiányzott!
+  materialTarget?: string;
+  inheritsMaterialFrom?: string;
+  attachmentPoint?: string; // JAVÍTÁS: Ez a sor hiányzott!
 }
 
 // A 'furniture.json' fájlban lévő slotok leírása
@@ -39,12 +41,10 @@ export interface FurnitureSlotConfig {
   name: string;
   attachmentPoint?: string;
   attachmentPoints?: string[];
-  defaultOption: string;
-  options: string[];
+  defaultOption?: string; // JAVÍTÁS: A '?' jel jelzi, hogy ez a mező nem kötelező
+  options?: string[]; // Ezt is opcionálissá tesszük, mert a korpusznak nincs
   materialTarget?: string;
-  // A styleOptions valójában nem létezik a JSON-ban, az 'options' tömb van helyette.
-  // De ha a jövőben használni akarod, itt a helye:
-  // styleOptions?: StyleOption[]; 
+  meshTarget?: string; // Ezt is tegyük be a biztonság kedvéért
 }
 
 // A 'furniture.json' fájlban lévő fő objektumok leírása
