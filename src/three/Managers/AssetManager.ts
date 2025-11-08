@@ -1,11 +1,12 @@
-import { Mesh, Group, TextureLoader, Texture, Object3D, SRGBColorSpace, RepeatWrapping, Vector3 } from 'three';
+// src/three/Managers/AssetManager.ts
+
+import { Mesh, Group, TextureLoader, Texture, Object3D, SRGBColorSpace, RepeatWrapping, Vector3, Box3 } from 'three';
 import { GLTFLoader } from 'three-stdlib';
 import Experience from '../Experience';
 import type { ComponentConfig } from './ConfigManager';
 
 export default class AssetManager {
   private textureLoader: TextureLoader;
-  // JAVÍTÁS: Visszaállítottuk a textureCache property-t.
   private textureCache: Map<string, Texture> = new Map();
   private modelCache: Map<string, Group> = new Map();
   private loader = new GLTFLoader();
@@ -13,15 +14,6 @@ export default class AssetManager {
   constructor(private experience: Experience) {
     this.textureLoader = new TextureLoader();
   }
-
-  // --- ÚJ SEGÉDFÜGGVÉNY ---
-  /**
-   * Megkeres egy objektumot a szülőjén belül a neve kezdete alapján.
-   * Figyelmen kívül hagyja az exportáló által hozzáadott "_001" és hasonló utótagokat.
-   * @param parent Az objektum, amiben keresünk.
-   * @param baseName A név, amivel a keresett objektum nevének kezdődnie kell.
-   * @returns A talált Object3D, vagy undefined, ha nincs találat.
-   */
 
   private findObjectByBaseName(parent: Object3D, baseName: string): Object3D | undefined {
     let foundObject: Object3D | undefined = undefined;
@@ -71,171 +63,115 @@ export default class AssetManager {
     }
   }
 
-   // --- ÚJ, RÉSZLETES DIAGNOSZTIKAI FÜGGVÉNY ---
-  private logTransformations(
-    parentObj: Object3D, 
-    dummyObj: Object3D, 
-    componentObj: Object3D, 
-    slotId: string
-  ) {
-    console.groupCollapsed(`DIAGNOSZTIKA: '${componentObj.name}' csatlakoztatása a(z) '${slotId}' slot-hoz`);
+   
 
-    const formatPos = (v: Vector3) => `x:${v.x.toFixed(3)}, y:${v.y.toFixed(3)}, z:${v.z.toFixed(3)}`;
-    
-    const parentWorldPos = new Vector3();
-    parentObj.getWorldPosition(parentWorldPos);
-    console.log(`%cSZÜLŐ (ahova csatolunk): ${parentObj.name}`, 'font-weight: bold;', {
-      "Szülőjének neve": parentObj.parent?.name || 'NINCS',
-      "Lokális Pozíció": formatPos(parentObj.position),
-      "Világ Pozíció": formatPos(parentWorldPos),
-    });
-
-    const dummyWorldPos = new Vector3();
-    dummyObj.getWorldPosition(dummyWorldPos);
-    console.log(`%cCSATLAKOZÁSI PONT: ${dummyObj.name}`, 'font-weight: bold;', {
-      "Szülőjének neve": dummyObj.parent?.name || 'NINCS',
-      "Lokális Pozíció": formatPos(dummyObj.position),
-      "Világ Pozíció": formatPos(dummyWorldPos),
-    });
-
-    console.log(`%cKOMPONENS (csatolás előtt): ${componentObj.name}`, 'font-weight: bold;', {
-      "Lokális Pozíció": formatPos(componentObj.position),
-    });
-
-    // Szimuláljuk a transzformációt
-    const finalLocalPos = new Vector3();
-    dummyObj.getWorldPosition(finalLocalPos);
-    parentObj.worldToLocal(finalLocalPos);
-
-    console.log(`%cSZÁMÍTÁS: A dummy világpozíciója a szülő lokális terében: ${formatPos(finalLocalPos)}`, 'color: cyan');
-    
-    console.groupEnd();
-  }
-
-
-    public async buildFurniture(furnitureId: string): Promise<Group | null> {
+  // ######################################################################
+  // ###                    ÁTALAKÍTOTT FŐ FÜGGVÉNY                     ###
+  // ######################################################################
+  public async buildFurniture(furnitureId: string): Promise<Group | null> {
     const config = this.experience.configManager.getFurnitureById(furnitureId);
     if (!config) {
       console.error(`Nincs ilyen bútor a konfigurációban: ${furnitureId}`);
       return null;
     }
 
-    const loadedScene = await this.loadModel(config.baseModelUrl);
-    const furnitureGroup = this.findFirstMesh(loadedScene);
+    // 1. LÉPÉS: A bútor vizuális modelljének összeállítása, ahogy eddig is.
+    const visualModelRoot = await this.loadModel(config.baseModelUrl);
+    const furnitureMesh = this.findFirstMesh(visualModelRoot);
 
-    if (!furnitureGroup) {
+    if (!furnitureMesh) {
       console.error(`Nem található MESH objektum a(z) ${config.baseModelUrl} fájlban.`);
-      return loadedScene;
+      return visualModelRoot;
     }
 
-    furnitureGroup.name = config.id;
-    furnitureGroup.userData.config = config;
-
-    let legHeight = 0; // Változó a láb magasságának tárolására
-
+    let legHeight = 0;
     for (const slot of config.slots) {
       const componentConfig = this.experience.configManager.getComponentById(slot.defaultOption);
       if (componentConfig) {
         if (slot.id === 'leg') {
           legHeight = componentConfig.height || 0;
-
-          console.log(`Láb komponens ('${slot.defaultOption}') magassága az adatbázisból: ${componentConfig.height}m. A bútor ennyivel lesz megemelve: ${legHeight}m`);
         }
-        const component = await this.buildComponent(componentConfig);
-        if (!component) continue;
-        
         const attachmentNames = slot.attachmentPoints || (slot.attachmentPoint ? [slot.attachmentPoint] : []);
-
-        // 2. Végigmegyünk a listán, és minden ponthoz létrehozunk egy komponenst.
         for (const pointName of attachmentNames) {
           const component = await this.buildComponent(componentConfig);
           if (!component) continue;
-          
-          const attachmentPoint = this.findObjectByBaseName(furnitureGroup, pointName);
-          
+          const attachmentPoint = this.findObjectByBaseName(furnitureMesh, pointName);
           if (attachmentPoint) {
             component.position.copy(attachmentPoint.position);
             component.rotation.copy(attachmentPoint.rotation);
-            furnitureGroup.add(component);
+            furnitureMesh.add(component);
           } else {
-            console.warn(`Nem található a(z) '${pointName}' csatlakozási pont a(z) '${furnitureGroup.name}' modellen.`);
-            furnitureGroup.add(component);
+            furnitureMesh.add(component);
           }
         }
       }
     }
-    // --- RÉSZLETES DIAGNOSZTIKAI LOG A VÉGÉN ---
-  console.groupCollapsed(`DIAGNOSZTIKA: Véglegesítés - ${config.id}`);
+    visualModelRoot.position.y = legHeight;
 
-  console.log(`SZÁMÍTOTT LÁBMAGASSÁG: ${legHeight}`);
+    // 2. LÉPÉS: A PROXY OBJEKTUM LÉTREHOZÁSA
+    // Frissítjük a mátrixokat, hogy a befoglaló doboz számítása pontos legyen.
+    visualModelRoot.updateWorldMatrix(true, true);
+    const box = new Box3().setFromObject(visualModelRoot);
+    const center = new Vector3();
+    box.getCenter(center);
 
-  console.log("Módosítás ELŐTT:", {
-    "loadedScene neve": loadedScene.name,
-    "loadedScene pozíciója": loadedScene.position.clone(),
-    "furnitureGroup neve": furnitureGroup.name,
-    "furnitureGroup pozíciója": furnitureGroup.position.clone(),
-  });
+    // A látható modellt eltoljuk a saját középpontjával ellentétesen.
+    // Így amikor a proxy (0,0,0) pontjában van, a modell vizuálisan középen lesz.
+    visualModelRoot.position.sub(center);
 
-  // Itt történik a módosítási kísérlet
-  loadedScene.position.y = legHeight;
+    // Létrehozzuk a proxyt, ami egy sima Group. Ez lesz a mozgatható objektum.
+    const furnitureProxy = new Group();
+    furnitureProxy.add(visualModelRoot); // A látható modellt beletesszük a proxyba.
 
-  console.log("Módosítás UTÁN:", {
-    "loadedScene pozíciója": loadedScene.position.clone(),
-  });
+    // A proxy pozícióját a kiszámolt középpontra állítjuk.
+    // Így a bútor vizuálisan ugyanott marad, de most már a proxy irányítja.
+    furnitureProxy.position.copy(center);
 
-  console.groupEnd();
-  // --- LOG VÉGE ---
+    // Fontos adatokat átmásolunk a proxyra, hogy a többi menedzser is elérje.
+    furnitureProxy.name = `proxy_${config.id}`;
+    furnitureProxy.userData.config = config;
+    furnitureProxy.userData.isProxy = true; // Jelölő, hogy tudjuk, ez egy proxy.
+    
+    console.log(`Proxy létrehozva a(z) '${config.id}' bútorhoz. A vizuális modell eltolása:`, visualModelRoot.position);
 
-  return loadedScene;
+    // A proxy-t adjuk vissza, nem a vizuális modellt!
+    return furnitureProxy;
   }
 
-   private async buildComponent(config: ComponentConfig): Promise<Object3D | null> {
+  private async buildComponent(config: ComponentConfig): Promise<Object3D | null> {
+    // ... (ez a függvény változatlan)
     if (!config.modelUrl) {
       console.error(`A(z) '${config.name}' komponensnek nincs modelUrl-je.`);
       return null;
     }
-    
     const loadedScene = await this.loadModel(config.modelUrl);
     const componentMesh = this.findFirstMesh(loadedScene);
-
     if (!componentMesh) {
       console.error(`Nem található MESH objektum a(z) ${config.modelUrl} fájlban.`);
       return null;
     }
-
     componentMesh.name = config.name;
     componentMesh.userData.config = config;
-
-    loadedScene.updateMatrixWorld(true);
-
     if (config.slots && config.slots.length > 0) {
       for (const slot of config.slots) {
         const subComponentConfig = this.experience.configManager.getComponentById(slot.defaultOption);
         if (subComponentConfig) {
-          // --- EZ A JAVÍTOTT RÉSZ, UGYANAZ, MINT A BUILDFURNITURE-BEN ---
           const attachmentNames = slot.attachmentPoints || (slot.attachmentPoint ? [slot.attachmentPoint] : []);
-
           for (const pointName of attachmentNames) {
             const subComponent = await this.buildComponent(subComponentConfig);
             if (!subComponent) continue;
-            
-            // A 'pointName' itt már garantáltan 'string'.
             const attachmentPoint = this.findObjectByBaseName(componentMesh, pointName);
-
             if (attachmentPoint) {
               subComponent.position.copy(attachmentPoint.position);
               subComponent.rotation.copy(attachmentPoint.rotation);
               componentMesh.add(subComponent);
             } else {
-              console.warn(`Nem található a(z) '${pointName}' csatlakozási pont a(z) '${config.name}' modellen.`);
               componentMesh.add(subComponent);
             }
           }
         }
       }
     }
-
-    // JAVÍTÁS: A végén a "kibontott" Mesht adjuk vissza, nem a teljes jelenetet!
     return componentMesh;
   }
   

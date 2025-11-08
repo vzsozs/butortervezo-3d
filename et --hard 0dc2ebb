@@ -1,0 +1,23 @@
+[33m0dc2ebb[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m v0.6 ujrairt butorgeneralas kulso fajlokbol, a snap logika meg nem mukodik
+[33ma89451b[m v0.5 - Duplikalas plusz felso menu
+[33mcdbbed6[m v0.41 -refaktoralt experience.ts hiba nelkul.
+[33md4f5bca[m v0.4 -refaktoralt experience.ts
+[33m16e534c[m v0.3 - Mukodo snap es utkozesvizsgalat!
+[33m25f195c[m v0.2 - snapp javítás
+[33m3c728e4[m biztonsagi mentes: mukodo snap logika a lehelyezesnel
+[33m067d3f4[m Feat: Gizmo implementálva snapping és rotation vezérlőkkel
+[33ma0e2a0e[m feat: Add TransformControls logic structure
+[33m15f1b32[m refactor: Redesign side panel elrendezés és stílusok
+[33m16dbb68[m feat: Dinamikus bútorválasztó implementálása az oldalsó panelen
+[33m33c0482[m feat: Globális beállítások panel és húzható Inspector panel hozzáadása
+[33m95ef6a1[m feat: Dinamikus stílus- és anyagváltoztatás megvalósítása
+[33mff82063[m feat: Adatvezérelt dinamikus inspector panel megvalósítása
+[33me9500ad[m refactor:Az összes 3D logikát áthelyeztük a Experience osztályba, és kijavítottuk a textúra betöltését.
+[33mc77f32e[m feat: Objektum kiválasztás és törlés megvalósítása Pinia store-on keresztül
+[33m4cfd33a[m nem oke meg mindig
+[33m6585415[m nem oke
+[33mbdc01d6[m feat: Finomított snapping logika és optimális kamera beállítás
+[33m6995a42[m feat: Drag-and-drop modell elhelyezés 'szellem' állapottal
+[33m57e47aa[m feat: Módváltás Shift billentyűvel a navigáció és lehelyezés között
+[33m22d6582[m feat: Alap 3D jelenet kameravezérléssel és objektum elhelyezéssel
+[33me6a740c[m initial commit

@@ -96,31 +96,27 @@ export default class InteractionManager {
     const intersects = this.experience.raycaster.intersectObjects(this.experience.intersectableObjects);
     if (intersects.length > 0) {
       const point = intersects[0]!.point;
-
+      // A proxy Y pozícióját nem az egér, hanem a bútor magassága határozza meg.
       point.y = this.draggedObject.position.y;
-
       const finalPosition = this.experience.placementManager.calculateFinalPosition(
         this.draggedObject, 
         point, 
         this.experience.placedObjects
       );
-      console.log('onMouseMove -> Egér pont:', point, 'Számított végleges pozíció:', finalPosition);
       this.draggedObject.position.copy(finalPosition);
     }
   }
 
   private onMouseUp = (event: MouseEvent) => {
     if (event.button !== 0 || !this.draggedObject) return;
-    
+    // Az átlátszóságot megszüntetjük a proxy-n belül lévő mesheken.
     this.draggedObject.traverse((child) => {
       if (child instanceof Mesh && child.material instanceof MeshStandardMaterial) {
         child.material.transparent = false;
         child.material.opacity = 1.0;
       }
     });
-
     this.experience.placedObjects.push(this.draggedObject);
-    //this.experience.controls.target.copy(this.draggedObject.position); // zsozs: Kamera pozíciója követi a lehelyezett objectet 
     this.experience.debug.hideAll();
     this.endDrag();
   }
@@ -201,6 +197,9 @@ export default class InteractionManager {
     // A 'drag' közbeni listenereket az endDrag() már eltávolítja.
   }
 
+  // ######################################################################
+  // ###         EZ A FÜGGVÉNY MOST MÁR A PROXY-T KEZELI              ###
+  // ######################################################################
   private async createDraggableObject(point: Vector3): Promise<Group | null> {
     const activeId = this.experience.settingsStore.activeFurnitureId;
     if (!activeId) {
@@ -208,23 +207,26 @@ export default class InteractionManager {
       return null;
     }
 
-    // Az AssetManager-t használjuk a bútor felépítéséhez
-    const newObject = await this.experience.assetManager.buildFurniture(activeId);
-    if (!newObject) {
+    // Az AssetManager most már a kész, becsomagolt proxyt adja vissza.
+    const furnitureProxy = await this.experience.assetManager.buildFurniture(activeId);
+    if (!furnitureProxy) {
       return null;
     }
     
-    newObject.traverse((child: Object3D) => {
+    // Az átlátszóságot a proxy-n belül keressük.
+    furnitureProxy.traverse((child: Object3D) => {
       if (child instanceof Mesh && child.material instanceof MeshStandardMaterial) {
-        child.material = child.material.clone(); // Mély klónozás az anyagokra!
+        child.material = child.material.clone();
         child.material.transparent = true;
         child.material.opacity = 0.5;
       }
     });
     
-    // A forgatást és pozicionálást a végén végezzük el
-    newObject.rotation.y = -Math.PI / 2;
-    newObject.position.set(point.x, newObject.position.y, point.z);
-    return newObject;
+    // A forgatást és a pozicionálást a proxyn végezzük el.
+    furnitureProxy.rotation.y = -Math.PI / 2;
+    // A point.y-t lecseréljük a proxy saját, kiszámolt y pozíciójára.
+    furnitureProxy.position.set(point.x, furnitureProxy.position.y, point.z);
+    
+    return furnitureProxy;
   }
 }

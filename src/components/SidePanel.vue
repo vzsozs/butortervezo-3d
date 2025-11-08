@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import { useSettingsStore } from '@/stores/settings'
 import { useExperienceStore } from '@/stores/experience';
-import { globalMaterials } from '@/config/furniture'
-import { availableMaterials } from '@/config/materials'
 import { computed } from 'vue';
 import type { FurnitureConfig } from '@/three/Managers/ConfigManager';
 
@@ -32,11 +30,6 @@ const furnitureCategories = computed(() => {
   }
   return Object.values(categories).filter(c => c.items.length > 0);
 });
-
-
-function handleGlobalMaterialChange(settingId: string, materialId: string) {
-  settingsStore.setGlobalMaterial(settingId, materialId)
-}
 
 // A globális stílusválasztáshoz kapcsolódó, már nem használt függvényeket töröltük.
 </script>
