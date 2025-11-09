@@ -85,4 +85,7 @@
     /* Az aktív gomb stílusa */
     @apply bg-yellow-500/20 border-yellow-500;
   }
+  .setting-group-grid {
+    @apply grid grid-cols-2 gap-x-2;
+  }
 }
