@@ -63,6 +63,15 @@ export interface FurnitureCategory {
   items: FurnitureConfig[];
 }
 
+// ÚJ: A globalSettings.json egy elemének leírása
+export interface GlobalSettingConfig {
+  id: string;
+  name: string;
+  type: 'material' | 'style';
+  targetSlotId: string;
+  options?: string[];
+}
+
 // --- GLOBÁLIS ANYAGOK ---
 export const globalMaterials = {
   front: { id: 'front', name: 'Frontok', type: 'material', materialTarget: 'MAT_Frontok' },

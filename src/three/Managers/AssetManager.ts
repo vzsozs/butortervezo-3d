@@ -1,6 +1,6 @@
 // src/three/Managers/AssetManager.ts
 
-import { Mesh, Group, TextureLoader, Texture, Object3D, SRGBColorSpace, RepeatWrapping, Vector3, Box3 } from 'three';
+import { Mesh, Group, TextureLoader, Texture, Object3D, SRGBColorSpace, RepeatWrapping, Vector3, Box3, MeshStandardMaterial } from 'three';
 import { GLTFLoader } from 'three-stdlib';
 import Experience from '../Experience';
 import { type ComponentConfig } from '@/config/furniture';
@@ -38,7 +38,16 @@ export default class AssetManager {
 
   private async loadModel(url: string): Promise<Group> {
     if (this.modelCache.has(url)) {
-      return this.modelCache.get(url)!.clone();
+      const cachedObject = this.modelCache.get(url)!;
+      const clone = cachedObject.clone();
+
+      // JAVÍTÁS: Mélyen klónozzuk az anyagokat, hogy minden példány egyedi legyen!
+      clone.traverse((child: Object3D) => {
+        if (child instanceof Mesh && child.material instanceof MeshStandardMaterial) {
+          child.material = child.material.clone();
+        }
+      });
+      return clone;
     }
     try {
       const gltf = await this.loader.loadAsync(url);
@@ -50,7 +59,14 @@ export default class AssetManager {
         }
       });
       this.modelCache.set(url, scene);
-      return scene.clone();
+      // Az első betöltésnél a clone() már eleve új anyagokat hoz létre, de a biztonság kedvéért itt is klónozhatunk
+      const firstClone = scene.clone();
+      firstClone.traverse((child: Object3D) => {
+        if (child instanceof Mesh && child.material instanceof MeshStandardMaterial) {
+          child.material = child.material.clone();
+        }
+      });
+      return firstClone;
     } catch (error) {
       console.error(`Hiba a(z) ${url} modell betöltése közben:`, error);
       return new Group();

@@ -74,7 +74,7 @@ export default class Experience {
     return experience;
   }
 
-  public async rebuildObject(oldObject: Group, newState: Record<string, string>): Promise<Group | null> {
+  public async rebuildObject(oldObject: Group, newState: Record<string, string>, selectAfterRebuild = true): Promise<Group | null> {
     const config = oldObject.userData.config;
     if (!config) return null;
 
@@ -86,8 +86,10 @@ export default class Experience {
     newObject.scale.copy(oldObject.scale);
 
     // JAVÍTÁS: Átmásoljuk a régi anyag-állapotot, hogy a stílusváltás megőrizze a színeket!
-    newObject.userData.materialState = oldObject.userData.materialState;
-    await this.stateManager.applyStateToObject(newObject);
+    if (oldObject.userData.materialState) {
+      newObject.userData.materialState = JSON.parse(JSON.stringify(oldObject.userData.materialState));
+      await this.stateManager.applyStateToObject(newObject);
+    }
 
     const index = this.placedObjects.findIndex(obj => obj.uuid === oldObject.uuid);
     if (index > -1) {
@@ -96,9 +98,11 @@ export default class Experience {
     this.scene.remove(oldObject);
     this.scene.add(newObject);
 
-    this.selectionStore.selectObject(newObject);
-    this.transformControls.attach(newObject);
-    this.debug.selectionBoxHelper.setFromObject(newObject);
+    if (selectAfterRebuild) {
+      this.selectionStore.selectObject(newObject);
+      this.transformControls.attach(newObject);
+      this.debug.selectionBoxHelper.setFromObject(newObject);
+    }
 
     return newObject;
   }

@@ -1,0 +1,47 @@
+[
+  {
+    "id": "global_front_material",
+    "name": "Frontok Anyaga",
+    "type": "material",
+    "targetSlotId": "front" 
+  },
+  {
+    "id": "global_corpus_material",
+    "name": "Korpuszok Anyaga",
+    "type": "material",
+    "targetSlotId": "corpus"
+  },
+  {
+    "id": "global_leg_style",
+    "name": "Lábak Stílusa",
+    "type": "style",
+    "targetSlotId": "leg",
+    "options": [ "standard_leg", "design_leg" ]
+  },
+  {
+    "id": "global_handle_style",
+    "name": "Fogantyúk Stílusa",
+    "type": "style",
+    "targetSlotId": "handle",
+    "options": [ "standard_handle", "design_handle" ]
+  },
+  {
+    "id": "global_front_style",
+    "name": "Frontok Stílusa",
+    "type": "style",
+    "targetSlotId": "front",
+    "options": [ "sima_front_60", "keretes_front_60" ]
+  },
+  {
+    "id": "global_leg_material",
+    "name": "Lábak Anyaga",
+    "type": "material",
+    "targetSlotId": "leg"
+  },
+  {
+    "id": "global_handle_material",
+    "name": "Fogantyúk Anyaga",
+    "type": "material",
+    "targetSlotId": "handle"
+  }
+]

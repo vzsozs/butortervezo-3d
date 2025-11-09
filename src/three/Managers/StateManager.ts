@@ -63,8 +63,9 @@ export default class StateManager {
     });
   }
 
-  private setupWatchers() {
+private setupWatchers() {
     const selectionStore = this.experience.selectionStore;
+    const settingsStore = this.experience.settingsStore;
 
     watch(() => selectionStore.materialChangeRequest, async (request) => {
       if (!request) return;
@@ -143,5 +144,73 @@ export default class StateManager {
 
       selectionStore.acknowledgeDuplication();
     });
+
+    // ######################################################################
+    // ###                  ÚJ GLOBÁLIS FIGYELŐK                          ###
+    // ######################################################################
+
+    // --- GLOBÁLIS STÍLUSVÁLTÁS FIGYELŐ (VÉGLEGES VERZIÓ) ---
+    watch(() => settingsStore.globalStyleSettings, (newSettings) => {
+      console.groupCollapsed("--- StateManager: Globális stílusváltás ---");
+      console.log("Új globális stílus-állapot:", JSON.parse(JSON.stringify(newSettings)));
+      console.log("Lehelyezett objektumok száma:", this.experience.placedObjects.length);
+
+      // Végigmegyünk az összes lehelyezett bútoron
+      for (const placedObject of this.experience.placedObjects) {
+        const currentState = placedObject.userData.componentState;
+        if (!currentState) continue;
+
+        let needsRebuild = false;
+        // Végigmegyünk az új globális beállításokon
+        for (const [targetSlotId, newStyleId] of Object.entries(newSettings)) {
+          
+          // JAVÍTÁS: Ellenőrizzük, hogy a cél slot létezik-e a bútor állapotában.
+          // Ez kezeli a 'front', 'leg' stb. fő slotokat.
+          if (typeof currentState[targetSlotId] !== 'undefined' && currentState[targetSlotId] !== newStyleId) {
+            console.log(` -> Fő slot változás a(z) '${placedObject.name}' objektumon: '${targetSlotId}' -> '${newStyleId}'`);
+            currentState[targetSlotId] = newStyleId;
+            needsRebuild = true;
+          }
+          // JAVÍTÁS: Speciális eset a 'handle' (fogantyú) kezelésére
+          else if (targetSlotId === 'handle' && currentState.front && currentState.handle !== newStyleId) {
+             console.log(` -> Al-slot változás a(z) '${placedObject.name}' objektumon: '${targetSlotId}' -> '${newStyleId}'`);
+             currentState[targetSlotId] = newStyleId;
+             needsRebuild = true;
+          }
+        }
+        
+        if (needsRebuild) {
+          console.log(`Újraépítés szükséges a(z) '${placedObject.name}' objektumon.`);
+          this.experience.rebuildObject(placedObject, currentState, false);
+        }
+      }
+      console.groupEnd();
+    }, { deep: true });
+
+    // --- GLOBÁLIS ANYAGVÁLTÁS FIGYELŐ (VÉGLEGES VERZIÓ) ---
+    watch(() => settingsStore.globalMaterialSettings, (newSettings) => {
+      console.groupCollapsed("--- StateManager: Globális anyagváltás ---");
+      console.log("Új globális anyag-állapot:", JSON.parse(JSON.stringify(newSettings)));
+      console.log("Lehelyezett objektumok száma:", this.experience.placedObjects.length);
+
+      // Végigmegyünk az összes lehelyezett bútoron
+      for (const placedObject of this.experience.placedObjects) {
+        if (!placedObject.userData.materialState) continue;
+        
+        // Végigmegyünk az új globális beállításokon
+        for (const [targetSlotId, newMaterialId] of Object.entries(newSettings)) {
+          
+          // JAVÍTÁS: A bútor SAJÁT anyag-állapotát hasonlítjuk össze a globális beállítással
+          if (placedObject.userData.materialState[targetSlotId] !== newMaterialId) {
+            console.log(` -> Változás a(z) '${placedObject.name}' objektumon: '${targetSlotId}' slot új anyaga '${newMaterialId}'`);
+            
+            // Frissítjük a bútor állapotát és alkalmazzuk a változást
+            placedObject.userData.materialState[targetSlotId] = newMaterialId;
+            this.applyMaterial(placedObject, targetSlotId, newMaterialId);
+          }
+        }
+      }
+      console.groupEnd();
+    }, { deep: true });
   }
 }
