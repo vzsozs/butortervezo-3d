@@ -1,6 +1,6 @@
 // src/three/Experience.ts
 
-import { Scene, PerspectiveCamera, WebGLRenderer, Raycaster, Vector2, Object3D, Group, Clock, Mesh, PlaneGeometry, Vector3 } from 'three';
+import { Scene, PerspectiveCamera, WebGLRenderer, Raycaster, Vector2, Object3D, Group, Clock, Mesh, PlaneGeometry } from 'three';
 import { OrbitControls } from 'three-stdlib';
 import { TransformControls } from 'three-stdlib';
 import { useSelectionStore } from '@/stores/selection';
@@ -15,7 +15,6 @@ import InteractionManager from './Managers/InteractionManager';
 import StateManager from './Managers/StateManager';
 
 export default class Experience {
-  // ... (a property-k maradnak ugyanazok)
   public canvas: HTMLDivElement;
   public scene: Scene;
   public camera: PerspectiveCamera;
@@ -37,13 +36,9 @@ export default class Experience {
   public interactionManager: InteractionManager;
   public stateManager: StateManager;
 
-  // JAVÍTÁS: A konstruktor most már privát!
-  // Ez azt jelenti, hogy nem lehet `new Experience()`-szel meghívni,
-  // csak a lenti `create` metóduson keresztül.
   private constructor(canvas: HTMLDivElement) {
     this.canvas = canvas;
 
-    // A konstruktor többi része változatlan
     this.scene = new Scene();
     this.camera = new PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     this.camera.position.set(0, 2, 3);
@@ -73,35 +68,27 @@ export default class Experience {
     this.animate();
   }
 
-  // JAVÍTÁS: Itt van a hiányzó 'create' metódus
   public static async create(canvas: HTMLDivElement): Promise<Experience> {
     const experience = new Experience(canvas);
     await experience.configManager.loadData();
     return experience;
   }
 
-  // ######################################################################
-  // ###                  ÚJ METÓDUS AZ ÚJRAÉPÍTÉSHEZ                   ###
-  // ######################################################################
-  public async rebuildObject(oldObject: Group, newState: Record<string, string>) {
+  public async rebuildObject(oldObject: Group, newState: Record<string, string>): Promise<Group | null> {
     const config = oldObject.userData.config;
-    if (!config) return;
+    if (!config) return null;
 
-    // 1. Építsük meg az új bútort a frissített állapottal
     const newObject = await this.assetManager.buildFurniture(config.id, newState);
-    if (!newObject) return;
+    if (!newObject) return null;
 
-    // 2. Másoljuk át a régi objektum transzformációit
     newObject.position.copy(oldObject.position);
     newObject.rotation.copy(oldObject.rotation);
     newObject.scale.copy(oldObject.scale);
 
-    // 3. Másoljuk át a régi anyag-állapotot is!
+    // JAVÍTÁS: Átmásoljuk a régi anyag-állapotot, hogy a stílusváltás megőrizze a színeket!
     newObject.userData.materialState = oldObject.userData.materialState;
-    // És azonnal alkalmazzuk is rá
     await this.stateManager.applyStateToObject(newObject);
 
-    // 4. Cseréljük le a régit az újra a jelenetben és a listákban
     const index = this.placedObjects.findIndex(obj => obj.uuid === oldObject.uuid);
     if (index > -1) {
       this.placedObjects[index] = newObject;
@@ -109,72 +96,12 @@ export default class Experience {
     this.scene.remove(oldObject);
     this.scene.add(newObject);
 
-    // 5. Frissítsük a kijelölést, hogy az új objektumra mutasson
     this.selectionStore.selectObject(newObject);
     this.transformControls.attach(newObject);
     this.debug.selectionBoxHelper.setFromObject(newObject);
+
+    return newObject;
   }
-
-  private async updateFromStore() {
-    // Törlési kérelem figyelése
-    const uuidToDelete = this.selectionStore.objectToDeleteUUID;
-    if (uuidToDelete) {
-      const objectToRemove = this.placedObjects.find(obj => obj.uuid === uuidToDelete);
-      if (objectToRemove) {
-        this.removeObject(objectToRemove);
-      }
-      this.selectionStore.acknowledgeDeletion();
-    }
-
-    // ######################################################################
-    // ###                ÚJ: DUPLIKÁLÁSI KÉRELEM FIGYELÉSE               ###
-    // ######################################################################
-    const uuidToDuplicate = this.selectionStore.objectToDuplicateUUID;
-    if (uuidToDuplicate) {
-      const originalObject = this.placedObjects.find(obj => obj.uuid === uuidToDuplicate);
-      
-      if (originalObject && originalObject.userData.config) {
-        // 1. Létrehozzuk az új, alapértelmezett bútort
-        const newObject = await this.assetManager.buildFurniture(originalObject.userData.config.id);
-        
-        if (newObject) {
-          // ######################################################################
-          // ###                         JAVÍTOTT RÉSZ                          ###
-          // ######################################################################
-
-          // 2. MÉLYEN átmásoljuk az állapotot a régiről az újra
-          // A JSON.stringify/parse egy egyszerű trükk a mély klónozásra
-          if (originalObject.userData.componentState) {
-            newObject.userData.componentState = JSON.parse(JSON.stringify(originalObject.userData.componentState));
-          }
-          if (originalObject.userData.materialState) {
-            newObject.userData.materialState = JSON.parse(JSON.stringify(originalObject.userData.materialState));
-          }
-
-          // 3. Alkalmazzuk a másolt állapotot a 3D modellre
-          await this.stateManager.applyStateToObject(newObject);
-
-          // 4. Beállítjuk a pozíciót és a forgatást
-          const boundingBox = this.placementManager.getVirtualBox(originalObject, originalObject.position);
-          const size = new Vector3();
-          boundingBox.getSize(size);
-          const offset = new Vector3(size.x + 0.1, 0, 0);
-          newObject.position.copy(originalObject.position).add(offset);
-          newObject.rotation.copy(originalObject.rotation);
-          newObject.scale.copy(originalObject.scale);
-
-          // 5. A többi lépés változatlan
-          this.scene.add(newObject);
-          this.transformControls.detach();
-          this.selectionStore.clearSelection();
-          this.interactionManager.startDraggingExistingObject(newObject);
-        }
-      }
-      this.selectionStore.acknowledgeDuplication();
-    }
-  }
-
-  
 
   public removeObject(objectToRemove: Group) {
     const index = this.placedObjects.findIndex(obj => obj.uuid === objectToRemove.uuid);
@@ -183,8 +110,7 @@ export default class Experience {
     }
     this.scene.remove(objectToRemove);
 
-    // JAVÍTÁS: Itt van a @ts-expect-error a privát property hiba miatt
-    // @ts-expect-error - A three-stdlib típusdefiníciója hibásan privátnak jelöli az 'object' property-t.
+    // @ts-expect-error - a
     if (this.transformControls.object === objectToRemove) {
       this.transformControls.detach();
       this.debug.selectionBoxHelper.visible = false;
@@ -198,14 +124,13 @@ export default class Experience {
     this.renderer.setSize(window.innerWidth, window.innerHeight);
   }
 
-    private onPointerMove = (event: MouseEvent) => {
+  private onPointerMove = (event: MouseEvent) => {
     this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
     this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
   }
 
-    // --- NEVESÍTETT LISTENER FÜGGVÉNYEK ---
   private onObjectChange = () => {
-    // @ts-expect-error - A 'dragging' tulajdonság hibásan privátként van deklarálva a three-stdlib típusdefiníciójában.
+    // @ts-expect-error - a
     if (!this.transformControls.dragging) return;
     const selectedObject = this.selectionStore.selectedObject;
     if (!selectedObject) return;
@@ -224,41 +149,32 @@ export default class Experience {
   }
 
   private setupTransformControlsListeners() {
-    // @ts-expect-error - Az 'objectChange' esemény nem része a standard Three.js típusoknak.
+    // @ts-expect-error - a
     this.transformControls.addEventListener('objectChange', this.onObjectChange);
-    // @ts-expect-error - A 'dragging-changed' esemény nem része a standard Three.js típusoknak.
+    // @ts-expect-error - a
     this.transformControls.addEventListener('dragging-changed', this.onDraggingChanged);
   }
 
   private animate = () => {
     requestAnimationFrame(this.animate);
-    
-    // Az updateFromStore most már aszinkron, ezért így hívjuk
-    this.updateFromStore().catch(console.error);
-
     this.controls.update();
     this.renderer.render(this.scene, this.camera);
   }
 
-   public destroy() {
-    // 1. Eseményfigyelők eltávolítása
+  public destroy() {
     window.removeEventListener('resize', this.onWindowResize);
-    // A globális egérkövető listener eltávolítása
     window.removeEventListener('mousemove', this.onPointerMove);
     this.interactionManager.removeEventListeners();
-    // @ts-expect-error - Az 'objectChange' esemény nem része a standard Three.js típusoknak.
+    // @ts-expect-error - a
     this.transformControls.removeEventListener('objectChange', this.onObjectChange);
-    // @ts-expect-error - A 'dragging-changed' esemény nem része a standard Three.js típusoknak.
+    // @ts-expect-error - a
     this.transformControls.removeEventListener('dragging-changed', this.onDraggingChanged);
     
-    // 2. Three.js objektumok felszabadítása
     this.scene.traverse((child) => {
       if (child instanceof Mesh) {
         child.geometry.dispose();
-        
         const materials = Array.isArray(child.material) ? child.material : [child.material];
         for (const material of materials) {
-          
           Object.values(material).forEach((value: unknown) => {
             if (value && typeof (value as { dispose?: () => void }).dispose === 'function') {
               (value as { dispose: () => void }).dispose();
@@ -268,14 +184,10 @@ export default class Experience {
       }
     });
 
-    // 3. Kontrollok és renderer felszabadítása
     this.transformControls.dispose();
     this.controls.dispose();
     this.renderer.dispose();
-
-    // 4. Debug helper-ek eltávolítása a scene-ből
     this.scene.remove(this.debug.virtualBoxMesh, this.debug.staticBoxHelper, this.debug.snapPointHelper, this.debug.selectionBoxHelper);
-
     console.log("Experience destroyed");
   }
 }

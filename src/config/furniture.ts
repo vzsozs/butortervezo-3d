@@ -19,6 +19,7 @@ export interface ComponentSlotConfig {
   attachmentPoints?: string[];
   defaultOption: string;
   options: string[];
+  materialTarget?: string;
 }
 
 // A 'components.json' fájlban lévő fő objektumok leírása

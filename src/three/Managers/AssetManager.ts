@@ -72,63 +72,40 @@ export default class AssetManager {
 
     let legHeight = 0;
     for (const slot of config.slots) {
-      // ######################################################################
-      // ###                  ÚJ, JOBB HELYEN LÉVŐ LOG                      ###
-      // ######################################################################
-      console.groupCollapsed(`--- Slot feldolgozása: '${slot.id}' ---`);
-
       if (slot.defaultOption && !componentState[slot.id]) {
         componentState[slot.id] = slot.defaultOption;
       }
       
       const componentIdToBuild = componentState[slot.id];
-      console.log(`Építendő komponens ID: %c${componentIdToBuild}`, 'color: yellow');
-      
       if (componentIdToBuild) {
         const componentConfig = this.experience.configManager.getComponentById(componentIdToBuild);
-        
         if (componentConfig) {
-          console.log("Megtalált config:", componentConfig);
           if (slot.id === 'leg') {
             legHeight = componentConfig.height || 0;
           }
-          const newComponent = await this.buildComponent(componentConfig);
+          // JAVÍTÁS: Átadjuk az állapotot a komponens építőnek is!
+          const newComponent = await this.buildComponent(componentConfig, componentState);
           if (!newComponent) continue;
 
-          // A logikát kiegészítjük, hogy a 'slot.attachmentPoint'-ot is nézze.
+          // JAVÍTÁS: Helyes prioritási sorrend a csatlakozási pontokhoz
           const attachmentNames = 
-            componentConfig.attachmentPoint ? [componentConfig.attachmentPoint] : 
+            componentConfig.attachmentPoint ? [componentConfig.attachmentPoint] :
             slot.attachmentPoints ? slot.attachmentPoints :
-            slot.attachmentPoint ? [slot.attachmentPoint] : 
+            slot.attachmentPoint ? [slot.attachmentPoint] :
             [];
           
-          // ######################################################################
-          // ###                  ÚJ, VÉGLEGES DETEKTÍV LOG                     ###
-          // ######################################################################
-          console.log(`A(z) '${slot.id}' slothoz a következő csatlakozási pontokat keressük:`, attachmentNames);
-
           for (const pointName of attachmentNames) {
             const attachmentPoint = this.findObjectByBaseName(furnitureMesh, pointName);
-            
             if (attachmentPoint) {
-              console.log(`%cTALÁLAT!%c A(z) '${pointName}' csatlakozási pont megtalálva. Komponens: '${newComponent.name}'`, 'color: lightgreen; font-weight: bold;', 'color: inherit;');
               const instance = (attachmentNames.length > 1) ? newComponent.clone() : newComponent;
               instance.position.copy(attachmentPoint.position);
               instance.rotation.copy(attachmentPoint.rotation);
               furnitureMesh.add(instance);
-            } else {
-              console.error(`%cHIBA!%c A(z) '${pointName}' csatlakozási pont NEM TALÁLHATÓ a(z) '${furnitureMesh.name}' modellen.`, 'color: red; font-weight: bold;', 'color: inherit;');
             }
           }
-        } else {
-          console.error(`HIBA: Nem található komponens a(z) '${componentIdToBuild}' ID-val!`);
         }
       }
-      else {
-        console.warn("Nincs építendő komponens ID ehhez a slothoz.");
-     }
-     console.groupEnd();
-     materialState[slot.id] = null;
+      materialState[slot.id] = null;
     }
     visualModelRoot.position.y = legHeight;
 
@@ -149,44 +126,27 @@ export default class AssetManager {
     return furnitureProxy;
   }
 
-  public async buildComponent(config: ComponentConfig): Promise<Object3D | null> {
-    console.groupCollapsed(`--- buildComponent: '${config.name}' építése ---`);
-    
-    if (!config.modelUrl) {
-      console.error("HIBA: Nincs 'modelUrl' a komponens configjában.");
-      console.groupEnd();
-      return null;
-    }
+  public async buildComponent(config: ComponentConfig, state: Record<string, string>): Promise<Object3D | null> {
+    if (!config.modelUrl) return null;
     
     const loadedScene = await this.loadModel(config.modelUrl);
     const componentMesh = this.findFirstMesh(loadedScene);
-    if (!componentMesh) {
-      console.error(`HIBA: Nem található mesh a(z) '${config.modelUrl}' fájlban.`);
-      console.groupEnd();
-      return null;
-    }
+    if (!componentMesh) return null;
     
     componentMesh.name = config.name;
-    console.log("Mesh sikeresen betöltve és elnevezve:", componentMesh.name);
 
     if (config.slots && config.slots.length > 0) {
-      console.log(`'${config.name}' komponensnek ${config.slots.length} db al-slotja van.`);
       for (const slot of config.slots) {
-        console.log(`Al-slot feldolgozása: '${slot.id}'`);
-        const subComponentId = slot.defaultOption;
-        
+        // JAVÍTÁS: Először a state-ből próbáljuk venni az ID-t, utána a defaultot
+        const subComponentId = state[slot.id] || slot.defaultOption;
         if (subComponentId) {
-          console.log(`Építendő al-komponens ID: %c'${subComponentId}'`, 'color: yellow');
           const subComponentConfig = this.experience.configManager.getComponentById(subComponentId);
-          
           if (subComponentConfig) {
-            console.log("Megtalált al-komponens config:", subComponentConfig.name);
-            const subComponent = await this.buildComponent(subComponentConfig);
-            
+            // JAVÍTÁS: Továbbadjuk az állapotot a rekurzív hívásnak
+            const subComponent = await this.buildComponent(subComponentConfig, state);
             if (subComponent && slot.attachmentPoint) {
               const attachmentPoint = this.findObjectByBaseName(componentMesh, slot.attachmentPoint);
               if (attachmentPoint) {
-                console.log(`%cTALÁLAT!%c Al-komponens ('${subComponent.name}') csatlakoztatása a(z) '${slot.attachmentPoint}' ponthoz.`, 'color: lightgreen; font-weight: bold;', 'color: inherit;');
                 subComponent.position.copy(attachmentPoint.position);
                 subComponent.rotation.copy(attachmentPoint.rotation);
                 componentMesh.add(subComponent);
@@ -210,17 +170,28 @@ export default class AssetManager {
   }
 
   
-  public getTexture(url: string, callback: (texture: Texture) => void) {
-    if (this.textureCache.has(url)) {
-      callback(this.textureCache.get(url)!);
-      return;
-    }
-    this.textureLoader.load(url, (texture) => {
-      texture.colorSpace = SRGBColorSpace;
-      texture.wrapS = RepeatWrapping;
-      texture.wrapT = RepeatWrapping;
-      this.textureCache.set(url, texture);
-      callback(texture);
+  public getTexture(url: string): Promise<Texture> {
+    return new Promise((resolve, reject) => {
+      if (this.textureCache.has(url)) {
+        resolve(this.textureCache.get(url)!);
+        return;
+      }
+      
+      this.textureLoader.load(
+        url, 
+        (texture) => {
+          texture.colorSpace = SRGBColorSpace;
+          texture.wrapS = RepeatWrapping;
+          texture.wrapT = RepeatWrapping;
+          this.textureCache.set(url, texture);
+          resolve(texture);
+        },
+        undefined,
+        (error) => {
+          console.error(`Hiba a(z) ${url} textúra betöltése közben:`, error);
+          reject(error);
+        }
+      );
     });
   }
 }

@@ -25,21 +25,24 @@ const allVisibleSlots = computed(() => {
   const state = selectionStore.selectedObject?.userData.componentState;
   if (!config || !state) return [];
 
-  const visibleSlots: FurnitureSlotConfig[] = [];
+  const visibleSlots: Array<{ path: string, slot: FurnitureSlotConfig }> = [];
 
   for (const mainSlot of config.slots) {
-    visibleSlots.push(mainSlot);
+    visibleSlots.push({ path: mainSlot.id, slot: mainSlot });
     const selectedComponentId = state[mainSlot.id];
     if (selectedComponentId) {
       const selectedComponent = getComponent(selectedComponentId);
       if (selectedComponent?.slots) {
-        // A TypeScriptnek segítünk, hogy tudja, ez a tömb is a megfelelő típust tartalmazza
-        visibleSlots.push(...(selectedComponent.slots as unknown as FurnitureSlotConfig[]));
+        for (const subSlot of (selectedComponent.slots as unknown as FurnitureSlotConfig[])) {
+          // JAVÍTÁS: Létrehozzuk a pontozott ID-t (pl. "front.handle")
+          visibleSlots.push({ path: `${mainSlot.id}.${subSlot.id}`, slot: subSlot });
+        }
       }
     }
   }
   return visibleSlots;
 });
+
 
 // JAVÍTÁS: Ez a computed property hiányzott
 const selectedComponentForSlot = computed(() => (slotId: string) => {
@@ -74,7 +77,6 @@ function handleStyleChange(slotId: string, componentId: string) {
 </script>
 
 <template>
-  <!-- JAVÍTÁS: A 'style' property-t rákötjük a div-re -->
   <div 
     v-if="selectionStore.selectedObjectConfig && selectionStore.selectedObject"
     ref="panelRef"
@@ -86,13 +88,12 @@ function handleStyleChange(slotId: string, componentId: string) {
     <h1 class="panel-header">{{ selectionStore.selectedObjectConfig.name }}</h1>
     <div class="space-y-6">
       
-      <div v-for="slot in allVisibleSlots" :key="slot.id">
+      <div v-for="{ path, slot } in allVisibleSlots" :key="path">
         <label class="input-label mb-2">{{ slot.name }}</label>
 
-        <!-- Stílus/Komponens választó -->
         <div v-if="slot.options && slot.options.length > 1" class="custom-select-wrapper">
           <select 
-            @change="handleStyleChange(slot.id, ($event.target as HTMLSelectElement).value)"
+            @change="handleStyleChange(path, ($event.target as HTMLSelectElement).value)"
             class="custom-select"
           >
             <option 
@@ -109,13 +110,13 @@ function handleStyleChange(slotId: string, componentId: string) {
           </div>
         </div>
         
-        <!-- Anyagválasztó -->
+        <!-- Anyagválasztó (a logika itt is a sima slot.id-t használja, ami jó) -->
         <div 
           v-if="slot.materialTarget || selectedComponentForSlot(slot.id)?.materialTarget" 
           class="mt-2 custom-select-wrapper"
         >
           <select 
-            @change="handleMaterialChange(slot.id, ($event.target as HTMLSelectElement).value)"
+            @change="handleMaterialChange(path, ($event.target as HTMLSelectElement).value)"
             class="custom-select"
           >
             <option value="">Válasszon anyagot...</option>
@@ -123,7 +124,7 @@ function handleStyleChange(slotId: string, componentId: string) {
               v-for="material in availableMaterials" 
               :key="material.id" 
               :value="material.id"
-              :selected="material.id === selectionStore.selectedObject.userData.materialState[slot.id]"
+              :selected="material.id === selectionStore.selectedObject.userData.materialState[path]"
             >
               {{ material.name }}
             </option>

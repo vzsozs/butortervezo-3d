@@ -57,7 +57,7 @@
     "modelUrl": "/models/legs/leg_design.glb",
     "height": 0.1,
     "isSymmetric": true,
-    "materialTarget": "MAT_Fem_Kiegeszitok",
+    "materialTarget": "MAT_Lab_Fem",
     "slots": []
   }
 }
