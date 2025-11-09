@@ -4,6 +4,7 @@
     "name": "Alsó szekrény 60cm",
     "category": "bottom_cabinets",
     "baseModelUrl": "/models/corpus/corpus_bottom_60.glb",
+    "price": 25000, 
     "slots": [
       {
         "id": "front",

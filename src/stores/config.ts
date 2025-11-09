@@ -37,12 +37,17 @@ export const useConfigStore = defineStore('config', () => {
     return components.value[id];
   }
 
+  function getFurnitureById(id: string): FurnitureConfig | undefined {
+    return furnitureList.value.find(f => f.id === id);
+  }
+
   return {
     furnitureList,
     components,
     globalSettings,
     furnitureCategories,
     setConfigs,
-    getComponentById
+    getComponentById,
+    getFurnitureById 
   }
 })

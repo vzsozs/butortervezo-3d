@@ -3,6 +3,7 @@
 import { Scene, PerspectiveCamera, WebGLRenderer, Raycaster, Vector2, Object3D, Group, Clock, Mesh, PlaneGeometry } from 'three';
 import { OrbitControls } from 'three-stdlib';
 import { TransformControls } from 'three-stdlib';
+import { useExperienceStore } from '@/stores/experience'; 
 import { useSelectionStore } from '@/stores/selection';
 import { useSettingsStore } from '@/stores/settings';
 import ConfigManager from './Managers/ConfigManager';
@@ -29,6 +30,7 @@ export default class Experience {
   public intersectableObjects: Object3D[] = [];
   public selectionStore = useSelectionStore();
   public settingsStore = useSettingsStore();
+  public experienceStore = useExperienceStore();
   public world: World;
   public debug: Debug;
   public assetManager: AssetManager;
@@ -74,6 +76,11 @@ export default class Experience {
     return experience;
   }
 
+  // --- ÁR FRISSÍTÉSE ---
+  public updateTotalPrice() {
+    this.experienceStore.calculateTotalPrice(this.placedObjects);
+  }
+
   public async rebuildObject(oldObject: Group, newState: Record<string, string>, selectAfterRebuild = true): Promise<Group | null> {
     const config = oldObject.userData.config;
     if (!config) return null;
@@ -104,6 +111,8 @@ export default class Experience {
       this.debug.selectionBoxHelper.setFromObject(newObject);
     }
 
+    this.updateTotalPrice(); 
+
     return newObject;
   }
 
@@ -120,6 +129,7 @@ export default class Experience {
       this.debug.selectionBoxHelper.visible = false;
     }
     console.log('Object removed from experience:', objectToRemove.name);
+    this.updateTotalPrice();
   }
 
   private onWindowResize = () => {

@@ -31,6 +31,7 @@ export interface ComponentConfig {
   isSymmetric: boolean;
   slots: ComponentSlotConfig[];
   height?: number;
+  price?: number; 
   materialTarget?: string;
   inheritsMaterialFrom?: string;
   attachmentPoint?: string; // JAVÍTÁS: Ez a sor hiányzott!
@@ -54,6 +55,7 @@ export interface FurnitureConfig {
   name: string;
   category: string;
   baseModelUrl: string;
+  price?: number;
   slots: FurnitureSlotConfig[];
 }
 

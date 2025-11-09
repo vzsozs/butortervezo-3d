@@ -103,6 +103,8 @@ export default class AssetManager {
           const newComponent = await this.buildComponent(componentConfig, componentState);
           if (!newComponent) continue;
 
+          newComponent.name = slot.id;
+
           // JAVÍTÁS: Helyes prioritási sorrend a csatlakozási pontokhoz
           const attachmentNames = 
             componentConfig.attachmentPoint ? [componentConfig.attachmentPoint] :

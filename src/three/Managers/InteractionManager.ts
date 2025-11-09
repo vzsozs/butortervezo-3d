@@ -65,11 +65,18 @@ export default class InteractionManager {
 
       if (parentGroup) {
         const objectToSelect = parentGroup;
-        this.experience.selectionStore.selectObject(objectToSelect);
-        this.experience.debug.selectionBoxHelper.setFromObject(objectToSelect);
-        this.experience.debug.selectionBoxHelper.visible = true;
-        this.experience.transformControls.attach(objectToSelect);
-        this.setTransformMode('translate');
+        if (objectToSelect.parent) {
+          this.experience.selectionStore.selectObject(objectToSelect);
+          this.experience.debug.selectionBoxHelper.setFromObject(objectToSelect);
+          this.experience.debug.selectionBoxHelper.visible = true;
+          this.experience.transformControls.attach(objectToSelect);
+          this.setTransformMode('translate');
+        } else {
+          // Ez a log segít, ha a hiba előjön, és tudni akarod, mi okozta.
+          console.warn('Megpróbáltunk kiválasztani egy objektumot, ami már nincs a jelenetben.', objectToSelect);
+          // Opcionálisan itt ki is ürítheted a selection store-t, ha szükséges.
+          this.experience.selectionStore.clearSelection();
+        }
       }
 
     } else {
@@ -119,6 +126,7 @@ export default class InteractionManager {
     this.experience.placedObjects.push(this.draggedObject);
     this.experience.debug.hideAll();
     this.endDrag();
+    this.experience.updateTotalPrice();
   }
 
   private onRightClickCancel = (event: MouseEvent) => {

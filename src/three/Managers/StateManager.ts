@@ -212,5 +212,25 @@ private setupWatchers() {
       }
       console.groupEnd();
     }, { deep: true });
+    // --- FRONTOK LÁTHATÓSÁGÁNAK FIGYELŐJE ---
+    watch(() => settingsStore.areFrontsVisible, (isVisible) => {
+      console.log(`--- StateManager: Frontok láthatósága -> ${isVisible} ---`);
+
+      // Végigmegyünk az összes lehelyezett bútoron
+      for (const placedObject of this.experience.placedObjects) {
+        
+        // Megkeressük a 'front' nevű al-objektumot.
+        // Ez a legtisztább módszer, ha az AssetManager így nevezi el a komponenseket.
+        const frontObject = placedObject.getObjectByName('front');
+
+        if (frontObject) {
+          // Beállítjuk a láthatóságát a store-ból érkező értékre.
+          frontObject.visible = isVisible;
+        } else {
+          // Ez a log segít, ha valamiért nem találjuk a frontot.
+          console.warn(`Nem található 'front' nevű objektum a(z) '${placedObject.name}' bútoron.`);
+        }
+      }
+    }, { immediate: true }); // Az 'immediate: true' biztosítja, hogy az oldal betöltésekor is lefusson egyszer.
   }
 }

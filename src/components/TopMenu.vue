@@ -13,6 +13,13 @@ function setMode(mode: 'translate' | 'rotate') {
   experience.value?.interactionManager.setTransformMode(mode);
 }
 
+// Egy computed property a szép formázáshoz
+const formattedPrice = computed(() => {
+  const price = experienceStore.totalPrice;
+  // Magyar formátum: "123 450 Ft"
+  return new Intl.NumberFormat('hu-HU').format(price) + ' Ft';
+});
+
 // A FRONTOK VÁLTÁSÁHOZ
 function toggleFrontsVisibility() {
   settingsStore.toggleFrontsVisibility();
@@ -75,7 +82,7 @@ function toggleFrontsVisibility() {
 
     <!-- Ár kijelző -->
     <div class="text-sm font-semibold px-2">
-      Ár: <span class="text-yellow-400">0 Ft</span>
+      Ár: <span class="text-yellow-400">{{ formattedPrice }}</span>
     </div>
 
     <!-- Megrendelés -->

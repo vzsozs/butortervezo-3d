@@ -1,6 +1,7 @@
 {
   "sima_front_60": {
     "name": "Sima Front",
+    "price": 12500,
     "modelUrl": "/models/fronts/front_sima_60_L.glb",
     "isSymmetric": true,
     "materialTarget": "MAT_Frontok",
@@ -16,6 +17,7 @@
   },
   "keretes_front_60": {
     "name": "Keretes Front",
+    "price": 14500,
     "modelUrl": "/models/fronts/front_keretes_60_L.glb",
     "isSymmetric": true,
     "materialTarget": "MAT_Frontok",
@@ -31,6 +33,7 @@
   },
   "standard_handle": {
     "name": "Standard Fogantyú",
+    "price": 2500,
     "modelUrl": "/models/handles/handle_standard.glb",
     "isSymmetric": true,
     "materialTarget": "MAT_Fem_Kiegeszitok",
@@ -38,6 +41,7 @@
   },
   "design_handle": {
     "name": "Design Fogantyú",
+    "price": 3800,
     "modelUrl": "/models/handles/handle_design.glb",
     "isSymmetric": true,
     "materialTarget": "MAT_Fem_Kiegeszitok",
@@ -45,6 +49,7 @@
   },
   "standard_leg": {
     "name": "Bútorlap Láb",
+    "price": 1500,
     "modelUrl": "/models/legs/leg_standard.glb",
     "height": 0.1,
     "isSymmetric": true,
@@ -54,6 +59,7 @@
   },
   "design_leg": {
     "name": "Design Láb (Cső)",
+    "price": 8500,
     "modelUrl": "/models/legs/leg_design.glb",
     "height": 0.1,
     "isSymmetric": true,
