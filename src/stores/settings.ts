@@ -25,19 +25,28 @@ export const useSettingsStore = defineStore('settings', () => {
   
   const isSnappingEnabled = ref(true);
   const areFrontsVisible = ref(true);
+  const isElementListVisible = ref(false);
 
   // --- AKCIÓK (ACTIONS) ---
 
   function setGlobalMaterial(targetSlotId: string, materialId: string) {
     if (materialId) {
-      globalMaterialSettings.value[targetSlotId] = materialId;
+      // Új objektumot hozunk létre a régiből a változtatással
+      globalMaterialSettings.value = {
+        ...globalMaterialSettings.value, // Átmásoljuk a régi kulcs-érték párokat
+        [targetSlotId]: materialId       // Felülírjuk a megváltozottat
+      };
     }
   }
 
   function setGlobalStyle(targetSlotId: string, styleId: string) {
     if (styleId) {
       console.log(`Pinia settings store: Globális stílus frissítve. Cél slot: '${targetSlotId}', Új stílus: '${styleId}'`);
-      globalStyleSettings.value[targetSlotId] = styleId;
+      // Új objektumot hozunk létre a régiből a változtatással
+      globalStyleSettings.value = {
+        ...globalStyleSettings.value, // Átmásoljuk a régi kulcs-érték párokat
+        [targetSlotId]: styleId       // Felülírjuk a megváltozottat
+      };
     }
   }
 
@@ -50,6 +59,9 @@ export const useSettingsStore = defineStore('settings', () => {
     areFrontsVisible.value = !areFrontsVisible.value;
     console.log('Frontok láthatósága:', areFrontsVisible.value);
   }
+   function toggleElementListVisibility() {
+    isElementListVisible.value = !isElementListVisible.value;
+  }
 
   return { 
     // Állapotok
@@ -58,11 +70,13 @@ export const useSettingsStore = defineStore('settings', () => {
     globalStyleSettings, 
     isSnappingEnabled,
     areFrontsVisible,
+    isElementListVisible,
     
     // Akciók
     setActiveFurnitureId,
     setGlobalMaterial,
     setGlobalStyle, 
     toggleFrontsVisibility,
+    toggleElementListVisibility,
   }
 })

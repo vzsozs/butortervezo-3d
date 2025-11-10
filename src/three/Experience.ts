@@ -1,5 +1,5 @@
 // src/three/Experience.ts
-
+import { toRaw } from 'vue';
 import { Scene, PerspectiveCamera, WebGLRenderer, Raycaster, Vector2, Object3D, Group, Clock, Mesh, PlaneGeometry } from 'three';
 import { OrbitControls } from 'three-stdlib';
 import { TransformControls } from 'three-stdlib';
@@ -26,7 +26,6 @@ export default class Experience {
   public transformControls: TransformControls;
   public raycaster: Raycaster;
   public mouse = new Vector2();
-  public placedObjects: Group[] = [];
   public intersectableObjects: Object3D[] = [];
   public selectionStore = useSelectionStore();
   public settingsStore = useSettingsStore();
@@ -37,6 +36,8 @@ export default class Experience {
   public placementManager: PlacementManager;
   public interactionManager: InteractionManager;
   public stateManager: StateManager;
+
+  // A 'placedObjects' tulajdonság TÖRÖLVE INNEN!
 
   private constructor(canvas: HTMLDivElement) {
     this.canvas = canvas;
@@ -77,57 +78,90 @@ export default class Experience {
   }
 
   // --- ÁR FRISSÍTÉSE ---
+  // A paramétert eltávolítottuk, mert a store már ismeri a listát.
   public updateTotalPrice() {
-    this.experienceStore.calculateTotalPrice(this.placedObjects);
+    this.experienceStore.calculateTotalPrice();
   }
 
   public async rebuildObject(oldObject: Group, newState: Record<string, string>, selectAfterRebuild = true): Promise<Group | null> {
+    console.groupCollapsed(`--- [Experience.rebuildObject] Átépítés kezdődik ---`);
+    console.log(`🔍 Régi objektum (eltávolítandó):`, { name: oldObject.name, uuid: oldObject.uuid, object: oldObject });
+
     const config = oldObject.userData.config;
-    if (!config) return null;
+    if (!config) {
+      console.error("❌ Hiba: A régi objektumnak nincs configja!", oldObject);
+      console.groupEnd();
+      return null;
+    }
 
     const newObject = await this.assetManager.buildFurniture(config.id, newState);
-    if (!newObject) return null;
+    if (!newObject) {
+      console.error("❌ Hiba: Az AssetManager nem tudta létrehozni az új objektumot.");
+      console.groupEnd();
+      return null;
+    }
+    console.log(`✅ Új objektum (létrehozva):`, { name: newObject.name, uuid: newObject.uuid, object: newObject });
 
     newObject.position.copy(oldObject.position);
     newObject.rotation.copy(oldObject.rotation);
     newObject.scale.copy(oldObject.scale);
 
-    // JAVÍTÁS: Átmásoljuk a régi anyag-állapotot, hogy a stílusváltás megőrizze a színeket!
     if (oldObject.userData.materialState) {
       newObject.userData.materialState = JSON.parse(JSON.stringify(oldObject.userData.materialState));
       await this.stateManager.applyStateToObject(newObject);
     }
 
-    const index = this.placedObjects.findIndex(obj => obj.uuid === oldObject.uuid);
-    if (index > -1) {
-      this.placedObjects[index] = newObject;
-    }
-    this.scene.remove(oldObject);
+    // --- KRITIKUS MŰVELETEK LOGOLÁSA ---
+    console.log(`scene.remove() hívás a régi objektumra: ${oldObject.uuid}`);
+    const rawOldObject = toRaw(oldObject); // Kicsomagoljuk a Proxy-ból
+    this.scene.remove(rawOldObject);      // A nyers objektumot adjuk át
+    console.log(`scene.add() hívás az új objektumra: ${newObject.uuid}`);
     this.scene.add(newObject);
+
+
+    // --- STORE FRISSÍTÉS LOGOLÁSA ---
+    const allObjectsBefore = this.experienceStore.placedObjects.slice();
+    const index = allObjectsBefore.findIndex(obj => obj.uuid === oldObject.uuid);
+    console.log(`Régi objektum indexe a store-ban: ${index}`);
+
+    if (index > -1) {
+      const allObjectsAfter = [...allObjectsBefore]; // Biztonságos másolat
+      allObjectsAfter[index] = newObject;
+      this.experienceStore.updatePlacedObjects(allObjectsAfter);
+      console.log(`🔄 Store frissítve. Régi UUID: ${oldObject.uuid}, Új UUID: ${newObject.uuid}`);
+    } else {
+      console.error(`❌ KRITIKUS HIBA: A régi objektum (${oldObject.uuid}) nem található a store-ban! Nem történt csere.`);
+    }
 
     if (selectAfterRebuild) {
       this.selectionStore.selectObject(newObject);
-      this.transformControls.attach(newObject);
+      this.transformControls.attach(toRaw(newObject));
       this.debug.selectionBoxHelper.setFromObject(newObject);
     }
 
     this.updateTotalPrice(); 
-
+    console.log("--- Átépítés befejezve ---");
+    console.groupEnd();
     return newObject;
   }
 
   public removeObject(objectToRemove: Group) {
-    const index = this.placedObjects.findIndex(obj => obj.uuid === objectToRemove.uuid);
+    // A lista módosítása a store-on keresztül
+    const allObjects = this.experienceStore.placedObjects.slice(); // Másolat készítése
+    const index = allObjects.findIndex(obj => obj.uuid === objectToRemove.uuid);
     if (index > -1) {
-      this.placedObjects.splice(index, 1);
+      allObjects.splice(index, 1);
+      this.experienceStore.updatePlacedObjects(allObjects); // Visszaírás a store-ba
     }
-    this.scene.remove(objectToRemove);
 
-    // @ts-expect-error - a
+    // @ts-expect-error - a transformControls.object típusdefiníciója hiányos
     if (this.transformControls.object === objectToRemove) {
       this.transformControls.detach();
       this.debug.selectionBoxHelper.visible = false;
+      this.selectionStore.clearSelection();
     }
+
+    this.scene.remove(toRaw(objectToRemove));
     console.log('Object removed from experience:', objectToRemove.name);
     this.updateTotalPrice();
   }
@@ -149,7 +183,8 @@ export default class Experience {
     const selectedObject = this.selectionStore.selectedObject;
     if (!selectedObject) return;
     
-    const objectsToCompare = this.placedObjects.filter(obj => obj.uuid !== selectedObject.uuid);
+    // Olvasás a store-ból
+    const objectsToCompare = this.experienceStore.placedObjects.filter(obj => obj.uuid !== selectedObject.uuid);
     const finalPosition = this.placementManager.calculateFinalPosition(selectedObject, selectedObject.position, objectsToCompare);
     selectedObject.position.copy(finalPosition);
     this.debug.selectionBoxHelper.setFromObject(selectedObject);
@@ -176,6 +211,7 @@ export default class Experience {
   }
 
   public destroy() {
+    // ... a destroy metódus tartalma változatlan ...
     window.removeEventListener('resize', this.onWindowResize);
     window.removeEventListener('mousemove', this.onPointerMove);
     this.interactionManager.removeEventListeners();

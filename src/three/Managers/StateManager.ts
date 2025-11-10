@@ -66,11 +66,13 @@ export default class StateManager {
 private setupWatchers() {
     const selectionStore = this.experience.selectionStore;
     const settingsStore = this.experience.settingsStore;
+    const experienceStore = this.experience.experienceStore; // Rövidítés a könnyebb használatért
 
     watch(() => selectionStore.materialChangeRequest, async (request) => {
       if (!request) return;
       const { targetUUID, slotId, materialId } = request;
-      const targetObject = this.experience.placedObjects.find(obj => obj.uuid === targetUUID);
+      // JAVÍTÁS: A store-ból olvassuk a listát
+      const targetObject = experienceStore.placedObjects.find(obj => obj.uuid === targetUUID);
       if (!targetObject) {
         selectionStore.acknowledgeMaterialChange();
         return;
@@ -83,7 +85,8 @@ private setupWatchers() {
     watch(() => selectionStore.styleChangeRequest, async (request) => {
       if (!request) return;
       const { targetUUID, slotId, newStyleId } = request;
-      const targetObject = this.experience.placedObjects.find(obj => obj.uuid === targetUUID);
+      // JAVÍTÁS: A store-ból olvassuk a listát
+      const targetObject = experienceStore.placedObjects.find(obj => obj.uuid === targetUUID);
       if (!targetObject?.userData.config) {
         selectionStore.acknowledgeStyleChange();
         return;
@@ -102,7 +105,8 @@ private setupWatchers() {
 
     watch(() => selectionStore.objectToDeleteUUID, (uuidToDelete) => {
       if (!uuidToDelete) return;
-      const objectToRemove = this.experience.placedObjects.find(obj => obj.uuid === uuidToDelete);
+      // JAVÍTÁS: A store-ból olvassuk a listát
+      const objectToRemove = experienceStore.placedObjects.find(obj => obj.uuid === uuidToDelete);
       if (objectToRemove) {
         this.experience.removeObject(objectToRemove);
       }
@@ -111,7 +115,8 @@ private setupWatchers() {
 
     watch(() => selectionStore.objectToDuplicateUUID, async (uuidToDuplicate) => {
       if (!uuidToDuplicate) return;
-      const originalObject = this.experience.placedObjects.find(obj => obj.uuid === uuidToDuplicate);
+      // JAVÍTÁS: A store-ból olvassuk a listát
+      const originalObject = experienceStore.placedObjects.find(obj => obj.uuid === uuidToDuplicate);
       if (!originalObject?.userData.config) {
         selectionStore.acknowledgeDuplication();
         return;
@@ -145,66 +150,70 @@ private setupWatchers() {
       selectionStore.acknowledgeDuplication();
     });
 
-    // ######################################################################
-    // ###                  ÚJ GLOBÁLIS FIGYELŐK                          ###
-    // ######################################################################
+    // --- GLOBÁLIS STÍLUSVÁLTÁS FIGYELŐ ---
+    watch(() => settingsStore.globalStyleSettings, (newSettings, oldSettings) => {
+      console.groupCollapsed("--- [StateManager] Globális stílusváltás (OKOSÍTOTT) ---");
+      
+      // 1. LÉPÉS: A változás detektálása
+      // Megkeressük, hogy PONTOSAN melyik beállítás változott.
+      let changedSlotId: string | null = null;
+      for (const key in newSettings) {
+        if (newSettings[key] !== oldSettings[key]) {
+          changedSlotId = key;
+          break; // Feltételezzük, hogy egyszerre csak egy dolog változik
+        }
+      }
 
-    // --- GLOBÁLIS STÍLUSVÁLTÁS FIGYELŐ (VÉGLEGES VERZIÓ) ---
-    watch(() => settingsStore.globalStyleSettings, (newSettings) => {
-      console.groupCollapsed("--- StateManager: Globális stílusváltás ---");
-      console.log("Új globális stílus-állapot:", JSON.parse(JSON.stringify(newSettings)));
-      console.log("Lehelyezett objektumok száma:", this.experience.placedObjects.length);
+      if (!changedSlotId) {
+        console.log("Nem történt érdemi változás.");
+        console.groupEnd();
+        return;
+      }
+      
+      const newStyleId = newSettings[changedSlotId];
+      console.log(`🔍 Változás detektálva: A '${changedSlotId}' slot új stílusa '${newStyleId}'.`);
 
-      // Végigmegyünk az összes lehelyezett bútoron
-      for (const placedObject of this.experience.placedObjects) {
+      // 2. LÉPÉS: Feladatok összegyűjtése (a "Queue" minta marad)
+      const rebuildQueue: { oldObject: Group, newState: Record<string, string> }[] = [];
+
+      for (const placedObject of experienceStore.placedObjects) {
         const currentState = placedObject.userData.componentState;
         if (!currentState) continue;
 
-        let needsRebuild = false;
-        // Végigmegyünk az új globális beállításokon
-        for (const [targetSlotId, newStyleId] of Object.entries(newSettings)) {
-          
-          // JAVÍTÁS: Ellenőrizzük, hogy a cél slot létezik-e a bútor állapotában.
-          // Ez kezeli a 'front', 'leg' stb. fő slotokat.
-          if (typeof currentState[targetSlotId] !== 'undefined' && currentState[targetSlotId] !== newStyleId) {
-            console.log(` -> Fő slot változás a(z) '${placedObject.name}' objektumon: '${targetSlotId}' -> '${newStyleId}'`);
-            currentState[targetSlotId] = newStyleId;
-            needsRebuild = true;
-          }
-          // JAVÍTÁS: Speciális eset a 'handle' (fogantyú) kezelésére
-          else if (targetSlotId === 'handle' && currentState.front && currentState.handle !== newStyleId) {
-             console.log(` -> Al-slot változás a(z) '${placedObject.name}' objektumon: '${targetSlotId}' -> '${newStyleId}'`);
-             currentState[targetSlotId] = newStyleId;
-             needsRebuild = true;
-          }
-        }
-        
-        if (needsRebuild) {
-          console.log(`Újraépítés szükséges a(z) '${placedObject.name}' objektumon.`);
-          this.experience.rebuildObject(placedObject, currentState, false);
+        // 3. LÉPÉS: Döntés a felülírásról
+        // Csak akkor írjuk felül a bútor állapotát, ha az MEGEGYEZETT a RÉGI globális beállítással.
+        // Ezzel megőrizzük a szándékos, egyedi beállításokat.
+        if (currentState[changedSlotId] === oldSettings[changedSlotId]) {
+          const newState = { ...currentState };
+          newState[changedSlotId] = newStyleId;
+          rebuildQueue.push({ oldObject: placedObject, newState });
         }
       }
+
+      // 4. LÉPÉS: Feladatok végrehajtása
+      if (rebuildQueue.length > 0) {
+        console.log(`📬 Várólista összeállítva: ${rebuildQueue.length} elem kerül átépítésre.`);
+        Promise.all(rebuildQueue.map(task => 
+          this.experience.rebuildObject(task.oldObject, task.newState, false)
+        ));
+      } else {
+        console.log("Egyetlen bútor sem felelt meg a cserének (valószínűleg mind egyedi stílusú).");
+      }
+      
       console.groupEnd();
     }, { deep: true });
 
-    // --- GLOBÁLIS ANYAGVÁLTÁS FIGYELŐ (VÉGLEGES VERZIÓ) ---
+    // --- GLOBÁLIS ANYAGVÁLTÁS FIGYELŐ ---
     watch(() => settingsStore.globalMaterialSettings, (newSettings) => {
       console.groupCollapsed("--- StateManager: Globális anyagváltás ---");
-      console.log("Új globális anyag-állapot:", JSON.parse(JSON.stringify(newSettings)));
-      console.log("Lehelyezett objektumok száma:", this.experience.placedObjects.length);
+      // JAVÍTÁS: A store-ból olvassuk a listát
+      console.log("Lehelyezett objektumok száma:", experienceStore.placedObjects.length);
 
-      // Végigmegyünk az összes lehelyezett bútoron
-      for (const placedObject of this.experience.placedObjects) {
+      // JAVÍTÁS: A store-ból olvassuk a listát
+      for (const placedObject of experienceStore.placedObjects) {
         if (!placedObject.userData.materialState) continue;
-        
-        // Végigmegyünk az új globális beállításokon
         for (const [targetSlotId, newMaterialId] of Object.entries(newSettings)) {
-          
-          // JAVÍTÁS: A bútor SAJÁT anyag-állapotát hasonlítjuk össze a globális beállítással
           if (placedObject.userData.materialState[targetSlotId] !== newMaterialId) {
-            console.log(` -> Változás a(z) '${placedObject.name}' objektumon: '${targetSlotId}' slot új anyaga '${newMaterialId}'`);
-            
-            // Frissítjük a bútor állapotát és alkalmazzuk a változást
             placedObject.userData.materialState[targetSlotId] = newMaterialId;
             this.applyMaterial(placedObject, targetSlotId, newMaterialId);
           }
@@ -212,25 +221,19 @@ private setupWatchers() {
       }
       console.groupEnd();
     }, { deep: true });
+
     // --- FRONTOK LÁTHATÓSÁGÁNAK FIGYELŐJE ---
     watch(() => settingsStore.areFrontsVisible, (isVisible) => {
       console.log(`--- StateManager: Frontok láthatósága -> ${isVisible} ---`);
-
-      // Végigmegyünk az összes lehelyezett bútoron
-      for (const placedObject of this.experience.placedObjects) {
-        
-        // Megkeressük a 'front' nevű al-objektumot.
-        // Ez a legtisztább módszer, ha az AssetManager így nevezi el a komponenseket.
+      // JAVÍTÁS: A store-ból olvassuk a listát
+      for (const placedObject of experienceStore.placedObjects) {
         const frontObject = placedObject.getObjectByName('front');
-
         if (frontObject) {
-          // Beállítjuk a láthatóságát a store-ból érkező értékre.
           frontObject.visible = isVisible;
         } else {
-          // Ez a log segít, ha valamiért nem találjuk a frontot.
           console.warn(`Nem található 'front' nevű objektum a(z) '${placedObject.name}' bútoron.`);
         }
       }
-    }, { immediate: true }); // Az 'immediate: true' biztosítja, hogy az oldal betöltésekor is lefusson egyszer.
+    }, { immediate: true });
   }
 }

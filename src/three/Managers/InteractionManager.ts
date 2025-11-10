@@ -11,7 +11,6 @@ export default class InteractionManager {
   }
 
   private onMouseDown = (event: MouseEvent) => {
-    // JAVÍTÁS: Használjunk @ts-expect-error-t a privát property-k eléréséhez.
     // @ts-expect-error - A 'dragging' tulajdonság hibásan privátként van deklarálva a three-stdlib típusdefiníciójában.
     if (event.button !== 0 || this.experience.transformControls.dragging) return;
 
@@ -30,7 +29,6 @@ export default class InteractionManager {
   }
   
   private async startDraggingNewObject(point: Vector3) {
-    // JAVÍTÁS: Megvárjuk, amíg a bútor felépül
     const newObject = await this.createDraggableObject(point);
     if (newObject) {
       this.draggedObject = newObject;
@@ -42,26 +40,22 @@ export default class InteractionManager {
     }
   }
 
-
   private handleObjectSelection() {
-    const intersects = this.experience.raycaster.intersectObjects(this.experience.placedObjects, true);
+    // JAVÍTÁS: A store-ból olvassuk a listát
+    const intersects = this.experience.raycaster.intersectObjects(this.experience.experienceStore.placedObjects, true);
     if (intersects.length > 0) {
       const clickedObject = intersects[0]!.object;
-
-      // --- JAVÍTOTT LOGIKA: MÁSSZUNK FEL A HIERARCHIÁBAN ---
       let parentGroup: Group | null = null;
-
-      // Addig megyünk felfelé a szülőkön, amíg meg nem találjuk azt az objektumot,
-      // ami a 'placedObjects' listában is szerepel.
       let current: Object3D | null = clickedObject;
+
       while (current !== null) {
-        if (this.experience.placedObjects.find(obj => obj.uuid === current?.uuid)) {
+        // JAVÍTÁS: A store-ból olvassuk a listát
+        if (this.experience.experienceStore.placedObjects.find(obj => obj.uuid === current?.uuid)) {
           parentGroup = current as Group;
           break;
         }
         current = current.parent;
       }
-      // ----------------------------------------------------
 
       if (parentGroup) {
         const objectToSelect = parentGroup;
@@ -72,15 +66,11 @@ export default class InteractionManager {
           this.experience.transformControls.attach(objectToSelect);
           this.setTransformMode('translate');
         } else {
-          // Ez a log segít, ha a hiba előjön, és tudni akarod, mi okozta.
           console.warn('Megpróbáltunk kiválasztani egy objektumot, ami már nincs a jelenetben.', objectToSelect);
-          // Opcionálisan itt ki is ürítheted a selection store-t, ha szükséges.
           this.experience.selectionStore.clearSelection();
         }
       }
-
     } else {
-      // JAVÍTÁS: Használjunk @ts-expect-error-t a privát property-k eléréséhez.
       // @ts-expect-error - Az 'axis' tulajdonság hibásan privátként van deklarálva a three-stdlib típusdefiníciójában.
       if (!this.experience.transformControls.axis) {
         this.experience.selectionStore.clearSelection();
@@ -92,23 +82,19 @@ export default class InteractionManager {
 
   private onMouseMove = (_event: MouseEvent) => {
     if (!this.draggedObject) return;
-
-    // EZEK A SOROK MÁR FELESLEGESEK, MERT AZ EXPERIENCE FOLYAMATOSAN FRISSÍTI AZ EGÉRPOZÍCIÓT
-    // this.experience.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-    // this.experience.mouse.y = -(event.clientY / window.innerHeight) * 2 - 1;
     
-    // A raycaster-t viszont itt kell frissíteni a legfrissebb egérpozícióval!
     this.experience.raycaster.setFromCamera(this.experience.mouse, this.experience.camera);
 
     const intersects = this.experience.raycaster.intersectObjects(this.experience.intersectableObjects);
     if (intersects.length > 0) {
       const point = intersects[0]!.point;
-      // A proxy Y pozícióját nem az egér, hanem a bútor magassága határozza meg.
       point.y = this.draggedObject.position.y;
+      
+      // JAVÍTÁS: A store-ból olvassuk a listát
       const finalPosition = this.experience.placementManager.calculateFinalPosition(
         this.draggedObject, 
         point, 
-        this.experience.placedObjects
+        this.experience.experienceStore.placedObjects
       );
       this.draggedObject.position.copy(finalPosition);
     }
@@ -116,14 +102,22 @@ export default class InteractionManager {
 
   private onMouseUp = (event: MouseEvent) => {
     if (event.button !== 0 || !this.draggedObject) return;
-    // Az átlátszóságot megszüntetjük a proxy-n belül lévő mesheken.
+    
     this.draggedObject.traverse((child) => {
       if (child instanceof Mesh && child.material instanceof MeshStandardMaterial) {
         child.material.transparent = false;
         child.material.opacity = 1.0;
       }
     });
-    this.experience.placedObjects.push(this.draggedObject);
+
+    // =================================================================
+    // === JAVÍTÁS: ÚJ ELEM HOZZÁADÁSA A STORE-ON KERESZTÜL ==========
+    // =================================================================
+    const allObjects = this.experience.experienceStore.placedObjects.slice(); // 1. Lekérjük és másoljuk
+    allObjects.push(this.draggedObject); // 2. Hozzáadjuk az új elemet a másolathoz
+    this.experience.experienceStore.updatePlacedObjects(allObjects); // 3. Visszaírjuk a store-ba
+    // =================================================================
+
     this.experience.debug.hideAll();
     this.endDrag();
     this.experience.updateTotalPrice();
@@ -145,7 +139,6 @@ export default class InteractionManager {
     window.removeEventListener('contextmenu', this.onRightClickCancel);
   }
 
-  // ÚJ, PUBLIKUS METÓDUS
   public setTransformMode(mode: 'translate' | 'rotate') {
     this.experience.transformControls.setMode(mode);
     if (mode === 'translate') {

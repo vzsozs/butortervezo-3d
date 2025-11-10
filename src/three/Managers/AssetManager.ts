@@ -86,12 +86,31 @@ export default class AssetManager {
     const componentState = initialState || {};
     const materialState: Record<string, string | null> = {};
 
-    let legHeight = 0;
+    // Végigmegyünk a bútor slotjain, hogy feltöltsük az alapértelmezett értékeket.
     for (const slot of config.slots) {
       if (slot.defaultOption && !componentState[slot.id]) {
         componentState[slot.id] = slot.defaultOption;
       }
       
+      // Most megkeressük az al-slotokat is, mint pl. a fogantyút.
+      const componentId = componentState[slot.id];
+      if (componentId) {
+        const componentConfig = this.experience.configManager.getComponentById(componentId);
+        if (componentConfig?.slots) {
+          for (const subSlot of componentConfig.slots) {
+            // Ha az al-slot (pl. 'handle') még nincs beállítva a state-ben,
+            // de van alapértelmezett opciója, akkor azt is beletesszük.
+            if (subSlot.defaultOption && !componentState[subSlot.id]) {
+              componentState[subSlot.id] = subSlot.defaultOption;
+            }
+          }
+        }
+      }
+    }
+
+    let legHeight = 0;
+    for (const slot of config.slots) {
+      // A default opciókat már fentebb beállítottuk, itt már csak a tényleges építés van.
       const componentIdToBuild = componentState[slot.id];
       if (componentIdToBuild) {
         const componentConfig = this.experience.configManager.getComponentById(componentIdToBuild);
@@ -99,13 +118,11 @@ export default class AssetManager {
           if (slot.id === 'leg') {
             legHeight = componentConfig.height || 0;
           }
-          // JAVÍTÁS: Átadjuk az állapotot a komponens építőnek is!
           const newComponent = await this.buildComponent(componentConfig, componentState);
           if (!newComponent) continue;
 
           newComponent.name = slot.id;
-
-          // JAVÍTÁS: Helyes prioritási sorrend a csatlakozási pontokhoz
+          
           const attachmentNames = 
             componentConfig.attachmentPoint ? [componentConfig.attachmentPoint] :
             slot.attachmentPoints ? slot.attachmentPoints :

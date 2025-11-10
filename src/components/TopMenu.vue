@@ -17,12 +17,17 @@ function setMode(mode: 'translate' | 'rotate') {
 const formattedPrice = computed(() => {
   const price = experienceStore.totalPrice;
   // Magyar formátum: "123 450 Ft"
-  return new Intl.NumberFormat('hu-HU').format(price) + ' Ft';
+  return new Intl.NumberFormat('hu-HU', { style: 'currency', currency: 'HUF', maximumFractionDigits: 0 }).format(price);
 });
 
 // A FRONTOK VÁLTÁSÁHOZ
 function toggleFrontsVisibility() {
   settingsStore.toggleFrontsVisibility();
+}
+
+// === ÚJ FUNKCIÓ AZ ELEMLISTÁHOZ ===
+function toggleElementList() {
+  settingsStore.toggleElementListVisibility();
 }
 
 </script>
@@ -75,6 +80,18 @@ function toggleFrontsVisibility() {
       <!-- Ha a frontok el vannak rejtve, az áthúzott szem ikont mutatjuk -->
       <svg v-else xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
         <path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.243 4.243L6.228 6.228" />
+      </svg>
+    </button>
+
+    <!-- Elemlista megjelenítése / elrejtése-->
+    <button 
+      @click="toggleElementList"
+      class="btn-icon"
+      :class="{ 'btn-icon-active': settingsStore.isElementListVisible }"
+      title="Elemlista megjelenítése/elrejtése"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h.375m-.375 0a.375.375 0 1 1 0-.75.375.375 0 0 1 0 .75ZM8.25 15.75h.375m-.375 0a.375.375 0 1 1 0-.75.375.375 0 0 1 0 .75Zm8.25-9h.375m-.375 0a.375.375 0 1 1 0-.75.375.375 0 0 1 0 .75Zm0 9h.375m-.375 0a.375.375 0 1 1 0-.75.375.375 0 0 1 0 .75ZM3.375 6c0-1.036.84-1.875 1.875-1.875h.375a1.875 1.875 0 0 1 0 3.75H5.25A1.875 1.875 0 0 1 3.375 6Zm0 9.75c0-1.036.84-1.875 1.875-1.875h.375a1.875 1.875 0 0 1 0 3.75H5.25A1.875 1.875 0 0 1 3.375 15.75Z" />
       </svg>
     </button>
     

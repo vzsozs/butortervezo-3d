@@ -13,19 +13,28 @@ export const useExperienceStore = defineStore('experience', () => {
   // Itt tároljuk a teljes, kiszámolt árat. Kezdetben 0.
   const totalPrice = ref(0);
 
+  // === ÚJ REAKTÍV ÁLLAPOT ===
+  const placedObjects = ref<Group[]>([]);
+
   function setExperience(experienceInstance: Experience | null) {
     instance.value = experienceInstance;
+  }
+
+  // === ÚJ AKCIÓ A LISTA FRISSÍTÉSÉRE ===
+  function updatePlacedObjects(objects: Group[]) {
+    // A .slice() egy sekély másolatot készít, ami garantálja a reaktivitás frissülését
+    placedObjects.value = objects.slice();
   }
 
   // --- ÚJ AKCIÓ ---
   // Ez a függvény végzi a piszkos munkát.
   // Paraméterként megkapja a 3D jelenetben lévő összes bútor listáját.
-  function calculateTotalPrice(placedObjects: Group[]) {
+  function calculateTotalPrice() { // <-- A paramétert kivesszük, mert már a store-ban van a lista
     const configStore = useConfigStore();
     let newTotal = 0;
 
     // 1. Végigmegyünk az összes lehelyezett bútoron
-    for (const furniture of placedObjects) {
+    for (const furniture of placedObjects.value) {
       if (!furniture.userData.config || !furniture.userData.componentState) continue;
 
       // 2. Hozzáadjuk a bútor (korpusz) alapárát a furniture.json-ból
@@ -61,8 +70,10 @@ export const useExperienceStore = defineStore('experience', () => {
 
   return { 
     instance, 
-    totalPrice, // <-- Elérhetővé tesszük a komponenek számára
+    totalPrice,
+    placedObjects, // <-- Elérhetővé tesszük
     setExperience, 
-    calculateTotalPrice // <-- Elérhetővé tesszük az Experience osztály számára
+    calculateTotalPrice,
+    updatePlacedObjects // <-- Elérhetővé tesszük
   };
 });
