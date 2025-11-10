@@ -11,6 +11,40 @@ export default class StateManager {
     this.setupWatchers();
   }
 
+   // === A KÉNYSZERÍTŐ FÜGGVÉNYEK VISSZAÁLLÍTÁSA ===
+  public async forceGlobalStyle(slotId: string, newStyleId: string) {
+    const experienceStore = this.experience.experienceStore;
+    console.log(`[StateManager] Globális stílus kényszerítése: ${slotId} -> ${newStyleId}`);
+    const rebuildQueue: { oldObject: Group, newState: Record<string, string> }[] = [];
+    for (const placedObject of experienceStore.placedObjects) {
+      const currentState = placedObject.userData.componentState;
+      if (currentState && typeof currentState[slotId] !== 'undefined' && currentState[slotId] !== newStyleId) {
+        const newState = { ...currentState, [slotId]: newStyleId };
+        rebuildQueue.push({ oldObject: placedObject, newState });
+      }
+    }
+    if (rebuildQueue.length > 0) {
+      await Promise.all(rebuildQueue.map(task => this.experience.rebuildObject(task.oldObject, task.newState, false)));
+      this.experience.historyStore.addState();
+    }
+  }
+
+  public forceGlobalMaterial(slotId: string, newMaterialId: string) {
+    const experienceStore = this.experience.experienceStore;
+    console.log(`[StateManager] Globális anyag kényszerítése: ${slotId} -> ${newMaterialId}`);
+    let changed = false;
+    for (const placedObject of experienceStore.placedObjects) {
+      if (placedObject.userData.materialState && typeof placedObject.userData.materialState[slotId] !== 'undefined' && placedObject.userData.materialState[slotId] !== newMaterialId) {
+        placedObject.userData.materialState[slotId] = newMaterialId;
+        this.applyMaterial(placedObject, slotId, newMaterialId);
+        changed = true;
+      }
+    }
+    if (changed) {
+      this.experience.historyStore.addState();
+    }
+  }
+  
   public async applyStateToObject(targetObject: Group) {
     if (!targetObject.userData.config || !targetObject.userData.materialState) return;
 
@@ -79,6 +113,7 @@ private setupWatchers() {
       }
       targetObject.userData.materialState[slotId] = materialId;
       await this.applyMaterial(targetObject, slotId, materialId);
+      this.experience.historyStore.addState();
       selectionStore.acknowledgeMaterialChange();
     });
 
@@ -99,7 +134,8 @@ private setupWatchers() {
         return;
       }
       currentState[stateKey] = newStyleId;
-      this.experience.rebuildObject(targetObject, currentState);
+      await this.experience.rebuildObject(targetObject, currentState);
+      this.experience.historyStore.addState();
       selectionStore.acknowledgeStyleChange();
     });
 
@@ -151,76 +187,116 @@ private setupWatchers() {
     });
 
     // --- GLOBÁLIS STÍLUSVÁLTÁS FIGYELŐ ---
-    watch(() => settingsStore.globalStyleSettings, (newSettings, oldSettings) => {
-      console.groupCollapsed("--- [StateManager] Globális stílusváltás (OKOSÍTOTT) ---");
-      
-      // 1. LÉPÉS: A változás detektálása
-      // Megkeressük, hogy PONTOSAN melyik beállítás változott.
-      let changedSlotId: string | null = null;
-      for (const key in newSettings) {
-        if (newSettings[key] !== oldSettings[key]) {
-          changedSlotId = key;
-          break; // Feltételezzük, hogy egyszerre csak egy dolog változik
+    watch(
+      () => [
+        settingsStore.globalStyleSettings.front,
+        settingsStore.globalStyleSettings.leg,
+        settingsStore.globalStyleSettings.handle,
+      ],
+      async ([newFront, newLeg, newHandle], [oldFront, oldLeg, oldHandle]) => {
+        console.groupCollapsed("--- [StateManager] Globális stílusváltás (ATOMIZÁLT) ---");
+
+        let changedSlotId: string | null = null;
+        let newStyleId: string | undefined;
+        let oldStyleId: string | undefined;
+
+        // Megkeressük, hogy PONTOSAN melyik változott
+        if (newFront !== oldFront) {
+          changedSlotId = 'front';
+          newStyleId = newFront;
+          oldStyleId = oldFront;
+        } else if (newLeg !== oldLeg) {
+          changedSlotId = 'leg';
+          newStyleId = newLeg;
+          oldStyleId = oldLeg;
+        } else if (newHandle !== oldHandle) {
+          changedSlotId = 'handle';
+          newStyleId = newHandle;
+          oldStyleId = oldHandle;
         }
-      }
 
-      if (!changedSlotId) {
-        console.log("Nem történt érdemi változás.");
-        console.groupEnd();
-        return;
-      }
-      
-      const newStyleId = newSettings[changedSlotId];
-      console.log(`🔍 Változás detektálva: A '${changedSlotId}' slot új stílusa '${newStyleId}'.`);
-
-      // 2. LÉPÉS: Feladatok összegyűjtése (a "Queue" minta marad)
-      const rebuildQueue: { oldObject: Group, newState: Record<string, string> }[] = [];
-
-      for (const placedObject of experienceStore.placedObjects) {
-        const currentState = placedObject.userData.componentState;
-        if (!currentState) continue;
-
-        // 3. LÉPÉS: Döntés a felülírásról
-        // Csak akkor írjuk felül a bútor állapotát, ha az MEGEGYEZETT a RÉGI globális beállítással.
-        // Ezzel megőrizzük a szándékos, egyedi beállításokat.
-        if (currentState[changedSlotId] === oldSettings[changedSlotId]) {
-          const newState = { ...currentState };
-          newState[changedSlotId] = newStyleId;
-          rebuildQueue.push({ oldObject: placedObject, newState });
+        if (!changedSlotId || !newStyleId || typeof oldStyleId === 'undefined') {
+          console.log("Nem történt érdemi változás.");
+          console.groupEnd();
+          return;
         }
-      }
+        
+        console.log(`🔍 Változás detektálva: A '${changedSlotId}' slot új stílusa '${newStyleId}'.`);
 
-      // 4. LÉPÉS: Feladatok végrehajtása
-      if (rebuildQueue.length > 0) {
-        console.log(`📬 Várólista összeállítva: ${rebuildQueue.length} elem kerül átépítésre.`);
-        Promise.all(rebuildQueue.map(task => 
-          this.experience.rebuildObject(task.oldObject, task.newState, false)
-        ));
-      } else {
-        console.log("Egyetlen bútor sem felelt meg a cserének (valószínűleg mind egyedi stílusú).");
-      }
-      
-      console.groupEnd();
-    }, { deep: true });
+        const rebuildQueue: { oldObject: Group, newState: Record<string, string> }[] = [];
 
-    // --- GLOBÁLIS ANYAGVÁLTÁS FIGYELŐ ---
-    watch(() => settingsStore.globalMaterialSettings, (newSettings) => {
-      console.groupCollapsed("--- StateManager: Globális anyagváltás ---");
-      // JAVÍTÁS: A store-ból olvassuk a listát
-      console.log("Lehelyezett objektumok száma:", experienceStore.placedObjects.length);
+        for (const placedObject of experienceStore.placedObjects) {
+          const currentState = placedObject.userData.componentState;
+          if (!currentState) continue;
 
-      // JAVÍTÁS: A store-ból olvassuk a listát
-      for (const placedObject of experienceStore.placedObjects) {
-        if (!placedObject.userData.materialState) continue;
-        for (const [targetSlotId, newMaterialId] of Object.entries(newSettings)) {
-          if (placedObject.userData.materialState[targetSlotId] !== newMaterialId) {
-            placedObject.userData.materialState[targetSlotId] = newMaterialId;
-            this.applyMaterial(placedObject, targetSlotId, newMaterialId);
+          // Csak akkor írjuk felül, ha a bútor állapota megegyezett a RÉGI globális beállítással
+          if (currentState[changedSlotId] === oldStyleId) {
+            const newState = { ...currentState };
+            newState[changedSlotId] = newStyleId;
+            rebuildQueue.push({ oldObject: placedObject, newState });
           }
         }
-      }
-      console.groupEnd();
-    }, { deep: true });
+
+        if (rebuildQueue.length > 0) {
+          console.log(`📬 Várólista összeállítva: ${rebuildQueue.length} elem kerül átépítésre.`);
+          await Promise.all(rebuildQueue.map(task => 
+            this.experience.rebuildObject(task.oldObject, task.newState, false)
+          ));
+          this.experience.historyStore.addState();
+        } else {
+          console.log("Egyetlen bútor sem felelt meg a cserének.");
+        }
+        
+        console.groupEnd();
+      },
+      { deep: false } // A deep watch itt már nem szükséges, sőt, felesleges
+    );
+
+    // --- GLOBÁLIS ANYAGVÁLTÁS FIGYELŐ ---
+    watch(
+      () => [
+        settingsStore.globalMaterialSettings.front,
+        settingsStore.globalMaterialSettings.corpus,
+        settingsStore.globalMaterialSettings.leg,
+        settingsStore.globalMaterialSettings.handle,
+      ],
+      ([newFrontMat, newCorpusMat, newLegMat, newHandleMat], [oldFrontMat, oldCorpusMat, oldLegMat, oldHandleMat]) => {
+        console.groupCollapsed("--- [StateManager] Globális anyagváltás (ATOMIZÁLT) ---");
+
+        let changedSlotId: string | null = null;
+
+        if (newFrontMat !== oldFrontMat) changedSlotId = 'front';
+        else if (newCorpusMat !== oldCorpusMat) changedSlotId = 'corpus';
+        else if (newLegMat !== oldLegMat) changedSlotId = 'leg';
+        else if (newHandleMat !== oldHandleMat) changedSlotId = 'handle';
+
+        if (!changedSlotId) {
+          console.log("Nem történt érdemi anyagváltozás.");
+          console.groupEnd();
+          return;
+        }
+        
+        const newMaterialId = settingsStore.globalMaterialSettings[changedSlotId];
+        console.log(`🔍 Anyagváltozás detektálva: A '${changedSlotId}' slot új anyaga '${newMaterialId}'.`);
+
+        let changed = false;
+        for (const placedObject of experienceStore.placedObjects) {
+          // === ITT VOLT A HIBA ===
+          if (placedObject.userData.materialState && typeof placedObject.userData.materialState[changedSlotId] !== 'undefined') {
+            placedObject.userData.materialState[changedSlotId] = newMaterialId;
+            this.applyMaterial(placedObject, changedSlotId, newMaterialId as string);
+            changed = true;
+          }
+        }
+
+        if (changed) {
+          this.experience.historyStore.addState();
+        }
+        
+        console.groupEnd();
+      },
+      { deep: false }
+    );
 
     // --- FRONTOK LÁTHATÓSÁGÁNAK FIGYELŐJE ---
     watch(() => settingsStore.areFrontsVisible, (isVisible) => {

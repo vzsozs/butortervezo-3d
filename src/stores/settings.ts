@@ -1,13 +1,14 @@
 // src/stores/settings.ts
 
-import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { defineStore } from 'pinia';
+import { ref } from 'vue';
+import { useExperienceStore } from './experience';
 
 export const useSettingsStore = defineStore('settings', () => {
-  
-  // --- ÁLLAPOTOK (STATE) ---
+  const experienceStore = useExperienceStore();
 
-  const activeFurnitureId = ref<string | null>('also_szkreny_60');
+  // --- ÁLLAPOTOK (STATE) ---
+  const activeFurnitureId = ref<string | null>('also_szekreny_60');
   
   const globalMaterialSettings = ref<Record<string, string>>({
     front: 'white_laminate',
@@ -25,17 +26,17 @@ export const useSettingsStore = defineStore('settings', () => {
   const isSnappingEnabled = ref(true);
   const areFrontsVisible = ref(true);
   const isElementListVisible = ref(false);
-
-  // =================================================================
-  // === ÚJ ÁLLAPOT A VONALZÓHOZ ======================================
-  // =================================================================
   const isRulerModeActive = ref(false);
-  // =================================================================
 
   // --- AKCIÓK (ACTIONS) ---
 
   function setGlobalMaterial(targetSlotId: string, materialId: string) {
-    if (materialId) {
+    if (!materialId) return;
+    const currentValue = globalMaterialSettings.value[targetSlotId];
+
+    if (currentValue === materialId) {
+      experienceStore.instance?.stateManager.forceGlobalMaterial(targetSlotId, materialId);
+    } else {
       globalMaterialSettings.value = {
         ...globalMaterialSettings.value,
         [targetSlotId]: materialId
@@ -44,8 +45,13 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   function setGlobalStyle(targetSlotId: string, styleId: string) {
-    if (styleId) {
-      console.log(`Pinia settings store: Globális stílus frissítve. Cél slot: '${targetSlotId}', Új stílus: '${styleId}'`);
+    if (!styleId) return;
+    console.log(`Pinia settings store: Globális stílus frissítve. Cél slot: '${targetSlotId}', Új stílus: '${styleId}'`);
+    const currentValue = globalStyleSettings.value[targetSlotId];
+
+    if (currentValue === styleId) {
+      experienceStore.instance?.stateManager.forceGlobalStyle(targetSlotId, styleId);
+    } else {
       globalStyleSettings.value = {
         ...globalStyleSettings.value,
         [targetSlotId]: styleId
@@ -72,6 +78,7 @@ export const useSettingsStore = defineStore('settings', () => {
     console.log('Vonalzó mód:', isRulerModeActive.value);
   }
 
+  // --- VISSZATÉRÉSI ÉRTÉKEK ---
   return { 
     // Állapotok
     activeFurnitureId, 
@@ -80,7 +87,7 @@ export const useSettingsStore = defineStore('settings', () => {
     isSnappingEnabled,
     areFrontsVisible,
     isElementListVisible,
-    isRulerModeActive, // <-- Hozzáadva
+    isRulerModeActive,
     
     // Akciók
     setActiveFurnitureId,
@@ -88,6 +95,6 @@ export const useSettingsStore = defineStore('settings', () => {
     setGlobalStyle, 
     toggleFrontsVisibility,
     toggleElementListVisibility,
-    toggleRulerMode, // <-- Hozzáadva
+    toggleRulerMode,
   }
 })

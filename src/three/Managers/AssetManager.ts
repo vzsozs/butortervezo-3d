@@ -86,20 +86,16 @@ export default class AssetManager {
     const componentState = initialState || {};
     const materialState: Record<string, string | null> = {};
 
-    // Végigmegyünk a bútor slotjain, hogy feltöltsük az alapértelmezett értékeket.
+    // --- Állapotok előzetes feltöltése (ez a rész már jó) ---
     for (const slot of config.slots) {
       if (slot.defaultOption && !componentState[slot.id]) {
         componentState[slot.id] = slot.defaultOption;
       }
-      
-      // Most megkeressük az al-slotokat is, mint pl. a fogantyút.
       const componentId = componentState[slot.id];
       if (componentId) {
         const componentConfig = this.experience.configManager.getComponentById(componentId);
         if (componentConfig?.slots) {
           for (const subSlot of componentConfig.slots) {
-            // Ha az al-slot (pl. 'handle') még nincs beállítva a state-ben,
-            // de van alapértelmezett opciója, akkor azt is beletesszük.
             if (subSlot.defaultOption && !componentState[subSlot.id]) {
               componentState[subSlot.id] = subSlot.defaultOption;
             }
@@ -108,12 +104,26 @@ export default class AssetManager {
       }
     }
 
+    // --- Bútor tényleges összeépítése ---
     let legHeight = 0;
     for (const slot of config.slots) {
-      // A default opciókat már fentebb beállítottuk, itt már csak a tényleges építés van.
+      // =================================================================
+      // === JAVÍTÁS: A materialState feltöltése al-slotokkal is ========
+      // =================================================================
+      materialState[slot.id] = null; // Fő slot hozzáadása (pl. 'front')
+      
       const componentIdToBuild = componentState[slot.id];
       if (componentIdToBuild) {
         const componentConfig = this.experience.configManager.getComponentById(componentIdToBuild);
+
+        // Ha a komponensnek vannak al-slotjai, azokat is adjuk hozzá a materialState-hez
+        if (componentConfig?.slots) {
+            for (const subSlot of componentConfig.slots) {
+                materialState[subSlot.id] = null; // Al-slot hozzáadása (pl. 'handle')
+            }
+        }
+        // =================================================================
+
         if (componentConfig) {
           if (slot.id === 'leg') {
             legHeight = componentConfig.height || 0;
@@ -140,9 +150,9 @@ export default class AssetManager {
           }
         }
       }
-      materialState[slot.id] = null;
     }
     visualModelRoot.position.y = legHeight;
+
 
     visualModelRoot.updateWorldMatrix(true, true);
     const box = new Box3().setFromObject(visualModelRoot);
@@ -156,7 +166,7 @@ export default class AssetManager {
     furnitureProxy.userData.config = config;
     furnitureProxy.userData.isProxy = true;
     furnitureProxy.userData.componentState = componentState;
-    furnitureProxy.userData.materialState = materialState;
+    furnitureProxy.userData.materialState = materialState; 
     
     return furnitureProxy;
   }

@@ -217,7 +217,8 @@ export default class InteractionManager {
           this.experience.debug.selectionBoxHelper.setFromObject(parentGroup);
           this.experience.debug.selectionBoxHelper.visible = true;
           this.experience.transformControls.attach(parentGroup);
-          this.setTransformMode('translate');
+          // JAVÍTÁS: A setTransformMode-ot hívjuk meg, ami már tartalmazza a logikát
+          this.setTransformMode('translate'); 
         } else {
           this.experience.selectionStore.clearSelection();
         }
@@ -263,6 +264,8 @@ export default class InteractionManager {
   this.experience.debug.hideAll();
   this.endDrag();
   this.experience.updateTotalPrice();
+  // === ÚJ SOR: ÁLLAPOT MENTÉSE ===
+  this.experience.historyStore.addState();
 }
 
   private onRightClickCancel = (event: MouseEvent) => {
@@ -282,7 +285,37 @@ export default class InteractionManager {
   }
 
   public setTransformMode(mode: 'translate' | 'rotate') {
-    this.experience.transformControls.setMode(mode);
+    const selectedObject = this.experience.selectionStore.selectedObject;
+    const controls = this.experience.transformControls;
+
+    controls.setMode(mode);
+
+    // Alapértelmezett beállítások (minden engedélyezve)
+    // @ts-expect-error - A típusdefiníciók hibásan privátként jelölik
+    controls.showX = true;
+    // @ts-expect-error - A típusdefiníciók hibásan privátként jelölik
+    controls.showY = true;
+    // @ts-expect-error - A típusdefiníciók hibásan privátként jelölik
+    controls.showZ = true;
+
+    // Ha van kiválasztott objektum, alkalmazzuk a specifikus szabályokat
+    if (selectedObject) {
+      const category = selectedObject.userData.config?.category;
+
+      if (mode === 'translate') {
+        // Alsó szekrényeknél letiltjuk az Y mozgatást
+        if (category === 'bottom_cabinets') {
+          // @ts-expect-error - A típusdefiníciók hibásan privátként jelölik
+          controls.showY = false;
+        }
+      } else if (mode === 'rotate') {
+        // Forgatást csak az Y tengely körül engedélyezünk mindenhol
+      // @ts-expect-error - A típusdefiníciók hibásan privátként jelölik
+        controls.showX = false;
+      // @ts-expect-error - A típusdefiníciók hibásan privátként jelölik
+        controls.showZ = false;
+      }
+    }
   }
 
   private onKeyDown = (event: KeyboardEvent) => {
