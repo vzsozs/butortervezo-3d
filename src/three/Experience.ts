@@ -3,6 +3,11 @@ import { toRaw } from 'vue';
 import { Scene, PerspectiveCamera, WebGLRenderer, Raycaster, Vector2, Object3D, Group, Clock, Mesh, PlaneGeometry } from 'three';
 import { OrbitControls } from 'three-stdlib';
 import { TransformControls } from 'three-stdlib';
+// =================================================================
+// === ÚJ IMPORT A VONALZÓHOZ =======================================
+// =================================================================
+import { CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
+// =================================================================
 import { useExperienceStore } from '@/stores/experience'; 
 import { useSelectionStore } from '@/stores/selection';
 import { useSettingsStore } from '@/stores/settings';
@@ -20,6 +25,12 @@ export default class Experience {
   public scene: Scene;
   public camera: PerspectiveCamera;
   public renderer: WebGLRenderer;
+  // =================================================================
+  // === ÚJ TULAJDONSÁGOK A VONALZÓHOZ ================================
+  // =================================================================
+  public labelRenderer: CSS2DRenderer;
+  public rulerElements: Group; // Egy csoport a vonalzóhoz tartozó összes elemnek
+  // =================================================================
   private clock: Clock;
   public configManager: ConfigManager;
   public controls: OrbitControls;
@@ -37,19 +48,31 @@ export default class Experience {
   public interactionManager: InteractionManager;
   public stateManager: StateManager;
 
-  // A 'placedObjects' tulajdonság TÖRÖLVE INNEN!
-
   private constructor(canvas: HTMLDivElement) {
     this.canvas = canvas;
 
     this.scene = new Scene();
     this.camera = new PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     this.camera.position.set(0, 2, 3);
+
+    // --- Fő WebGL Renderer (3D objektumok) ---
     this.renderer = new WebGLRenderer({ antialias: true });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.shadowMap.enabled = true;
     this.canvas.appendChild(this.renderer.domElement);
+
+    // =================================================================
+    // === ÚJ CSS2D RENDERER (HTML CÍMKÉK) =============================
+    // =================================================================
+    this.labelRenderer = new CSS2DRenderer();
+    this.labelRenderer.setSize(window.innerWidth, window.innerHeight);
+    this.labelRenderer.domElement.style.position = 'absolute';
+    this.labelRenderer.domElement.style.top = '0px';
+    this.labelRenderer.domElement.style.pointerEvents = 'none'; // Fontos, hogy ne zavarja a kattintást!
+    this.canvas.appendChild(this.labelRenderer.domElement);
+    // =================================================================
+
     this.clock = new Clock();
     this.raycaster = new Raycaster();
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
@@ -63,6 +86,14 @@ export default class Experience {
     this.placementManager = new PlacementManager(this);
     this.interactionManager = new InteractionManager(this);
     this.stateManager = new StateManager(this);
+    
+    // =================================================================
+    // === ÚJ CSOPORT A VONALZÓ ELEMEINEK ==============================
+    // =================================================================
+    this.rulerElements = new Group();
+    this.scene.add(this.rulerElements);
+    // =================================================================
+
     const floor = this.scene.children.find(c => c instanceof Mesh && c.geometry instanceof PlaneGeometry);
     if (floor) this.intersectableObjects.push(floor);
     window.addEventListener('resize', this.onWindowResize);
@@ -170,6 +201,7 @@ export default class Experience {
     this.camera.aspect = window.innerWidth / window.innerHeight;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this.labelRenderer.setSize(window.innerWidth, window.innerHeight);
   }
 
   private onPointerMove = (event: MouseEvent) => {
@@ -207,7 +239,12 @@ export default class Experience {
   private animate = () => {
     requestAnimationFrame(this.animate);
     this.controls.update();
+    
+    // A fő 3D-s jelenet renderelése
     this.renderer.render(this.scene, this.camera);
+    
+    // JAVÍTÁS: A labelRenderer-t is frissíteni kell minden képkockán!
+    this.labelRenderer.render(this.scene, this.camera);
   }
 
   public destroy() {
@@ -219,6 +256,10 @@ export default class Experience {
     this.transformControls.removeEventListener('objectChange', this.onObjectChange);
     // @ts-expect-error - a
     this.transformControls.removeEventListener('dragging-changed', this.onDraggingChanged);
+
+    if (this.labelRenderer.domElement.parentNode === this.canvas) {
+        this.canvas.removeChild(this.labelRenderer.domElement);
+    }
     
     this.scene.traverse((child) => {
       if (child instanceof Mesh) {
