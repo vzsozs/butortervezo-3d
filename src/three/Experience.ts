@@ -1,6 +1,6 @@
 // src/three/Experience.ts
 import { toRaw } from 'vue';
-import { Scene, PerspectiveCamera, WebGLRenderer, Raycaster, Vector2, Object3D, Group, Clock, Mesh, PlaneGeometry, type EulerOrder } from 'three';
+import { Scene, AmbientLight, DirectionalLight, PerspectiveCamera, WebGLRenderer, Raycaster, Vector2, Object3D, Group, Clock, Mesh, PlaneGeometry, type EulerOrder } from 'three';
 import { OrbitControls } from 'three-stdlib';
 import { TransformControls } from 'three-stdlib';
 import { CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
@@ -131,6 +131,48 @@ export default class Experience {
   public updateTotalPrice() {
     this.experienceStore.calculateTotalPrice();
   }
+
+  // METÓDUS A SCREENSHOT
+  public getScreenshotCanvas(): HTMLCanvasElement | undefined {
+    try {
+    // === VÉGSŐ, KOMBINÁLT SCREENSHOT LOGIKA ===
+
+    // 1. A segédelemeket NEM rejtjük el, mert egy teljesen új jelenetet renderelünk.
+    // Így nem kell őket a végén visszakapcsolgatni.
+
+    // 2. Létrehozunk egy teljesen új, ideiglenes jelenetet
+    const screenshotScene = new Scene();
+    screenshotScene.background = this.scene.background;
+
+    // 3. Átmásoljuk a fényeket, de a "nyers" verziójukat klónozzuk
+    this.scene.traverse((child) => {
+      const rawChild = toRaw(child); // MINDIG a nyers objektummal dolgozunk
+      if (rawChild instanceof AmbientLight || rawChild instanceof DirectionalLight) {
+        screenshotScene.add(rawChild.clone());
+      }
+    });
+
+    // 4. Hozzáadjuk a bútorok "nyers" klónjait
+    for (const proxyObject of this.experienceStore.placedObjects) {
+      const rawObject = toRaw(proxyObject);
+      screenshotScene.add(rawObject.clone());
+    }
+
+    // 5. Az ideiglenes, TISZTA jelenetet rendereljük
+    // Az ideiglenes, TISZTA jelenetet rendereljük
+      this.renderer.render(screenshotScene, this.camera);
+      
+      console.log(`[Experience] Screenshot canvas előkészítve.`);
+      
+      // A dataURL helyett magát a canvas elemet adjuk vissza
+      return this.renderer.domElement;
+
+    } catch (error) {
+      console.error("[Experience] Hiba a screenshot canvas előkészítése közben:", error);
+      return undefined;
+    }
+  }
+
 
   public async rebuildObject(oldObject: Group, newState: Record<string, string>, selectAfterRebuild = true): Promise<Group | null> {
     console.groupCollapsed(`--- [Experience.rebuildObject] Átépítés kezdődik ---`);

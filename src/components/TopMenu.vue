@@ -5,6 +5,7 @@ import { computed } from 'vue';
 import { useSettingsStore } from '@/stores/settings';
 import { useHistoryStore } from '@/stores/history';
 import { usePersistenceStore } from '@/stores/persistence';
+import { PDFExportManager } from '@/three/PDFExportManager'; // <-- ÚJ IMPORT
 
 const experienceStore = useExperienceStore();
 const settingsStore = useSettingsStore(); 
@@ -47,6 +48,11 @@ function loadFromFile() {
   persistenceStore.loadStateFromFile();
 }
 
+// === ÚJ FUNKCIÓ A PDF EXPORTHOZ ===
+function exportToPDF() {
+  const exporter = new PDFExportManager();
+  exporter.generateOfferPDF();
+}
 </script>
 
 <template>
@@ -134,6 +140,13 @@ function loadFromFile() {
     </button>
     
     <div class="w-px h-6 bg-gray-600"></div>
+
+    <!-- ÚJ GOMB: PDF EXPORT -->
+    <button @click="exportToPDF" class="btn-icon" title="PDF Export">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0 1 10.56 0m-10.56 0L6 18.25m0-4.421v4.421m1.5-4.421L7.5 18.25m0-4.421V18.25m9-15 .5-1.375A2.25 2.25 0 0 0 15.75 0H5.25A2.25 2.25 0 0 0 3 2.25v19.5A2.25 2.25 0 0 0 5.25 24h13.5A2.25 2.25 0 0 0 21 21.75V7.5l-4.5-4.5M9 15h6" />
+      </svg>
+    </button>
 
     <!-- Ár kijelző -->
     <div class="text-sm font-semibold px-2">
