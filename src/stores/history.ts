@@ -87,9 +87,11 @@ export const useHistoryStore = defineStore('history', () => {
   }
 
   return {
+    history,
     canUndo,
     addState,
     undo,
     clearHistory,
+    createSnapshot,
   };
 });

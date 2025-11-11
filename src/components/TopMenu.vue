@@ -3,13 +3,14 @@
 import { useExperienceStore } from '@/stores/experience';
 import { computed } from 'vue';
 import { useSettingsStore } from '@/stores/settings';
-// === ÚJ IMPORT A HISTORY STORE-HOZ ===
 import { useHistoryStore } from '@/stores/history';
+import { usePersistenceStore } from '@/stores/persistence';
 
 const experienceStore = useExperienceStore();
 const settingsStore = useSettingsStore(); 
 const historyStore = useHistoryStore(); // <-- Új store példány
 const experience = computed(() => experienceStore.instance);
+const persistenceStore = usePersistenceStore();
 
 function setMode(mode: 'translate' | 'rotate') {
   experience.value?.interactionManager.setTransformMode(mode);
@@ -32,23 +33,37 @@ function toggleRuler() {
   settingsStore.toggleRulerMode();
 }
 
-// === ÚJ FUNKCIÓ AZ UNDO-HOZ ===
+// === UNDO ===
 function undoLastAction() {
   historyStore.undo();
 }
+
+// === MENTÉS ===
+function saveToFile() {
+  persistenceStore.saveStateToFile();
+}
+
+function loadFromFile() {
+  persistenceStore.loadStateFromFile();
+}
+
 </script>
 
 <template>
   <div class="fixed top-4 right-4 bg-gray-800/70 backdrop-blur-sm border border-gray-700 rounded-lg shadow-lg p-2 flex items-center gap-2 text-gray-300 z-10">
     
-    <!-- Mentés -->
-    <button class="btn-icon" title="Mentés">
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
+    <!-- Mentés FÁJLBA -->
+    <button @click="saveToFile" class="btn-icon" title="Mentés fájlba">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+      </svg>
     </button>
 
-    <!-- Betöltés -->
-    <button class="btn-icon" title="Betöltés">
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" /></svg>
+    <!-- Betöltés FÁJLBÓL -->
+    <button @click="loadFromFile" class="btn-icon" title="Betöltés fájlból">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
+      </svg>
     </button>
 
     <!-- ================================================================= -->

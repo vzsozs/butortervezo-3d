@@ -5,11 +5,16 @@ import { Group, Mesh, MeshStandardMaterial, Object3D, Vector3 } from 'three';
 import Experience from '../Experience';
 import { availableMaterials, type MaterialConfig } from '@/config/materials';
 import { type FurnitureSlotConfig, type ComponentSlotConfig } from '@/config/furniture';
+import { usePersistenceStore } from '@/stores/persistence'; // <-- ÚJ IMPORT
 
 export default class StateManager {
   constructor(private experience: Experience) {
+    this.experience = experience; 
     this.setupWatchers();
   }
+
+  private persistenceStore = usePersistenceStore(); // <-- ÚJ PÉLDÁNY
+  private autosaveTimeout: number | null = null; // <-- ÚJ TULAJDONSÁG
 
    // === A KÉNYSZERÍTŐ FÜGGVÉNYEK VISSZAÁLLÍTÁSA ===
   public async forceGlobalStyle(slotId: string, newStyleId: string) {
@@ -102,6 +107,18 @@ export default class StateManager {
         material.needsUpdate = true;
       }
     });
+  }
+
+   // === ÚJ METÓDUS AZ AUTOMENTÉSHEZ ===
+  private triggerAutosave() {
+    // Töröljük a korábbi időzítőt, ha volt
+    if (this.autosaveTimeout) {
+      clearTimeout(this.autosaveTimeout);
+    }
+    // Beállítunk egy újat, ami 2 másodperc múlva ment
+    this.autosaveTimeout = window.setTimeout(() => {
+      this.persistenceStore.saveStateToLocalStorage();
+    }, 2000); // 2 másodperc késleltetés
   }
 
 private setupWatchers() {
@@ -304,6 +321,11 @@ private setupWatchers() {
       },
       { deep: false }
     );
+
+    // === AUTOMENTÉS TRIGGER ===
+    watch(() => this.experience.historyStore.history, () => {
+      this.triggerAutosave();
+    }, { deep: true });
 
     // --- FRONTOK LÁTHATÓSÁGÁNAK FIGYELŐJE ---
     watch(() => settingsStore.areFrontsVisible, (isVisible) => {

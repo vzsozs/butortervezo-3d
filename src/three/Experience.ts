@@ -97,6 +97,7 @@ export default class Experience {
     // 1. Jelenlegi jelenet kiürítése
     this.selectionStore.clearSelection();
     this.transformControls.detach();
+    this.debug.selectionBoxHelper.visible = false;
     
     const objectsToRemove = [...this.experienceStore.placedObjects];
     for (const obj of objectsToRemove) {
