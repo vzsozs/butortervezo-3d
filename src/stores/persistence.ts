@@ -76,23 +76,52 @@ export const usePersistenceStore = defineStore('persistence', () => {
     return false;
   }
 
-  function saveStateToFile() {
+  async function saveStateToFile() {
     const currentState = historyStore.createSnapshot();
     try {
-      const jsonState = JSON.stringify(currentState, null, 2); // A 'null, 2' szépen formázza a JSON-t
+      const jsonState = JSON.stringify(currentState, null, 2);
       const blob = new Blob([jsonState], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
+      const suggestedName = `konyhaterv_${new Date().toISOString().slice(0, 10)}.json`;
+
+      // 1. Próbáljuk meg a modern File System Access API-t
+      if ('showSaveFilePicker' in window) {
+        console.log("[Persistence] Modern mentési API használata...");
+        try {
+          const handle = await window.showSaveFilePicker({
+            suggestedName: suggestedName,
+            types: [{
+              description: 'Konyhaterv JSON fájl',
+              accept: { 'application/json': ['.json'] },
+            }],
+          });
+          const writable = await handle.createWritable();
+          await writable.write(blob);
+          await writable.close();
+          console.log(`[Persistence] Jelenet sikeresen elmentve fájlba (modern API).`);
+          return; // Sikeres mentés után kilépünk
+        } catch (err) {
+          // A felhasználó bezárta a mentés ablakot, ez nem hiba.
+          if (err instanceof DOMException && err.name === 'AbortError') {
+            console.log("[Persistence] A felhasználó megszakította a mentést.");
+            return;
+          }
+          // Ha más hiba történt, jelezzük, és hagyjuk, hogy a fallback lefusson.
+          console.error("[Persistence] Hiba a modern mentési API-val:", err);
+        }
+      }
       
+      // 2. Fallback a régi, megbízható letöltési módszerre
+      console.log("[Persistence] Fallback mentési módszer használata...");
+      const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `konyhaterv_${new Date().toISOString().slice(0, 10)}.json`; // pl. konyhaterv_2023-10-27.json
+      link.download = suggestedName;
       document.body.appendChild(link);
       link.click();
       
-      // Takarítás
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-      console.log(`[Persistence] Jelenet sikeresen elmentve fájlba.`);
+      console.log(`[Persistence] Jelenet sikeresen elmentve fájlba (fallback).`);
 
     } catch (error) {
       console.error("[Persistence] Hiba a fájlba mentés során:", error);
