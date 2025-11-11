@@ -1,3 +1,4 @@
+<!-- src/components/SidePanel.vue -->
 <script setup lang="ts">
 import { useSettingsStore } from '@/stores/settings';
 import { useConfigStore } from '@/stores/config';
@@ -8,8 +9,6 @@ import type { GlobalSettingConfig } from '@/config/furniture';
 const settingsStore = useSettingsStore();
 const configStore = useConfigStore();
 
-// JAVÍTÁS: Létrehozunk egy "tervrajzot" a globális beállítások elrendezéséhez.
-// Ez határozza meg a sorokat, a címkéket, és hogy melyik beállítás hova kerül.
 const settingLayout = [
   { label: 'Korpusz / Munkapult', leftId: 'global_corpus_material', rightId: 'global_worktop_material' },
   { label: 'Frontok', leftId: 'global_front_style', rightId: 'global_front_material' },
@@ -17,17 +16,11 @@ const settingLayout = [
   { label: 'Fogantyúk', leftId: 'global_handle_style', rightId: 'global_handle_material' },
 ];
 
-// JAVÍTÁS: Ez a computed property most már a 'settingLayout' alapján építi fel a sorokat.
 const layoutRows = computed(() => {
   return settingLayout.map(rowLayout => {
-    // A 'find' metódus 'undefined'-et ad vissza, ha nincs találat, ami tökéletes nekünk.
     const leftSetting = configStore.globalSettings.find(s => s.id === rowLayout.leftId);
     const rightSetting = configStore.globalSettings.find(s => s.id === rowLayout.rightId);
-    return {
-      ...rowLayout,
-      left: leftSetting,
-      right: rightSetting
-    };
+    return { ...rowLayout, left: leftSetting, right: rightSetting };
   });
 });
 
@@ -35,12 +28,45 @@ function getComponentName(componentId: string): string {
   return configStore.getComponentById(componentId)?.name ?? componentId;
 }
 
-function handleGlobalChange(setting: GlobalSettingConfig, value: string) {
+// Ez a függvény frissíti a store-t, a @change esemény hívja
+function updateSetting(setting: GlobalSettingConfig, value: string) {
   if (!value) return;
+  // Itt csak a store-t frissítjük, a watch-ra bízva a cserét
   if (setting.type === 'style') {
-    settingsStore.setGlobalStyle(setting.targetSlotId, value);
+    if (settingsStore.globalStyleSettings[setting.targetSlotId] !== value) {
+      settingsStore.setGlobalStyle(setting.targetSlotId, value);
+    }
   } else if (setting.type === 'material') {
-    settingsStore.setGlobalMaterial(setting.targetSlotId, value);
+    if (settingsStore.globalMaterialSettings[setting.targetSlotId] !== value) {
+      settingsStore.setGlobalMaterial(setting.targetSlotId, value);
+    }
+  }
+}
+
+// A gomb ezt a függvényt hívja, ami "kikényszeríti" a frissítést
+function forceApplyRow(row: (typeof layoutRows.value)[0]) {
+  console.log(`[SidePanel] Frissítés kényszerítése a(z) '${row.label}' sorra.`);
+  
+  // Bal oldali beállítás kényszerítése
+  if (row.left) {
+    const value = row.left.type === 'style' 
+      ? settingsStore.globalStyleSettings[row.left.targetSlotId]
+      : settingsStore.globalMaterialSettings[row.left.targetSlotId];
+      
+    console.log(` -> Bal oldal (${row.left.id}): Érték=${value}`);
+    if (value) {
+      if (row.left.type === 'style') settingsStore.setGlobalStyle(row.left.targetSlotId, value);
+      else settingsStore.setGlobalMaterial(row.left.targetSlotId, value);
+    }
+  }
+
+  // Jobb oldali beállítás kényszerítése
+  if (row.right) {
+    const value = settingsStore.globalMaterialSettings[row.right.targetSlotId];
+    console.log(` -> Jobb oldal (${row.right.id}): Érték=${value}`); // EZ A LEGFONTOSABB LOG
+    if (value) {
+      settingsStore.setGlobalMaterial(row.right.targetSlotId, value);
+    }
   }
 }
 </script>
@@ -48,81 +74,68 @@ function handleGlobalChange(setting: GlobalSettingConfig, value: string) {
 <template>
   <div @mousedown.stop class="panel top-0 left-0 h-screen w-80 flex flex-col space-y-4 overflow-y-auto">
     
-    <!-- 1. Szekció: Logó (VÁLTOZATLAN) -->
+    <!-- 1. Szekció: Logó -->
     <div class="flex-shrink-0">
       <h1 class="text-2xl font-bold text-white">Bútortervező</h1>
       <p class="text-sm text-text-secondary">Verzió 0.1</p>
     </div>
 
-    <!-- 2. Szekció: Globális Beállítások (ÁTÉPÍTVE) -->
+    <!-- 2. Szekció: Globális Beállítások (JAVÍTOTT ELRENDEZÉS) -->
     <div class="flex-shrink-0 border-t border-panel-border pt-4">
       <h2 class="section-header">Globális Beállítások</h2>
       
       <div class="space-y-4 mt-4">
-        <!-- Az új, 'layoutRows' listán megyünk végig -->
         <div v-for="row in layoutRows" :key="row.label">
           <label class="input-label mb-2">{{ row.label }}</label>
           
-          <div class="setting-group-grid">
+          <!-- Egy grid konténer a két select-nek és a gombnak -->
+          <div class="grid grid-cols-[1fr_1fr_auto] gap-2 items-center">
             
-            <!-- Bal oldali oszlop -->
-            <div>
-              <div v-if="row.left" class="custom-select-wrapper">
-                <select @change="handleGlobalChange(row.left, ($event.target as HTMLSelectElement).value)" class="custom-select">
-                  <option value="">{{ row.left.type === 'style' ? 'Stílus...' : 'Anyag...' }}</option>
-                  <!-- Stílus opciók -->
-                  <template v-if="row.left.type === 'style' && row.left.options">
-                    <option v-for="styleId in row.left.options" :key="styleId" :value="styleId" :selected="settingsStore.globalStyleSettings[row.left.targetSlotId] === styleId">
-                      {{ getComponentName(styleId) }}
-                    </option>
-                  </template>
-                  <!-- Anyag opciók -->
-                  <template v-if="row.left.type === 'material'">
-                     <option v-for="material in availableMaterials" :key="material.id" :value="material.id" :selected="settingsStore.globalMaterialSettings[row.left.targetSlotId] === material.id">
-                      {{ material.name }}
-                    </option>
-                  </template>
-                </select>
-                <div class="select-arrow">
-                  <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
-                </div>
+            <!-- Bal oldali select -->
+            <div v-if="row.left" class="custom-select-wrapper">
+              <select @change="updateSetting(row.left, ($event.target as HTMLSelectElement).value)" class="custom-select">
+                <template v-if="row.left.type === 'style' && row.left.options">
+                  <option v-for="styleId in row.left.options" :key="styleId" :value="styleId" :selected="settingsStore.globalStyleSettings[row.left.targetSlotId] === styleId">
+                    {{ getComponentName(styleId) }}
+                  </option>
+                </template>
+                <template v-if="row.left.type === 'material'">
+                   <option v-for="material in availableMaterials" :key="material.id" :value="material.id" :selected="settingsStore.globalMaterialSettings[row.left.targetSlotId] === material.id">
+                    {{ material.name }}
+                  </option>
+                </template>
+              </select>
+              <div class="select-arrow">
+                <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
               </div>
             </div>
+            <div v-else></div> <!-- Üres cella, ha nincs bal oldali elem -->
 
-            <!-- Jobb oldali oszlop -->
-            <div>
-              <div v-if="row.right" class="custom-select-wrapper">
-                <select @change="handleGlobalChange(row.right, ($event.target as HTMLSelectElement).value)" class="custom-select">
-                  <option value="">{{ row.right.type === 'style' ? 'Stílus...' : 'Anyag...' }}</option>
-                  <!-- Stílus opciók -->
-                  <template v-if="row.right.type === 'style' && row.right.options">
-                    <option v-for="styleId in row.right.options" :key="styleId" :value="styleId" :selected="settingsStore.globalStyleSettings[row.right.targetSlotId] === styleId">
-                      {{ getComponentName(styleId) }}
-                    </option>
-                  </template>
-                  <!-- Anyag opciók -->
-                  <template v-if="row.right.type === 'material'">
-                     <option v-for="material in availableMaterials" :key="material.id" :value="material.id" :selected="settingsStore.globalMaterialSettings[row.right.targetSlotId] === material.id">
-                      {{ material.name }}
-                    </option>
-                  </template>
-                </select>
-                <div class="select-arrow">
-                  <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
-                </div>
-              </div>
-              <!-- Speciális eset a Munkapultnak, ami inaktív -->
-              <div v-else-if="row.rightId === 'global_worktop_material'" class="custom-select-wrapper">
-                 <select class="custom-select" disabled>
-                   <option>Anyag...</option>
-                 </select>
-                 <div class="select-arrow">
-                    <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
-                 </div>
+            <!-- Jobb oldali select -->
+            <div v-if="row.right" class="custom-select-wrapper">
+               <select @change="updateSetting(row.right, ($event.target as HTMLSelectElement).value)" class="custom-select">
+                <template v-if="row.right.type === 'material'">
+                   <option v-for="material in availableMaterials" :key="material.id" :value="material.id" :selected="settingsStore.globalMaterialSettings[row.right.targetSlotId] === material.id">
+                    {{ material.name }}
+                  </option>
+                </template>
+              </select>
+              <div class="select-arrow">
+                <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
               </div>
             </div>
+            <div v-else class="custom-select-wrapper">
+              <select class="custom-select" disabled><option>Anyag...</option></select>
+            </div>
 
-          </div>
+            <!-- Frissítés gomb a sor végén -->
+            <button @click="forceApplyRow(row)" class="btn-icon" title="Sor beállításainak alkalmazása mindenre">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 11.667 0l3.181-3.183m-4.991-2.691V5.25a3.375 3.375 0 0 0-3.375-3.375H8.25a3.375 3.375 0 0 0-3.375 3.375v5.172" />
+              </svg>
+            </button>
+            
+          </div> <!-- A grid konténer itt záródik be helyesen -->
         </div>
       </div>
     </div>

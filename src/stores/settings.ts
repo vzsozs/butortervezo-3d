@@ -33,10 +33,13 @@ export const useSettingsStore = defineStore('settings', () => {
   function setGlobalMaterial(targetSlotId: string, materialId: string) {
     if (!materialId) return;
     const currentValue = globalMaterialSettings.value[targetSlotId];
+    console.log(`[Settings Store] setGlobalMaterial hívás. Cél: ${targetSlotId}, Új: ${materialId}, Jelenlegi: ${currentValue}`);
 
     if (currentValue === materialId) {
+      console.log(`[Settings Store] Érték azonos, KÉNYSZERÍTÉS indul...`);
       experienceStore.instance?.stateManager.forceGlobalMaterial(targetSlotId, materialId);
     } else {
+      console.log(`[Settings Store] Érték különböző, WATCH-ra bízva...`);
       globalMaterialSettings.value = {
         ...globalMaterialSettings.value,
         [targetSlotId]: materialId
@@ -46,12 +49,14 @@ export const useSettingsStore = defineStore('settings', () => {
 
   function setGlobalStyle(targetSlotId: string, styleId: string) {
     if (!styleId) return;
-    console.log(`Pinia settings store: Globális stílus frissítve. Cél slot: '${targetSlotId}', Új stílus: '${styleId}'`);
     const currentValue = globalStyleSettings.value[targetSlotId];
+    console.log(`[Settings Store] setGlobalStyle hívás. Cél: ${targetSlotId}, Új: ${styleId}, Jelenlegi: ${currentValue}`);
 
     if (currentValue === styleId) {
+      console.log(`[Settings Store] Érték azonos, KÉNYSZERÍTÉS indul...`);
       experienceStore.instance?.stateManager.forceGlobalStyle(targetSlotId, styleId);
     } else {
+      console.log(`[Settings Store] Érték különböző, WATCH-ra bízva...`);
       globalStyleSettings.value = {
         ...globalStyleSettings.value,
         [targetSlotId]: styleId

@@ -13,12 +13,16 @@ export default class StateManager {
 
    // === A KÉNYSZERÍTŐ FÜGGVÉNYEK VISSZAÁLLÍTÁSA ===
   public async forceGlobalStyle(slotId: string, newStyleId: string) {
+    // === EZ A LEGFONTOSABB LOG ===
+    console.log(`[StateManager] forceGlobalStyle METÓDUS ELINDULT. Paraméterek: ${slotId}, ${newStyleId}`);
+    
     const experienceStore = this.experience.experienceStore;
-    console.log(`[StateManager] Globális stílus kényszerítése: ${slotId} -> ${newStyleId}`);
     const rebuildQueue: { oldObject: Group, newState: Record<string, string> }[] = [];
     for (const placedObject of experienceStore.placedObjects) {
       const currentState = placedObject.userData.componentState;
+      // Logoljuk a döntést
       if (currentState && typeof currentState[slotId] !== 'undefined' && currentState[slotId] !== newStyleId) {
+        console.log(` -> Bútor (${placedObject.uuid.substring(0,4)}) felvéve a listára. Régi stílus: ${currentState[slotId]}`);
         const newState = { ...currentState, [slotId]: newStyleId };
         rebuildQueue.push({ oldObject: placedObject, newState });
       }
@@ -26,10 +30,13 @@ export default class StateManager {
     if (rebuildQueue.length > 0) {
       await Promise.all(rebuildQueue.map(task => this.experience.rebuildObject(task.oldObject, task.newState, false)));
       this.experience.historyStore.addState();
+    } else {
+      console.log(`[StateManager] Nem volt szükség egyetlen bútor átépítésére sem.`);
     }
   }
 
   public forceGlobalMaterial(slotId: string, newMaterialId: string) {
+    console.log(`[StateManager] forceGlobalMaterial METÓDUS ELINDULT. Paraméterek: ${slotId}, ${newMaterialId}`);
     const experienceStore = this.experience.experienceStore;
     console.log(`[StateManager] Globális anyag kényszerítése: ${slotId} -> ${newMaterialId}`);
     let changed = false;
