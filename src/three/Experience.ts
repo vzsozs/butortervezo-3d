@@ -337,10 +337,13 @@ export default class Experience {
 
   private onDraggingChanged = (event: { value: boolean }) => {
     this.controls.enabled = !event.value;
-    if (!event.value) {
+    if (event.value) {
+      // Húzás ELINDULT
+      this.interactionManager.handleTransformStart();
+    } else {
+      // Húzás BEFEJEZŐDÖTT
+      this.interactionManager.handleTransformEnd();
       this.debug.hideAll();
-      // === VÁLTOZÁS: Állapot mentése mozgatás/forgatás BEFEJEZÉSEKOR ===
-      this.historyStore.addState();
     }
   }
 

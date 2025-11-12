@@ -100,4 +100,8 @@
     white-space: nowrap; /* Megakadályozza, hogy a szöveg több sorba törjön */
     transform: translate(-50%, -50%); /* Pontosan középre igazítja a 3D ponthoz képest */
   }
+  /* Kurzortípus, ha lehelyezési módban vagyunk */
+    body.placement-mode {
+      cursor: crosshair;
+    }
 }

@@ -71,9 +71,13 @@ export const useSettingsStore = defineStore('settings', () => {
     }
   }
 
-  function setActiveFurnitureId(id: string) {
+  function setActiveFurnitureId(id: string | null) {
     activeFurnitureId.value = id;
-    console.log(`Aktív bútor beállítva: ${id}`);
+    if (id) {
+      console.log(`Aktív bútor beállítva: ${id}`);
+    } else {
+      console.log(`Lehelyezési mód kikapcsolva.`);
+    }
   }
   
   function toggleFrontsVisibility() {

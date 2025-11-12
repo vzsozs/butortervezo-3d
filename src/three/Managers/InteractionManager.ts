@@ -1,6 +1,6 @@
 // src/three/Managers/InteractionManager.ts
 
-import { watch } from 'vue';
+import { watch, toRaw } from 'vue';
 import { Group, Mesh, MeshStandardMaterial, Object3D, Vector3, Vector2, Line, BufferGeometry, LineDashedMaterial, SphereGeometry, MeshBasicMaterial, Box3 } from 'three';
 import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import Experience from '../Experience';
@@ -11,6 +11,7 @@ export default class InteractionManager {
   private dragStartPosition: Vector3 | null = null;
   private isMouseDown = false;
   private mouseDownPosition = new Vector2();
+  private isTransforming = false; 
 
   // Vonalzó állapotjelzők
   private rulerStartPoint: Vector3 | null = null;
@@ -36,7 +37,7 @@ export default class InteractionManager {
     this.mouseDownPosition.set(event.clientX, event.clientY);
     this.experience.raycaster.setFromCamera(this.experience.mouse, this.experience.camera);
 
-    if (!this.experience.settingsStore.isRulerModeActive && event.shiftKey) {
+    if (!this.experience.settingsStore.isRulerModeActive && this.experience.settingsStore.activeFurnitureId) {
       const intersects = this.experience.raycaster.intersectObjects(this.experience.intersectableObjects);
       if (intersects.length > 0) {
         this.startDraggingNewObject(intersects[0]!.point);
@@ -49,12 +50,12 @@ export default class InteractionManager {
     this.isMouseDown = false;
 
     if (this.draggedObject) {
-      this.onFurnitureDragMouseUp(event);
+      this.onFurnitureDragEnd(event); // Átnevezve a jobb érthetőségért
       return;
     }
 
     const isClick = this.mouseDownPosition.distanceTo(new Vector2(event.clientX, event.clientY)) < 5;
-    if (!isClick) return; // Ha húzás volt (kameraforgatás), nem csinálunk semmit
+    if (!isClick) return;
 
     this.experience.raycaster.setFromCamera(this.experience.mouse, this.experience.camera);
     if (this.experience.settingsStore.isRulerModeActive) {
@@ -65,18 +66,13 @@ export default class InteractionManager {
   }
 
   // =================================================================
-  // === BÚTORKEZELÉS ================================================
+  // === BÚTOR INTERAKCIÓK ===========================================
   // =================================================================
 
   private async startDraggingNewObject(point: Vector3) {
     const newObject = await this.createDraggableObject(point);
     if (newObject) {
-      this.draggedObject = newObject;
-      this.dragStartPosition = newObject.position.clone();
-      this.experience.scene.add(this.draggedObject);
-      this.experience.controls.enabled = false;
-      window.addEventListener('mousemove', this.onMouseMove);
-      window.addEventListener('contextmenu', this.onRightClickCancel);
+      this.beginDrag(newObject, newObject.position.clone());
     }
   }
 
@@ -88,8 +84,15 @@ export default class InteractionManager {
         child.material.opacity = 0.5;
       }
     });
+    this.beginDrag(object, object.position.clone());
+  }
+
+  private beginDrag(object: Group, startPosition: Vector3) {
     this.draggedObject = object;
-    this.dragStartPosition = object.position.clone();
+    this.dragStartPosition = startPosition;
+    if (!object.parent) { // Csak akkor adjuk hozzá, ha még nincs a jelenetben
+      this.experience.scene.add(this.draggedObject);
+    }
     this.experience.controls.enabled = false;
     window.addEventListener('mousemove', this.onMouseMove);
     window.addEventListener('contextmenu', this.onRightClickCancel);
@@ -109,7 +112,7 @@ export default class InteractionManager {
     }
   }
 
-  private onFurnitureDragMouseUp = (event: MouseEvent) => {
+  private onFurnitureDragEnd = (event: MouseEvent) => {
     if (event.button !== 0 || !this.draggedObject) return;
     this.draggedObject.traverse((child) => {
       if (child instanceof Mesh && child.material instanceof MeshStandardMaterial) {
@@ -117,21 +120,19 @@ export default class InteractionManager {
         child.material.opacity = 1.0;
       }
     });
+
     const isNewObject = !this.experience.experienceStore.placedObjects.find(obj => obj.uuid === this.draggedObject?.uuid);
     if (isNewObject) {
       const allObjects = this.experience.experienceStore.placedObjects.slice();
       allObjects.push(this.draggedObject);
       this.experience.experienceStore.updatePlacedObjects(allObjects);
+      this.experience.settingsStore.setActiveFurnitureId(null);
     }
+    
     this.experience.debug.hideAll();
     this.endDrag();
     this.experience.updateTotalPrice();
     this.experience.historyStore.addState();
-  }
-
-  private onRightClickCancel = (event: MouseEvent) => {
-    event.preventDefault();
-    this.handleEscape(); // A jobb klikk is ugyanazt csinálja, mint az Escape
   }
 
   private endDrag = () => {
@@ -307,7 +308,7 @@ export default class InteractionManager {
         case 'w': this.setTransformMode('translate'); break;
         case 'e': this.setTransformMode('rotate'); break;
         case 'delete': case 'backspace': this.handleDelete(); break;
-        case 'escape': this.handleEscape(); break;
+        case 'escape': console.log(`[Key] ESCAPE lenyomva.`); this.handleEscape(); break;
       }
     }
     if (event.ctrlKey && !event.shiftKey && !event.altKey) {
@@ -325,16 +326,68 @@ export default class InteractionManager {
     }
   }
 
+  // =================================================================
+  // === ÚJ, TRANSFORMCONTROLS-KEZELŐ METÓDUSOK ======================
+  // =================================================================
+  public handleTransformStart() {
+    // @ts-expect-error - .object is private
+    const attachedObject = toRaw(this.experience.transformControls.object);
+    if (attachedObject) {
+      console.log("[Transform] Húzás elindult.");
+      this.isTransforming = true;
+      this.dragStartPosition = attachedObject.position.clone();
+    }
+  }
+
+  public handleTransformEnd() {
+    if (this.isTransforming) {
+      console.log("[Transform] Húzás befejeződött.");
+      this.isTransforming = false;
+      this.dragStartPosition = null;
+      this.experience.historyStore.addState();
+    }
+  }
+
+
   private handleEscape() {
+    // 1. prioritás: TransformControls húzás megszakítása
+    if (this.isTransforming) {
+      console.log("[Escape] TransformControls húzás megszakítása.");
+      // @ts-expect-error - .object is private
+      const attachedObject = toRaw(this.experience.transformControls.object);
+      if (attachedObject && this.dragStartPosition) {
+        // Visszaállítjuk a bútor pozícióját
+        attachedObject.position.copy(this.dragStartPosition);
+        
+        // === JAVÍTÁS: A DEBUG DOBOZ FRISSÍTÉSE ===
+        // Frissítjük a helper-t, hogy kövesse az objektumot az új (régi) helyére.
+        this.experience.debug.selectionBoxHelper.setFromObject(attachedObject);
+        // ==========================================
+      }
+      
+      // Befejezzük a húzási állapotot
+      this.isTransforming = false;
+      this.dragStartPosition = null;
+      // @ts-expect-error - .dragging is private
+      this.experience.transformControls.dragging = false;
+      this.experience.controls.enabled = true;
+      return;
+    }
+    
+    // 2. prioritás: Vonalzó mérés megszakítása
     if (this.rulerStartPoint) {
       this.cancelCurrentMeasurement();
     } 
+    // 3. prioritás: Új bútor húzásának megszakítása
     else if (this.draggedObject && this.dragStartPosition) {
-      console.log("[InteractionManager] Bútor húzásának megszakítása.");
       this.draggedObject.position.copy(this.dragStartPosition);
       const isNewObject = !this.experience.experienceStore.placedObjects.find(obj => obj.uuid === this.draggedObject?.uuid);
       if (isNewObject) {
         this.experience.scene.remove(this.draggedObject);
+        this.experience.settingsStore.setActiveFurnitureId(null);
+        this.experience.debug.hideAll();
+        this.experience.transformControls.detach();
+        this.experience.debug.selectionBoxHelper.visible = false;
       } else {
         this.draggedObject.traverse((child) => {
           if (child instanceof Mesh && child.material instanceof MeshStandardMaterial) {
@@ -345,11 +398,17 @@ export default class InteractionManager {
       }
       this.endDrag();
     } 
+    // 4. prioritás: Kijelölés megszüntetése
     else if (this.experience.selectionStore.selectedObject) {
       this.experience.selectionStore.clearSelection();
       this.experience.transformControls.detach();
       this.experience.debug.selectionBoxHelper.visible = false;
     }
+  }
+
+  private onRightClickCancel = (event: MouseEvent) => {
+    event.preventDefault();
+    this.handleEscape();
   }
 
   // =================================================================
@@ -443,6 +502,15 @@ export default class InteractionManager {
       if (isActive) this.startRulerMode();
       else this.stopRulerMode();
     });
+
+    // JAVÍTÁS: Figyelő a kurzor megváltoztatásához
+    watch(() => this.experience.settingsStore.activeFurnitureId, (activeId) => {
+      if (activeId) {
+        document.body.classList.add('placement-mode');
+      } else {
+        document.body.classList.remove('placement-mode');
+      }
+    }, { immediate: true });
   }
 
   public addEventListeners() {
