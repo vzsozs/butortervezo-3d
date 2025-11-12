@@ -7,21 +7,19 @@ import { useExperienceStore } from './experience';
 export const useSettingsStore = defineStore('settings', () => {
   const experienceStore = useExperienceStore();
 
+  const defaultGlobalMaterials = {
+    front: 'white_laminate', corpus: 'white_laminate', leg: 'anthracite_matte', handle: 'anthracite_matte'
+  };
+  const defaultGlobalStyles = {
+    front: 'sima_front_60', leg: 'standard_leg', handle: 'standard_handle'
+  };
+
   // --- ÁLLAPOTOK (STATE) ---
   const activeFurnitureId = ref<string | null>('also_szekreny_60');
   
-  const globalMaterialSettings = ref<Record<string, string>>({
-    front: 'white_laminate',
-    corpus: 'white_laminate',
-    leg: 'anthracite_matte',
-    handle: 'anthracite_matte'
-  });
+  const globalMaterialSettings = ref<Record<string, string>>({ ...defaultGlobalMaterials });
 
-  const globalStyleSettings = ref<Record<string, string>>({
-    front: 'sima_front_60',
-    leg: 'standard_leg',
-    handle: 'standard_handle',
-  });
+  const globalStyleSettings = ref<Record<string, string>>({ ...defaultGlobalStyles });
   
   const isSnappingEnabled = ref(true);
   const areFrontsVisible = ref(true);
@@ -45,6 +43,15 @@ export const useSettingsStore = defineStore('settings', () => {
         [targetSlotId]: materialId
       };
     }
+  }
+
+  // === ÚJ AKCIÓ ===
+   function resetToDefaults() {
+    globalMaterialSettings.value = { ...defaultGlobalMaterials };
+    globalStyleSettings.value = { ...defaultGlobalStyles };
+    areFrontsVisible.value = true;
+    isElementListVisible.value = false;
+    isRulerModeActive.value = false;
   }
 
   function setGlobalStyle(targetSlotId: string, styleId: string) {
@@ -101,5 +108,6 @@ export const useSettingsStore = defineStore('settings', () => {
     toggleFrontsVisibility,
     toggleElementListVisibility,
     toggleRulerMode,
+    resetToDefaults,
   }
 })

@@ -80,6 +80,37 @@ export default class Experience {
     this.animate();
   }
 
+  // === ÚJ JELENET ===
+  public newScene() {
+    console.log("[Experience] Új jelenet létrehozása...");
+
+    // 1. Jelenlegi bútorok törlése
+    const objectsToRemove = [...this.experienceStore.placedObjects];
+    for (const obj of objectsToRemove) {
+      this.removeObject(obj); // A removeObject már kezeli a history-t is
+    }
+    this.experienceStore.updatePlacedObjects([]);
+
+    // 2. Vonalzó elemek törlése
+    this.rulerElements.clear();
+
+    // 3. Kiválasztás törlése
+    this.selectionStore.clearSelection();
+    this.transformControls.detach();
+    this.debug.selectionBoxHelper.visible = false;
+
+    // 4. Globális beállítások visszaállítása (opcionális, de ajánlott)
+    // Ehhez a settingsStore-ban kell egy 'reset' akció
+    this.settingsStore.resetToDefaults();
+
+    // 5. Előzmények törlése és új kezdőállapot mentése
+    this.historyStore.clearHistory();
+    this.historyStore.addState();
+
+    console.log("[Experience] Jelenet sikeresen visszaállítva.");
+  }
+
+
   public static async create(canvas: HTMLDivElement): Promise<Experience> {
     const experience = new Experience(canvas);
     await experience.configManager.loadData();
@@ -175,12 +206,25 @@ export default class Experience {
 
 
   public async rebuildObject(oldObject: Group, newState: Record<string, string>, selectAfterRebuild = true): Promise<Group | null> {
+    const rawOldObject = toRaw(oldObject); // A 'toRaw' hívást a legelejére hozzuk
     console.groupCollapsed(`--- [Experience.rebuildObject] Átépítés kezdődik ---`);
-    console.log(`🔍 Régi objektum (eltávolítandó):`, { name: oldObject.name, uuid: oldObject.uuid, object: oldObject });
+    console.log(`🔍 Régi objektum (eltávolítandó):`, { name: rawOldObject.name, uuid: rawOldObject.uuid });
 
-    const config = oldObject.userData.config;
+    // =================================================================
+    // === KRITIKUS TAKARÍTÁS AZ ÁTÉPÍTÉS ELŐTT ========================
+    // =================================================================
+    // @ts-expect-error - a
+    const attachedObject = this.transformControls.object;
+    if (attachedObject && toRaw(attachedObject) === rawOldObject) {
+      console.log(` -> Átépítendő objektum ki van választva, vezérlők leválasztása.`);
+      this.transformControls.detach();
+      this.debug.selectionBoxHelper.visible = false;
+    }
+    // =================================================================
+
+    const config = rawOldObject.userData.config;
     if (!config) {
-      console.error("❌ Hiba: A régi objektumnak nincs configja!", oldObject);
+      console.error("❌ Hiba: A régi objektumnak nincs configja!", rawOldObject);
       console.groupEnd();
       return null;
     }
@@ -191,73 +235,79 @@ export default class Experience {
       console.groupEnd();
       return null;
     }
-    console.log(`✅ Új objektum (létrehozva):`, { name: newObject.name, uuid: newObject.uuid, object: newObject });
+    console.log(`✅ Új objektum (létrehozva):`, { name: newObject.name, uuid: newObject.uuid });
 
-    newObject.position.copy(oldObject.position);
-    newObject.rotation.copy(oldObject.rotation);
-    newObject.scale.copy(oldObject.scale);
+    newObject.position.copy(rawOldObject.position);
+    newObject.rotation.copy(rawOldObject.rotation);
+    newObject.scale.copy(rawOldObject.scale);
 
-    if (oldObject.userData.materialState) {
-      newObject.userData.materialState = JSON.parse(JSON.stringify(oldObject.userData.materialState));
+    if (rawOldObject.userData.materialState) {
+      newObject.userData.materialState = JSON.parse(JSON.stringify(rawOldObject.userData.materialState));
       await this.stateManager.applyStateToObject(newObject);
     }
 
-    // --- KRITIKUS MŰVELETEK LOGOLÁSA ---
-    console.log(`scene.remove() hívás a régi objektumra: ${oldObject.uuid}`);
-    const rawOldObject = toRaw(oldObject); // Kicsomagoljuk a Proxy-ból
-    this.scene.remove(rawOldObject);      // A nyers objektumot adjuk át
+    console.log(`scene.remove() hívás a régi objektumra: ${rawOldObject.uuid}`);
+    this.scene.remove(rawOldObject);
     console.log(`scene.add() hívás az új objektumra: ${newObject.uuid}`);
     this.scene.add(newObject);
 
-
-    // --- STORE FRISSÍTÉS LOGOLÁSA ---
     const allObjectsBefore = this.experienceStore.placedObjects.slice();
-    const index = allObjectsBefore.findIndex(obj => obj.uuid === oldObject.uuid);
+    const index = allObjectsBefore.findIndex(obj => obj.uuid === rawOldObject.uuid);
     console.log(`Régi objektum indexe a store-ban: ${index}`);
 
     if (index > -1) {
-      const allObjectsAfter = [...allObjectsBefore]; // Biztonságos másolat
+      const allObjectsAfter = [...allObjectsBefore];
       allObjectsAfter[index] = newObject;
       this.experienceStore.updatePlacedObjects(allObjectsAfter);
-      console.log(`🔄 Store frissítve. Régi UUID: ${oldObject.uuid}, Új UUID: ${newObject.uuid}`);
+      console.log(`🔄 Store frissítve. Régi UUID: ${rawOldObject.uuid}, Új UUID: ${newObject.uuid}`);
     } else {
-      console.error(`❌ KRITIKUS HIBA: A régi objektum (${oldObject.uuid}) nem található a store-ban! Nem történt csere.`);
+      console.error(`❌ KRITIKUS HIBA: A régi objektum (${rawOldObject.uuid}) nem található a store-ban! Nem történt csere.`);
     }
 
     if (selectAfterRebuild) {
       this.selectionStore.selectObject(newObject);
       this.transformControls.attach(toRaw(newObject));
       this.debug.selectionBoxHelper.setFromObject(newObject);
+      this.debug.selectionBoxHelper.visible = true; // Biztosítjuk, hogy látható legyen
     }
 
     this.updateTotalPrice(); 
     console.log("--- Átépítés befejezve ---");
     console.groupEnd();
-    //this.historyStore.addState();
     return newObject;
   }
 
   public removeObject(objectToRemove: Group) {
-    // A lista módosítása a store-on keresztül
-    const allObjects = this.experienceStore.placedObjects.slice(); // Másolat készítése
-    const index = allObjects.findIndex(obj => obj.uuid === objectToRemove.uuid);
-    if (index > -1) {
-      allObjects.splice(index, 1);
-      this.experienceStore.updatePlacedObjects(allObjects); // Visszaírás a store-ba
-    }
+    const rawObjectToRemove = toRaw(objectToRemove);
+    console.log(`[Experience] removeObject hívás: ${rawObjectToRemove.uuid}`);
 
-    // @ts-expect-error - a transformControls.object típusdefiníciója hiányos
-    if (this.transformControls.object === objectToRemove) {
+    // === JAVÍTÁS: MINDKÉT OLDALT KICSOMAGOLJUK ===
+    // @ts-expect-error - a
+    const attachedObject = this.transformControls.object;
+    if (attachedObject && toRaw(attachedObject) === rawObjectToRemove) {
+      console.log(` -> Objektum ki van választva, vezérlők leválasztása.`);
       this.transformControls.detach();
       this.debug.selectionBoxHelper.visible = false;
       this.selectionStore.clearSelection();
     }
+    // ===========================================
 
-    this.scene.remove(toRaw(objectToRemove));
-    console.log('Object removed from experience:', objectToRemove.name);
+    this.scene.remove(rawObjectToRemove);
+    console.log(` -> Objektum eltávolítva a scene-ből.`);
+
+    const allObjects = this.experienceStore.placedObjects.slice();
+    const index = allObjects.findIndex(obj => obj.uuid === rawObjectToRemove.uuid);
+    if (index > -1) {
+      allObjects.splice(index, 1);
+      this.experienceStore.updatePlacedObjects(allObjects);
+      console.log(` -> Objektum eltávolítva a store-ból.`);
+    } else {
+      console.warn(` -> Figyelmeztetés: A törlendő objektum nem található a store-ban.`);
+    }
+
     this.updateTotalPrice();
-    // === VÁLTOZÁS: Állapot mentése a művelet végén ===
     this.historyStore.addState();
+    console.log(`[Experience] removeObject befejezve.`);
   }
 
   private onWindowResize = () => {
