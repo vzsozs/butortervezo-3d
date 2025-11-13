@@ -1,69 +1,54 @@
 {
-  "sima_front_60": {
-    "name": "Sima Front",
-    "price": 12500,
-    "modelUrl": "/models/fronts/front_sima_60_L.glb",
-    "isSymmetric": true,
-    "materialTarget": "MAT_Frontok",
-    "slots": [
-      {
-        "id": "handle",
-        "name": "Fogantyú",
-        "attachmentPoint": "attach_handle_vertical",
-        "defaultOption": "standard_handle",
-        "options": [ "standard_handle", "design_handle" ]
-      }
-    ]
-  },
-  "keretes_front_60": {
-    "name": "Keretes Front",
-    "price": 14500,
-    "modelUrl": "/models/fronts/front_keretes_60_L.glb",
-    "isSymmetric": true,
-    "materialTarget": "MAT_Frontok",
-    "slots": [
-      {
-        "id": "handle",
-        "name": "Fogantyú",
-        "attachmentPoint": "attach_handle_vertical",
-        "defaultOption": "standard_handle",
-        "options": [ "standard_handle", "design_handle" ]
-      }
-    ]
-  },
-  "standard_handle": {
-    "name": "Standard Fogantyú",
-    "price": 2500,
-    "modelUrl": "/models/handles/handle_standard.glb",
-    "isSymmetric": true,
-    "materialTarget": "MAT_Fem_Kiegeszitok",
-    "slots": []
-  },
-  "design_handle": {
-    "name": "Design Fogantyú",
-    "price": 3800,
-    "modelUrl": "/models/handles/handle_design.glb",
-    "isSymmetric": true,
-    "materialTarget": "MAT_Fem_Kiegeszitok",
-    "slots": []
-  },
-  "standard_leg": {
-    "name": "Bútorlap Láb",
-    "price": 1500,
-    "modelUrl": "/models/legs/leg_standard.glb",
-    "height": 0.1,
-    "isSymmetric": true,
-    "inheritsMaterialFrom": "corpus",
-    "attachmentPoint": "attach_leg_frontLeft",
-    "slots": []
-  },
-  "design_leg": {
-    "name": "Design Láb (Cső)",
-    "price": 8500,
-    "modelUrl": "/models/legs/leg_design.glb",
-    "height": 0.1,
-    "isSymmetric": true,
-    "materialTarget": "MAT_Lab_Fem",
-    "slots": []
-  }
+  "corpuses": [
+    {
+      "id": "corpus_bottom_60",
+      "name": "Alsó korpusz (60cm)",
+      "model": "/models/corpus/corpus_bottom_60.glb",
+      "materialTarget": "MAT_Korpusz"
+    }
+  ],
+  "fronts": [
+    {
+      "id": "front_bottom_sima_60",
+      "name": "Sima Front",
+      "model": "/models/fronts/front_bottom_sima_60_L.glb",
+      "materialTarget": "MAT_Frontok"
+    },
+    {
+      "id": "front_bottom_keretes_60_L",
+      "name": "Keretes Front",
+      "model": "/models/fronts/front_bottom_keretes_60_L.glb",
+      "materialTarget": "MAT_Frontok"
+    }
+  ],
+  "handles": [
+    {
+      "id": "handle_standard",
+      "name": "Standard Fogantyú",
+      "model": "/models/handles/handle_standard.glb",
+      "materialTarget": "MAT_Fem_Kiegeszitok"
+    },
+    {
+      "id": "handle_design",
+      "name": "Design Fogantyú",
+      "model": "/models/handles/handle_design.glb",
+      "materialTarget": "MAT_Fem_Kiegeszitok"
+    }
+  ],
+  "legs": [
+    {
+      "id": "leg_standard",
+      "name": "Bútorlap Láb",
+      "model": "/models/legs/leg_standard.glb",
+      "height": 0.1,
+      "materialSource": "corpus"
+    },
+    {
+      "id": "leg_design",
+      "name": "Design Láb (Cső)",
+      "model": "/models/legs/leg_design.glb",
+      "height": 0.1,
+      "materialTarget": "MAT_Lab_Fem"
+    }
+  ]
 }

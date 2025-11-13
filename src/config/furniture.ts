@@ -1,71 +1,63 @@
 // src/config/furniture.ts
 
-// --- TÍPUSOK ---
+// --- ÚJ, LETISZTULT TÍPUSOK ---
 
-// Ezt a típust használja a StateManager és az InspectorPanel
-export interface StyleOption {
-  id: string;
-  name: string;
-  targetMesh: string;
-  inheritsMaterialFrom?: string;
-  materialTarget?: string;
-}
-
-// A 'components.json' fájlban lévő slotok leírása
-export interface ComponentSlotConfig {
-  id: string;
-  name: string;
-  attachmentPoint?: string;
-  attachmentPoints?: string[];
-  defaultOption: string;
-  options: string[];
-  materialTarget?: string;
-}
-
-// A 'components.json' fájlban lévő fő objektumok leírása
+/**
+ * Egyetlen választható alkatrész (pl. egy fogantyú, egy front) leírása.
+ * Ez a 'components.json' egy elemének felel meg.
+ */
 export interface ComponentConfig {
-  name: string;
-  modelUrl?: string;
-  modelUrl_L?: string;
-  modelUrl_R?: string;
-  isSymmetric: boolean;
-  slots: ComponentSlotConfig[];
-  height?: number;
-  price?: number; 
-  materialTarget?: string;
-  inheritsMaterialFrom?: string;
-  attachmentPoint?: string; // JAVÍTÁS: Ez a sor hiányzott!
-}
-
-// A 'furniture.json' fájlban lévő slotok leírása
-export interface FurnitureSlotConfig {
   id: string;
   name: string;
-  attachmentPoint?: string;
-  attachmentPoints?: string[];
-  defaultOption?: string; // JAVÍTÁS: A '?' jel jelzi, hogy ez a mező nem kötelező
-  options?: string[]; // Ezt is opcionálissá tesszük, mert a korpusznak nincs
-  materialTarget?: string;
-  meshTarget?: string; // Ezt is tegyük be a biztonság kedvéért
+  model: string;
+  materialTarget?: string; // Melyik material slot-ot célozza a 3D modellben
+  materialSource?: 'corpus'; // Speciális szabály: anyagot örököl (pl. bútorlap láb)
+  height?: number;
+  price?: number;
 }
 
-// A 'furniture.json' fájlban lévő fő objektumok leírása
+/**
+ * Egy bútoron belüli "hely" (slot) leírása, ahova komponens kerülhet.
+ * Pl. "front", "handle", "legs".
+ */
+export interface ComponentSlotConfig {
+  slotId: string;
+  name:string;
+  componentType: string; // Milyen típusú komponenst keresünk a components.json-ben (pl. "fronts")
+  allowedComponents: string[]; // Mely konkrét komponens ID-k jöhetnek szóba
+  defaultComponent: string;
+  isOptional?: boolean; // A felhasználó kikapcsolhatja-e (pl. fogantyú)
+  attachmentPoints: Record<string, string | string[]>; // Hova csatlakozik a 3D-ben
+  properties?: PropertyConfig[]; // Extra, dinamikus beállítások (pl. nyitásirány)
+  attachToSlot?: string; 
+}
+
+/**
+ * Egy dinamikus property leírása (pl. egy select opció a panelen).
+ */
+export interface PropertyConfig {
+  id: string;
+  name: string;
+  type: 'select' | 'checkbox' | 'number';
+  options?: { value: string; label: string }[];
+  defaultValue: string | boolean | number;
+}
+
+/**
+ * Egy teljes bútor "receptjének" leírása.
+ * Ez a 'furniture.json' egy elemének felel meg.
+ */
 export interface FurnitureConfig {
   id: string;
   name: string;
   category: string;
-  baseModelUrl: string;
+  componentSlots: ComponentSlotConfig[]; // A régi 'slots' és 'baseModelUrl' helyett
   price?: number;
-  slots: FurnitureSlotConfig[];
 }
 
-export interface FurnitureCategory {
-  id: string;
-  name: string;
-  items: FurnitureConfig[];
-}
-
-// ÚJ: A globalSettings.json egy elemének leírása
+/**
+ * A globalSettings.json egy elemének leírása.
+ */
 export interface GlobalSettingConfig {
   id: string;
   name: string;
@@ -73,11 +65,3 @@ export interface GlobalSettingConfig {
   targetSlotId: string;
   options?: string[];
 }
-
-// --- GLOBÁLIS ANYAGOK ---
-export const globalMaterials = {
-  front: { id: 'front', name: 'Frontok', type: 'material', materialTarget: 'MAT_Frontok' },
-  korpusz: { id: 'korpusz', name: 'Korpuszok', type: 'material', materialTarget: 'MAT_Korpusz' },
-  munkalap: { id: 'munkalap', name: 'Munkalap', type: 'material', materialTarget: 'MAT_Munkapult' },
-  fem_kiegeszitok: { id: 'fem_kiegeszitok', name: 'Fém Kiegészítők', type: 'material', materialTarget: 'MAT_Fem_Kiegeszitok' }
-};

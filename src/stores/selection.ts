@@ -3,7 +3,7 @@
 import { defineStore } from 'pinia'
 import type { Group } from 'three'
 import { ref, computed } from 'vue'
-import type { FurnitureConfig } from '@/config/furniture' // Feltételezve, hogy a típus exportálva van
+import type { FurnitureConfig } from '@/config/furniture'
 
 export const useSelectionStore = defineStore('selection', () => {
   
@@ -23,11 +23,15 @@ export const useSelectionStore = defineStore('selection', () => {
     newStyleId: string;
   } | null>(null)
 
-  // ######################################################################
-  // ###                         JAVÍTOTT RÉSZ                          ###
-  // ######################################################################
-  // Nincs többé keresgélés! Közvetlenül a 3D objektumból olvassuk ki a configot,
-  // amit az AssetManager építéskor beletett.
+  // --- ÚJ REAKTÍV VÁLTOZÓ ---
+  const propertyChangeRequest = ref<{
+    targetUUID: string;
+    slotId: string;
+    propertyId: string;
+    newValue: string | boolean | number;
+  } | null>(null)
+  // --- EDDIG TART AZ ÚJ VÁLTOZÓ ---
+
   const selectedObjectConfig = computed<FurnitureConfig | null>(() => {
     if (selectedObject.value && selectedObject.value.userData.config) {
       return selectedObject.value.userData.config as FurnitureConfig;
@@ -36,7 +40,6 @@ export const useSelectionStore = defineStore('selection', () => {
   })
 
   function selectObject(object: Group | null) {
-    // A te logikád tökéletes, a proxy-t kapja meg és tárolja el.
     selectedObject.value = object
   }
 
@@ -44,7 +47,7 @@ export const useSelectionStore = defineStore('selection', () => {
     selectedObject.value = null
   }
 
-  // A "kérelem/nyugtázás" logika a többi függvénynél változatlan és jó.
+  // ... a delete és duplicate függvények változatlanok ...
   function deleteSelectedObject() {
     if (selectedObject.value) {
       objectToDeleteUUID.value = selectedObject.value.uuid
@@ -65,6 +68,7 @@ export const useSelectionStore = defineStore('selection', () => {
   function acknowledgeDuplication() {
     objectToDuplicateUUID.value = null;
   }
+
 
   function changeMaterial(slotId: string, materialId: string) {
     if (selectedObject.value) {
@@ -94,6 +98,23 @@ export const useSelectionStore = defineStore('selection', () => {
     styleChangeRequest.value = null
   }
 
+  // --- ÚJ FÜGGVÉNYEK ---
+  function changeProperty(slotId: string, propertyId: string, newValue: string | boolean | number) {
+    if (selectedObject.value) {
+      propertyChangeRequest.value = {
+        targetUUID: selectedObject.value.uuid,
+        slotId,
+        propertyId,
+        newValue,
+      }
+    }
+  }
+
+  function acknowledgePropertyChange() {
+    propertyChangeRequest.value = null
+  }
+  // --- EDDIG TARTANAK AZ ÚJ FÜGGVÉNYEK ---
+
   return { 
     selectedObject, 
     selectedObjectConfig,
@@ -101,6 +122,7 @@ export const useSelectionStore = defineStore('selection', () => {
     materialChangeRequest,
     styleChangeRequest,
     objectToDuplicateUUID,
+    propertyChangeRequest, // <-- Ezt is add hozzá a return-höz!
     duplicateSelectedObject,
     acknowledgeDuplication,
     selectObject, 
@@ -111,5 +133,7 @@ export const useSelectionStore = defineStore('selection', () => {
     acknowledgeMaterialChange,
     changeStyle,
     acknowledgeStyleChange,
+    changeProperty, // <-- Ezt is add hozzá a return-höz!
+    acknowledgePropertyChange, // <-- Ezt is add hozzá a return-höz!
   }
 })

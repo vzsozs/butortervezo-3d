@@ -2,14 +2,21 @@
 
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
+// A típus definíciókat is frissíteni kell majd, de a store működni fog
 import type { FurnitureConfig, ComponentConfig, GlobalSettingConfig } from '@/config/furniture'
+
+// ÚJ, SPECIFIKUSABB TÍPUS AZ ÚJ JSON STRUKTÚRÁHOZ
+export type ComponentDatabase = Record<string, ComponentConfig[]>
 
 export const useConfigStore = defineStore('config', () => {
   const furnitureList = ref<FurnitureConfig[]>([]);
-  const components = ref<Record<string, ComponentConfig>>({});
+  // JAVÍTÁS: A components típusa és alapértelmezett értéke megváltozott
+  const components = ref<ComponentDatabase>({});
   const globalSettings = ref<GlobalSettingConfig[]>([]);
 
+  // A furnitureCategories logikája maradhat, az jó.
   const furnitureCategories = computed(() => {
+    // ... (ez a rész nem változik, de a teljesség kedvéért itt hagyom)
     const categories: Record<string, { name: string, items: FurnitureConfig[] }> = {
       'bottom_cabinets': { name: 'Alsó szekrények', items: [] },
       'top_cabinets': { name: 'Felső szekrények', items: [] },
@@ -25,7 +32,8 @@ export const useConfigStore = defineStore('config', () => {
 
   function setConfigs(data: {
     furniture: FurnitureConfig[],
-    components: Record<string, ComponentConfig>,
+    // JAVÍTÁS: A `components` paraméter típusa itt is frissül
+    components: ComponentDatabase,
     globalSettings: GlobalSettingConfig[]
   }) {
     furnitureList.value = data.furniture;
@@ -33,8 +41,20 @@ export const useConfigStore = defineStore('config', () => {
     globalSettings.value = data.globalSettings;
   }
 
+  // JAVÍTÁS: A getComponentById logikája teljesen átírva az új struktúrához
   function getComponentById(id: string): ComponentConfig | undefined {
-    return components.value[id];
+    for (const categoryKey in components.value) {
+      const categoryComponents = components.value[categoryKey];
+      
+      // JAVÍTÁS: Ellenőrizzük, hogy a kategória létezik-e, mielőtt használnánk
+      if (categoryComponents) {
+        const component = categoryComponents.find(c => c.id === id);
+        if (component) {
+          return component;
+        }
+      }
+    }
+    return undefined;
   }
 
   function getFurnitureById(id: string): FurnitureConfig | undefined {

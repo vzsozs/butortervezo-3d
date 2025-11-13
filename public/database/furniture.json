@@ -3,39 +3,47 @@
     "id": "also_szekreny_60",
     "name": "Alsó szekrény 60cm",
     "category": "bottom_cabinets",
-    "baseModelUrl": "/models/corpus/corpus_bottom_60.glb",
-    "price": 25000, 
-    "slots": [
+    "componentSlots": [
       {
-        "id": "front",
-        "name": "Front",
-        "attachmentPoint": "attach_front",
-        "defaultOption": "sima_front_60",
-        "options": [ 
-          "sima_front_60",
-          "keretes_front_60"
-        ]
-      },
-      {
-        "id": "leg",
-        "name": "Láb",
-        "attachmentPoints": [
-          "attach_leg_frontLeft",
-          "attach_leg_frontRight",
-          "attach_leg_backLeft",
-          "attach_leg_backRight"
-        ],
-        "defaultOption": "standard_leg",
-        "options": [ 
-          "standard_leg",
-          "design_leg"
-        ]
-      },
-      {
-        "id": "corpus",
+        "slotId": "corpus",
         "name": "Korpusz",
-        "materialTarget": "MAT_Korpusz",
-        "meshTarget": "also_szekreny_60"
+        "componentType": "corpuses",
+        "defaultComponent": "corpus_bottom_60",
+        "allowedComponents": ["corpus_bottom_60"]
+      },
+      {
+        "slotId": "front",
+        "name": "Front",
+        "componentType": "fronts",
+        "defaultComponent": "front_bottom_sima_60", 
+        "allowedComponents": ["front_bottom_sima_60", "front_keretes_60"],
+        "attachToSlot": "corpus", 
+        "attachmentPoints": { "self": "attach_front" } 
+      },
+      {
+        "slotId": "handle",
+        "name": "Fogantyú",
+        "componentType": "handles",
+        "defaultComponent": "handle_standard",
+        "allowedComponents": ["handle_standard", "handle_design"],
+        "attachToSlot": "front", 
+        "attachmentPoints": { "self": "attach_handle_vertical" } 
+      },
+      {
+        "slotId": "legs",
+        "name": "Lábak",
+        "componentType": "legs",
+        "defaultComponent": "leg_standard",
+        "allowedComponents": ["leg_standard", "leg_design"],
+        "attachToSlot": "corpus", 
+        "attachmentPoints": { 
+          "multiple": [
+            "attach_leg_frontLeft",
+            "attach_leg_frontRight",
+            "attach_leg_backLeft",
+            "attach_leg_backRight"
+          ]
+        }
       }
     ]
   }

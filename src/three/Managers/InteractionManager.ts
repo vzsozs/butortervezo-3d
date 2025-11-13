@@ -6,14 +6,13 @@ import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import Experience from '../Experience';
 
 export default class InteractionManager {
-  // Állapotjelzők
+  // ... a property-k (draggedObject, stb.) változatlanok ...
   private draggedObject: Group | null = null;
   private dragStartPosition: Vector3 | null = null;
   private isMouseDown = false;
   private mouseDownPosition = new Vector2();
   private isTransforming = false; 
 
-  // Vonalzó állapotjelzők
   private rulerStartPoint: Vector3 | null = null;
   private floatingDot: Mesh | null = null;
   private activeRulerLine: Line | null = null;
@@ -21,15 +20,13 @@ export default class InteractionManager {
   private activeRulerStartDot: Mesh | null = null;
   private activeRulerEndDot: Mesh | null = null;
 
+
   constructor(private experience: Experience) {
     this.addEventListeners();
     this.setupWatchers();
   }
 
-  // =================================================================
-  // === FŐ EGÉRKEZELŐK =============================================
-  // =================================================================
-
+  // ... onMouseDown, onMouseUp, és a többi egérkezelő változatlan ...
   private onMouseDown = (event: MouseEvent) => {
     // @ts-expect-error - a
     if (event.button !== 0 || this.experience.transformControls.dragging) return;
@@ -50,7 +47,7 @@ export default class InteractionManager {
     this.isMouseDown = false;
 
     if (this.draggedObject) {
-      this.onFurnitureDragEnd(event); // Átnevezve a jobb érthetőségért
+      this.onFurnitureDragEnd(event);
       return;
     }
 
@@ -64,10 +61,6 @@ export default class InteractionManager {
       this.handleObjectSelection();
     }
   }
-
-  // =================================================================
-  // === BÚTOR INTERAKCIÓK ===========================================
-  // =================================================================
 
   private async startDraggingNewObject(point: Vector3) {
     const newObject = await this.createDraggableObject(point);
@@ -90,7 +83,7 @@ export default class InteractionManager {
   private beginDrag(object: Group, startPosition: Vector3) {
     this.draggedObject = object;
     this.dragStartPosition = startPosition;
-    if (!object.parent) { // Csak akkor adjuk hozzá, ha még nincs a jelenetben
+    if (!object.parent) {
       this.experience.scene.add(this.draggedObject);
     }
     this.experience.controls.enabled = false;
@@ -123,16 +116,17 @@ export default class InteractionManager {
 
     const isNewObject = !this.experience.experienceStore.placedObjects.find(obj => obj.uuid === this.draggedObject?.uuid);
     if (isNewObject) {
-      const allObjects = this.experience.experienceStore.placedObjects.slice();
-      allObjects.push(this.draggedObject);
-      this.experience.experienceStore.updatePlacedObjects(allObjects);
+      // JAVÍTÁS: Az új, központi addObjectToScene-t használjuk
+      this.experience.addObjectToScene(this.draggedObject);
       this.experience.settingsStore.setActiveFurnitureId(null);
+    } else {
+      // Ha létező objektumot mozgattunk, csak egy history state-et mentünk
+      this.experience.historyStore.addState();
     }
     
     this.experience.debug.hideAll();
     this.endDrag();
-    this.experience.updateTotalPrice();
-    this.experience.historyStore.addState();
+    this.experience.updateTotalPrice(); // Az addObjectToScene már hívja, de itt is maradhat
   }
 
   private endDrag = () => {
@@ -144,6 +138,7 @@ export default class InteractionManager {
   }
 
   private handleObjectSelection() {
+    // ... (ez a függvény változatlan)
     const intersects = this.experience.raycaster.intersectObjects(this.experience.experienceStore.placedObjects, true);
     if (intersects.length > 0) {
       let parentGroup: Group | null = null;
@@ -161,7 +156,6 @@ export default class InteractionManager {
           this.experience.debug.selectionBoxHelper.setFromObject(parentGroup);
           this.experience.debug.selectionBoxHelper.visible = true;
           this.experience.transformControls.attach(parentGroup);
-          // JAVÍTÁS: A setTransformMode-ot hívjuk meg, ami már tartalmazza a logikát
           this.setTransformMode('translate'); 
         } else {
           this.experience.selectionStore.clearSelection();
@@ -177,11 +171,38 @@ export default class InteractionManager {
     }
   }
 
+  // =================================================================
+  // === JAVÍTOTT FÜGGVÉNY AZ ÚJ BÚTOR LÉTREHOZÁSÁHOZ ================
+  // =================================================================
   private async createDraggableObject(point: Vector3): Promise<Group | null> {
     const activeId = this.experience.settingsStore.activeFurnitureId;
     if (!activeId) return null;
-    const furnitureProxy = await this.experience.assetManager.buildFurniture(activeId);
+
+    // 1. Lekérjük a bútor teljes konfigurációját
+    const config = this.experience.configManager.getFurnitureById(activeId);
+    if (!config) {
+      console.error(`Nem található bútor konfiguráció a(z) "${activeId}" ID-val.`);
+      return null;
+    }
+
+    // 2. Összeállítjuk az alapértelmezett állapotot a config alapján
+    const defaultComponentState: Record<string, string> = {};
+    for (const slot of config.componentSlots) {
+      // Ha a slot nem opcionális, vagy opcionális de van defaultja, beállítjuk
+      if (!slot.isOptional || (slot.isOptional && slot.defaultComponent)) {
+        defaultComponentState[slot.slotId] = slot.defaultComponent;
+      }
+    }
+
+    // 3. Meghívjuk az ÚJ építő függvényt a configgal és az állapottal
+    const furnitureProxy = await this.experience.assetManager.buildFurnitureFromConfig(
+      config,
+      defaultComponentState
+    );
+    
     if (!furnitureProxy) return null;
+
+    // 4. Áttetszővé tesszük a húzáshoz
     furnitureProxy.traverse((child: Object3D) => {
       if (child instanceof Mesh && child.material instanceof MeshStandardMaterial) {
         child.material = child.material.clone();
@@ -189,15 +210,15 @@ export default class InteractionManager {
         child.material.opacity = 0.5;
       }
     });
-    furnitureProxy.rotation.y = -Math.PI / 2;
+
+    // 5. Pozicionálás
+    furnitureProxy.rotation.y = -Math.PI / 2; // Ez maradhat, ha ez a default rotáció
     furnitureProxy.position.set(point.x, furnitureProxy.position.y, point.z);
+    
     return furnitureProxy;
   }
 
-  // =================================================================
-  // === VONALZÓKEZELÉS ==============================================
-  // =================================================================
-
+  // ... a többi függvény (vonalzó, billentyűzet, stb.) változatlan ...
   private startRulerMode() {
     if (!this.floatingDot) {
       this.floatingDot = this.createRulerDot(0.025, 0x00ffff);
@@ -297,10 +318,6 @@ export default class InteractionManager {
     window.removeEventListener('mousemove', this.onRulerMouseMove);
   }
 
-  // =================================================================
-  // === BILLENTYŰZETKEZELÉS =========================================
-  // =================================================================
-
   private onKeyDown = (event: KeyboardEvent) => {
     if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
     if (!event.ctrlKey && !event.shiftKey && !event.altKey) {
@@ -326,9 +343,6 @@ export default class InteractionManager {
     }
   }
 
-  // =================================================================
-  // === ÚJ, TRANSFORMCONTROLS-KEZELŐ METÓDUSOK ======================
-  // =================================================================
   public handleTransformStart() {
     // @ts-expect-error - .object is private
     const attachedObject = toRaw(this.experience.transformControls.object);
@@ -350,22 +364,14 @@ export default class InteractionManager {
 
 
   private handleEscape() {
-    // 1. prioritás: TransformControls húzás megszakítása
     if (this.isTransforming) {
       console.log("[Escape] TransformControls húzás megszakítása.");
       // @ts-expect-error - .object is private
       const attachedObject = toRaw(this.experience.transformControls.object);
       if (attachedObject && this.dragStartPosition) {
-        // Visszaállítjuk a bútor pozícióját
         attachedObject.position.copy(this.dragStartPosition);
-        
-        // === JAVÍTÁS: A DEBUG DOBOZ FRISSÍTÉSE ===
-        // Frissítjük a helper-t, hogy kövesse az objektumot az új (régi) helyére.
         this.experience.debug.selectionBoxHelper.setFromObject(attachedObject);
-        // ==========================================
       }
-      
-      // Befejezzük a húzási állapotot
       this.isTransforming = false;
       this.dragStartPosition = null;
       // @ts-expect-error - .dragging is private
@@ -373,12 +379,9 @@ export default class InteractionManager {
       this.experience.controls.enabled = true;
       return;
     }
-    
-    // 2. prioritás: Vonalzó mérés megszakítása
     if (this.rulerStartPoint) {
       this.cancelCurrentMeasurement();
     } 
-    // 3. prioritás: Új bútor húzásának megszakítása
     else if (this.draggedObject && this.dragStartPosition) {
       this.draggedObject.position.copy(this.dragStartPosition);
       const isNewObject = !this.experience.experienceStore.placedObjects.find(obj => obj.uuid === this.draggedObject?.uuid);
@@ -398,7 +401,6 @@ export default class InteractionManager {
       }
       this.endDrag();
     } 
-    // 4. prioritás: Kijelölés megszüntetése
     else if (this.experience.selectionStore.selectedObject) {
       this.experience.selectionStore.clearSelection();
       this.experience.transformControls.detach();
@@ -410,10 +412,6 @@ export default class InteractionManager {
     event.preventDefault();
     this.handleEscape();
   }
-
-  // =================================================================
-  // === SEGÉDFÜGGVÉNYEK ÉS BEÁLLÍTÁSOK ==============================
-  // =================================================================
 
   private findClosestSnapPoint(currentPoint: Vector3): Vector3 | null {
     const snapThreshold = 0.2;
@@ -466,29 +464,21 @@ export default class InteractionManager {
   public setTransformMode(mode: 'translate' | 'rotate') {
     const selectedObject = this.experience.selectionStore.selectedObject;
     const controls = this.experience.transformControls;
-
     controls.setMode(mode);
-
-    // Alapértelmezett beállítások (minden engedélyezve)
     // @ts-expect-error - A típusdefiníciók hibásan privátként jelölik
     controls.showX = true;
     // @ts-expect-error - A típusdefiníciók hibásan privátként jelölik
     controls.showY = true;
     // @ts-expect-error - A típusdefiníciók hibásan privátként jelölik
     controls.showZ = true;
-
-    // Ha van kiválasztott objektum, alkalmazzuk a specifikus szabályokat
     if (selectedObject) {
       const category = selectedObject.userData.config?.category;
-
       if (mode === 'translate') {
-        // Alsó szekrényeknél letiltjuk az Y mozgatást
         if (category === 'bottom_cabinets') {
           // @ts-expect-error - A típusdefiníciók hibásan privátként jelölik
           controls.showY = false;
         }
       } else if (mode === 'rotate') {
-        // Forgatást csak az Y tengely körül engedélyezünk mindenhol
       // @ts-expect-error - A típusdefiníciók hibásan privátként jelölik
         controls.showX = false;
       // @ts-expect-error - A típusdefiníciók hibásan privátként jelölik
@@ -502,8 +492,6 @@ export default class InteractionManager {
       if (isActive) this.startRulerMode();
       else this.stopRulerMode();
     });
-
-    // JAVÍTÁS: Figyelő a kurzor megváltoztatásához
     watch(() => this.experience.settingsStore.activeFurnitureId, (activeId) => {
       if (activeId) {
         document.body.classList.add('placement-mode');
