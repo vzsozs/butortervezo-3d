@@ -41,21 +41,6 @@ export const useConfigStore = defineStore('config', () => {
     globalSettings.value = data.globalSettings;
   }
 
-  function fillWithTestData() {
-    console.log('[Pinia Action] fillWithTestData meghívva!');
-    components.value = {
-      "test_corpus": [
-        { "id": "test_corpus_1", "name": "Teszt Korpusz 1", model: '' }
-      ],
-      "test_front": [
-        { "id": "test_front_1", "name": "Teszt Front 1", model: '' },
-        { "id": "test_front_2", "name": "Teszt Front 2", model: '' }
-      ]
-    };
-    console.log('[Pinia Action] A store state frissítve:', components.value);
-  }
-
-
   // JAVÍTÁS: A getComponentById logikája teljesen átírva az új struktúrához
   function getComponentById(id: string): ComponentConfig | undefined {
     for (const categoryKey in components.value) {
@@ -83,7 +68,6 @@ export const useConfigStore = defineStore('config', () => {
     furnitureCategories,
     setConfigs,
     getComponentById,
-    getFurnitureById,
-    fillWithTestData 
+    getFurnitureById
   }
 })

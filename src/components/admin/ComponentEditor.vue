@@ -1,77 +1,123 @@
 <!-- src/components/admin/ComponentEditor.vue -->
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
-import type { ComponentConfig } from '@/config/furniture';
+import { ref, onMounted, computed, watch } from 'vue';
+import type { ComponentConfig, ComponentDatabase, AttachmentPoints } from '@/config/furniture';
 
-// --- ÁLLAPOT (STATE) ---
-const allComponents = ref<Record<string, ComponentConfig[]>>({});
+const allComponents = ref<ComponentDatabase>({});
 const componentTypes = computed(() => Object.keys(allComponents.value));
 const selectedType = ref<string>('');
-const selectedComponent = ref<ComponentConfig | null>(null);
+const selectedComponent = ref<Partial<ComponentConfig> | null>(null);
 const isNewComponent = ref(false);
+const isAdvancedVisible = ref(false);
 
-// --- ADATBETÖLTÉS ---
+const fieldOrder: (keyof ComponentConfig)[] = ['name', 'id', 'model', 'price', 'materialTarget', 'height', 'materialSource', 'attachmentPoints'];
+const advancedFields: (keyof ComponentConfig)[] = ['height', 'materialSource', 'attachmentPoints'];
+const placeholders: Record<string, string> = {
+  price: 'pl. 45000',
+  materialTarget: 'pl. MAT_Korpusz',
+  height: 'Lábaknál (0.1) = 10cm',
+  materialSource: 'Ha örököl egy materialt (pl. corpus)',
+};
+
+const attachmentPointSuggestions = computed(() => {
+  const points = new Set<string>();
+  Object.values(allComponents.value).flat().forEach(comp => {
+    if (comp.attachmentPoints) {
+      if ('self' in comp.attachmentPoints && comp.attachmentPoints.self) points.add(comp.attachmentPoints.self);
+      if ('multiple' in comp.attachmentPoints && comp.attachmentPoints.multiple) comp.attachmentPoints.multiple.forEach(p => points.add(p));
+    }
+  });
+  return Array.from(points).sort();
+});
+
 onMounted(async () => {
   try {
     const response = await fetch('/database/components.json');
     if (!response.ok) throw new Error('A components.json betöltése sikertelen.');
     allComponents.value = await response.json();
-    
-    // JAVÍTÁS: Ellenőrizzük, hogy a componentTypes[0] létezik-e
-    const firstType = componentTypes.value[0];
-    if (firstType) {
-      selectedType.value = firstType;
-    }
-  } catch (error) {
-    console.error(error);
-    alert('Hiba a components.json betöltésekor. Nézd meg a konzolt!');
-  }
+    if (componentTypes.value[0]) selectedType.value = componentTypes.value[0];
+  } catch (error) { console.error(error); }
 });
 
-// --- FELHASZNÁLÓI INTERAKCIÓK ---
+watch(() => selectedComponent.value?.name, (newName) => {
+  if (isNewComponent.value && selectedComponent.value && newName && selectedType.value) {
+    const normalizedName = newName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, '_').replace(/[^\w-]+/g, '');
+    selectedComponent.value.id = `${selectedType.value}_${normalizedName}`;
+    selectedComponent.value.model = `/models/${selectedType.value}/${selectedComponent.value.id}.glb`;
+  }
+}, { deep: true });
 
 function selectComponent(component: ComponentConfig) {
   selectedComponent.value = JSON.parse(JSON.stringify(component));
   isNewComponent.value = false;
+  isAdvancedVisible.value = false;
 }
 
 function createNewComponent() {
   if (!selectedType.value) return;
-  selectedComponent.value = {
-    id: 'uj_komponens_id',
-    name: 'Új Komponens',
-    model: '/models/placeholder.glb',
-  };
+  selectedComponent.value = { name: '', id: '', model: '', price: undefined, materialTarget: '', height: undefined, materialSource: undefined, attachmentPoints: { self: '' } };
   isNewComponent.value = true;
+  isAdvancedVisible.value = false;
 }
 
-function saveComponent() {
-  if (!selectedComponent.value || !selectedType.value) return;
-
-  const componentsList = allComponents.value[selectedType.value];
-  // JAVÍTÁS: Ellenőrizzük, hogy a componentsList létezik-e
-  if (!componentsList) {
-    console.error(`Hiba: Nem található komponens lista a(z) "${selectedType.value}" típushoz.`);
-    return;
+async function saveToServer() {
+  const cleanData: ComponentDatabase = {};
+  for (const type in allComponents.value) {
+    if (!allComponents.value[type]) continue;
+    cleanData[type] = allComponents.value[type].map(component => {
+      const cleanComponent: Partial<ComponentConfig> = {};
+      for (const key in component) {
+        const typedKey = key as keyof ComponentConfig;
+        const value = component[typedKey];
+        if (typedKey === 'attachmentPoints') {
+          const points = value as AttachmentPoints;
+          if (points && 'self' in points && points.self) cleanComponent.attachmentPoints = { self: points.self };
+          else if (points && 'multiple' in points && points.multiple && points.multiple.length > 0) cleanComponent.attachmentPoints = { multiple: points.multiple };
+        } else if (value !== '' && value !== null && value !== undefined) {
+          // JAVÍTÁS: Ez a legtisztább módja a TypeScript korlátjának kezelésére.
+          // Jelezzük az ESLintnek, hogy itt az 'any' használata szándékos és indokolt.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (cleanComponent as any)[typedKey] = value;
+        }
+      }
+      return cleanComponent as ComponentConfig;
+    });
   }
 
+  try {
+    const response = await fetch('/api/save-database', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filename: 'components.json', data: cleanData }),
+    });
+    if (!response.ok) throw new Error(await response.text());
+    alert('Komponensek sikeresen mentve!');
+  } catch (error) {
+    console.error(error);
+    alert('Hiba a mentés közben.');
+  }
+}
+
+
+function saveComponent() {
+  if (!selectedComponent.value || !selectedType.value || !selectedComponent.value.id) return;
+  const componentsList = allComponents.value[selectedType.value];
+  if (!componentsList) return;
   if (isNewComponent.value) {
-    componentsList.push(selectedComponent.value);
+    componentsList.push(selectedComponent.value as ComponentConfig);
   } else {
     const index = componentsList.findIndex(c => c.id === selectedComponent.value!.id);
     if (index !== -1) {
-      componentsList[index] = selectedComponent.value;
+      componentsList[index] = selectedComponent.value as ComponentConfig;
     }
   }
   selectedComponent.value = null;
 }
 
 function deleteComponent() {
-  if (!selectedComponent.value || !selectedType.value || isNewComponent.value) return;
-  
-  if (confirm(`Biztosan törölni szeretnéd a(z) "${selectedComponent.value.name}" komponenst?`)) {
+  if (!selectedComponent.value || !selectedType.value || isNewComponent.value || !selectedComponent.value.id) return;
+  if (confirm(`Biztosan törlöd a(z) "${selectedComponent.value.name}" komponenst?`)) {
     const componentsList = allComponents.value[selectedType.value];
-    // Itt is hozzáadhatunk egy ellenőrzést a biztonság kedvéért
     if (!componentsList) return;
     const index = componentsList.findIndex(c => c.id === selectedComponent.value!.id);
     if (index !== -1) {
@@ -81,43 +127,23 @@ function deleteComponent() {
   }
 }
 
-function downloadJson() {
-  const jsonString = JSON.stringify(allComponents.value, null, 2);
-  const blob = new Blob([jsonString], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'components.json';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-  alert('A components.json letöltve! Kérlek, másold be a "public/database" mappába és frissítsd az oldalt.');
-}
 </script>
 
 <template>
   <div class="grid grid-cols-12 gap-8">
-    
-    <!-- Bal oldali oszlop: Lista -->
-    <div class="col-span-4 bg-gray-900 p-4 rounded-lg">
+    <div class="col-span-4 bg-gray-900 p-4 rounded-lg self-start">
       <div class="flex justify-between items-center mb-4">
         <select v-model="selectedType" class="admin-select">
-          <option v-for="type in componentTypes" :key="type" :value="type">
-            {{ type }}
-          </option>
+          <option v-for="type in componentTypes" :key="type" :value="type">{{ type }}</option>
         </select>
-        <button @click="downloadJson" class="admin-btn-secondary">JSON Letöltése</button>
+        <button @click="saveToServer" class="admin-btn">Mentés</button>
       </div>
-      
-      <div class="space-y-2">
-        <!-- JAVÍTÁS: v-if a külső template tagen -->
+      <div class="space-y-2 max-h-[70vh] overflow-y-auto">
         <template v-if="selectedType && allComponents[selectedType]">
           <div v-for="component in allComponents[selectedType]" :key="component.id"
             @click="selectComponent(component)"
             class="p-2 rounded cursor-pointer hover:bg-gray-700"
-            :class="{ 'bg-blue-600 hover:bg-blue-500': selectedComponent?.id === component.id }"
-          >
+            :class="{ 'bg-blue-600 hover:bg-blue-500': selectedComponent?.id === component.id }">
             <p class="font-semibold">{{ component.name }}</p>
             <p class="text-xs text-gray-400">{{ component.id }}</p>
           </div>
@@ -128,33 +154,50 @@ function downloadJson() {
 
     <!-- Jobb oldali oszlop: Szerkesztő -->
     <div class="col-span-8 bg-gray-900 p-6 rounded-lg" v-if="selectedComponent">
-      <h3 class="text-xl font-bold mb-6">{{ isNewComponent ? 'Új Komponens Létrehozása' : 'Komponens Szerkesztése' }}</h3>
-      
+      <h3 class="text-xl font-bold mb-6">{{ isNewComponent ? 'Új Komponens' : 'Szerkesztés' }}</h3>
       <div class="space-y-4">
-        <!-- JAVÍTÁS: A v-model-t a selectedComponent[key as keyof ComponentConfig]-re cseréljük a típusbiztonságért -->
-        <div v-for="(value, key) in selectedComponent" :key="key">
-          <label :for="key" class="block text-sm font-medium text-gray-300 mb-1">{{ key }}</label>
-          <input 
-            type="text" 
-            :id="key" 
-            v-model="selectedComponent[key as keyof ComponentConfig]"
-            class="admin-input"
-            :disabled="key === 'id' && !isNewComponent"
-          />
+        <template v-for="key in fieldOrder" :key="key">
+          <div v-if="!advancedFields.includes(key)">
+            <label :for="key" class="admin-label">{{ key }}</label>
+            <input type="text" :id="key" v-model="selectedComponent[key]" :placeholder="placeholders[key] || `${key} értéke...`" class="admin-input" :disabled="key === 'id' && !isNewComponent"/>
+          </div>
+        </template>
+
+        <div class="pt-4">
+          <button @click="isAdvancedVisible = !isAdvancedVisible" class="text-blue-400 hover:text-blue-300 text-sm mb-4">
+            {{ isAdvancedVisible ? 'Haladó beállítások elrejtése' : 'Haladó beállítások megjelenítése' }}
+          </button>
+          <div v-if="isAdvancedVisible" class="space-y-4 border-l-2 border-blue-500/30 pl-4">
+            <template v-for="key in advancedFields" :key="key">
+              <div>
+                <label :for="key" class="admin-label">{{ key }}</label>
+                <div v-if="key === 'attachmentPoints' && typeof selectedComponent[key] === 'object' && selectedComponent[key] !== null" class="bg-gray-800 p-3 rounded">
+                  
+                  <!-- JAVÍTÁS: Checkbox-os UI a 'multiple' ponthoz -->
+                  <div v-if="'multiple' in selectedComponent[key]" class="space-y-2 max-h-40 overflow-y-auto">
+                    <label v-for="point in attachmentPointSuggestions" :key="point" class="flex items-center gap-2 p-1 rounded hover:bg-gray-700 cursor-pointer">
+                      <input type="checkbox" :value="point" v-model="selectedComponent[key]!.multiple" class="bg-gray-900 border-gray-600 text-blue-500 focus:ring-blue-600"/>
+                      <span class="text-sm">{{ point }}</span>
+                    </label>
+                  </div>
+                  
+                  <!-- Normál input a 'self' ponthoz -->
+                  <input v-if="'self' in selectedComponent[key]" type="text" v-model="selectedComponent[key]!.self" placeholder="attach_pont_neve" class="admin-input" list="attachment-points-list"/>
+                  <datalist id="attachment-points-list">
+                    <option v-for="point in attachmentPointSuggestions" :key="point" :value="point" />
+                  </datalist>
+                </div>
+                <input v-else type="text" :id="key" v-model="selectedComponent[key]" :placeholder="placeholders[key] || `${key} értéke...`" class="admin-input"/>
+              </div>
+            </template>
+          </div>
         </div>
       </div>
-
       <div class="flex justify-end gap-4 mt-8 pt-6 border-t border-gray-700">
         <button v-if="!isNewComponent" @click="deleteComponent" class="admin-btn-danger">Törlés</button>
         <button @click="selectedComponent = null" class="admin-btn-secondary">Mégse</button>
-        <button @click="saveComponent" class="admin-btn">Mentés</button>
+        <button @click="saveComponent" class="admin-btn">Változások Alkalmazása</button>
       </div>
     </div>
-    <div v-else class="col-span-8 flex items-center justify-center text-gray-500">
-      <p>Válassz ki egy komponenst a szerkesztéshez, vagy hozz létre egy újat.</p>
-    </div>
-
   </div>
 </template>
-
-<!-- A stílusok maradhatnak a main.css-ben -->

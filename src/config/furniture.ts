@@ -1,6 +1,20 @@
 // src/config/furniture.ts
 
-// --- ÚJ, LETISZTULT TÍPUSOK ---
+// --- VÉGLEGES, EGYESÍTETT TÍPUSOK ---
+
+/**
+ * Egy komponens csatolási pontjait definiálja. Szigorúan csak 'self' VAGY 'multiple' lehet.
+ */
+export type AttachmentPoints = { self?: string } | { multiple?: string[] };
+
+/**
+ * Egy komponens forgatási korrekcióját definiálja.
+ */
+export interface SlotRotation {
+  x: number;
+  y: number;
+  z: number;
+}
 
 /**
  * Egyetlen választható alkatrész (pl. egy fogantyú, egy front) leírása.
@@ -10,29 +24,17 @@ export interface ComponentConfig {
   id: string;
   name: string;
   model: string;
-  materialTarget?: string; // Melyik material slot-ot célozza a 3D modellben
-  materialSource?: 'corpus'; // Speciális szabály: anyagot örököl (pl. bútorlap láb)
-  height?: number;
   price?: number;
-  attachmentPoints?: Record<string, string | string[]>; 
+  materialTarget?: string;
+  height?: number;
+  materialSource?: 'corpus';
+  attachmentPoints?: AttachmentPoints; // A szigorúbb típus használata
 }
 
 /**
- * Egy bútoron belüli "hely" (slot) leírása, ahova komponens kerülhet.
- * Pl. "front", "handle", "legs".
+ * A teljes components.json adatbázis típusa.
  */
-export interface ComponentSlotConfig {
-  slotId: string;
-  name:string;
-  componentType: string; // Milyen típusú komponenst keresünk a components.json-ben (pl. "fronts")
-  allowedComponents: string[]; // Mely konkrét komponens ID-k jöhetnek szóba
-  defaultComponent: string;
-  isOptional?: boolean; // A felhasználó kikapcsolhatja-e (pl. fogantyú)
-  attachmentPoints?: Record<string, string | string[]>;  // Hova csatlakozik a 3D-ben
-  properties?: PropertyConfig[]; // Extra, dinamikus beállítások (pl. nyitásirány)
-  attachToSlot?: string; 
-  rotation?: { x: number; y: number; z: number };
-}
+export type ComponentDatabase = Record<string, ComponentConfig[]>;
 
 /**
  * Egy dinamikus property leírása (pl. egy select opció a panelen).
@@ -46,6 +48,22 @@ export interface PropertyConfig {
 }
 
 /**
+ * Egy bútoron belüli "hely" (slot) leírása, ahova komponens kerülhet.
+ */
+export interface ComponentSlotConfig {
+  slotId: string;
+  name: string;
+  componentType: string;
+  allowedComponents: string[];
+  defaultComponent: string;
+  attachToSlot?: string;
+  isOptional?: boolean;
+  attachmentPoints?: AttachmentPoints; // A szigorúbb típus használata
+  rotation?: SlotRotation;
+  properties?: PropertyConfig[];
+}
+
+/**
  * Egy teljes bútor "receptjének" leírása.
  * Ez a 'furniture.json' egy elemének felel meg.
  */
@@ -53,8 +71,8 @@ export interface FurnitureConfig {
   id: string;
   name: string;
   category: string;
-  componentSlots: ComponentSlotConfig[]; // A régi 'slots' és 'baseModelUrl' helyett
-  price?: number;
+  componentSlots: ComponentSlotConfig[];
+  price?: number; // Ezt a mezőt a te verziódból vettem át
 }
 
 /**
