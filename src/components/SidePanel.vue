@@ -50,28 +50,26 @@ function updateSetting(setting: GlobalSettingConfig, value: string) {
 function forceApplyRow(row: (typeof layoutRows.value)[0]) {
   console.log(`[SidePanel] Frissítés kényszerítése a(z) '${row.label}' sorra.`);
   
+  // =================================================================
+  // === JAVÍTÁS: Az új "force" action-ök használata ==================
+  // =================================================================
+
   // Bal oldali beállítás kényszerítése
   if (row.left) {
-    const value = row.left.type === 'style' 
-      ? settingsStore.globalStyleSettings[row.left.targetSlotId]
-      : settingsStore.globalMaterialSettings[row.left.targetSlotId];
-      
-    console.log(` -> Bal oldal (${row.left.id}): Érték=${value}`);
-    if (value) {
-      if (row.left.type === 'style') settingsStore.setGlobalStyle(row.left.targetSlotId, value);
-      else settingsStore.setGlobalMaterial(row.left.targetSlotId, value);
+    if (row.left.type === 'style') {
+      settingsStore.forceGlobalStyle(row.left.targetSlotId);
+    } else { // type === 'material'
+      settingsStore.forceGlobalMaterial(row.left.targetSlotId);
     }
   }
 
   // Jobb oldali beállítás kényszerítése
   if (row.right) {
-    const value = settingsStore.globalMaterialSettings[row.right.targetSlotId];
-    console.log(` -> Jobb oldal (${row.right.id}): Érték=${value}`); // EZ A LEGFONTOSABB LOG
-    if (value) {
-      settingsStore.setGlobalMaterial(row.right.targetSlotId, value);
-    }
+    // A jobb oldalon csak anyagválasztó lehet a jelenlegi layout szerint
+    settingsStore.forceGlobalMaterial(row.right.targetSlotId);
   }
 }
+
 </script>
 
 <template>

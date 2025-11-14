@@ -4,9 +4,10 @@ import { defineStore } from 'pinia'
 import type { Group } from 'three'
 import { ref, computed } from 'vue'
 import type { FurnitureConfig } from '@/config/furniture'
+import { useExperienceStore } from './experience'; 
 
 export const useSelectionStore = defineStore('selection', () => {
-  
+  const experienceStore = useExperienceStore();
   const selectedObject = ref<Group | null>(null)
   const objectToDeleteUUID = ref<string | null>(null)
   const objectToDuplicateUUID = ref<string | null>(null)
@@ -40,7 +41,13 @@ export const useSelectionStore = defineStore('selection', () => {
   })
 
   function selectObject(object: Group | null) {
-    selectedObject.value = object
+    experienceStore.instance?.debugManager.logSeparator('KIVÁLASZTÁS');
+    selectedObject.value = object;
+    if (object) {
+      experienceStore.instance?.debugManager.logObjectState('Objektum kiválasztva', object);
+    } else {
+      console.log('Kiválasztás törölve.');
+    }
   }
 
   function clearSelection() {

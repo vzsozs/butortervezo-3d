@@ -15,16 +15,14 @@ export default class AssetManager {
 
   /**
    * Az új, központi bútorépítő függvény.
-   * Egy bútor config és a kiválasztott állapotok alapján felépít egy teljes 3D-s Group-ot.
    */
   public async buildFurnitureFromConfig(
-    config: FurnitureConfig,
-    componentState: Record<string, string>,
-    propertyState: Record<string, Record<string, string | number | boolean>> = {}
-  ): Promise<Group> {
-    
-    const furnitureProxy = new Group();
-    furnitureProxy.name = `proxy_${config.id}`;
+  config: FurnitureConfig,
+  componentState: Record<string, string>,
+  propertyState: Record<string, Record<string, string | number | boolean>> = {}
+): Promise<Group> {
+  const furnitureProxy = new Group();
+  furnitureProxy.name = `proxy_${config.id}`;
     
     // =================================================================
     // === 1. FÁZIS: MINDEN MODELL BETÖLTÉSE ===========================
@@ -61,7 +59,10 @@ export default class AssetManager {
         const parentData = loadedComponents.get(childSlot.attachToSlot);
         if (parentData) {
           const { model: parentModel, config: parentConfig } = parentData;
-          const attachmentPoints = childSlot.attachmentPoints.multiple || [childSlot.attachmentPoints.self];
+          const attachmentPointsData = childConfig.attachmentPoints || childSlot.attachmentPoints;
+          if (!attachmentPointsData) return;
+
+          const attachmentPoints = attachmentPointsData.multiple || [attachmentPointsData.self];
           
           for (const pointName of attachmentPoints) {
             const attachmentDummy = parentModel.getObjectByName(pointName as string);
@@ -69,6 +70,11 @@ export default class AssetManager {
               const instance = attachmentPoints.length > 1 ? childModel.clone() : childModel;
               instance.position.copy(attachmentDummy.position);
               instance.rotation.copy(attachmentDummy.rotation);
+              if (childSlot.rotation) {
+                instance.rotation.x += childSlot.rotation.x;
+                instance.rotation.y += childSlot.rotation.y;
+                instance.rotation.z += childSlot.rotation.z;
+              }
               parentModel.add(instance); // <-- A SZÜLŐ MODELLHEZ ADJUK HOZZÁ
             } else {
               this.experience.debugManager.logAttachmentPointNotFound(
@@ -87,7 +93,6 @@ export default class AssetManager {
     // =================================================================
     let rootNode: Group | null = null;
     loadedComponents.forEach((data) => {
-      // Az a gyökér, aminek nincs szülője (nincs attachToSlot-ja)
       if (!data.slot.attachToSlot) {
         rootNode = data.model;
       }
@@ -96,49 +101,75 @@ export default class AssetManager {
     if (rootNode) {
       furnitureProxy.add(rootNode);
     } else {
-      console.error("Hiba: Nem található gyökér elem (attachToSlot nélküli slot) a bútor konfigurációban!");
+      console.error("Hiba: Nem található gyökér elem!");
     }
 
     const box = new Box3().setFromObject(furnitureProxy);
     const center = new Vector3();
     box.getCenter(center);
     
-    // A középre igazítást a proxy gyerekein végezzük el, ami most már csak a rootNode
     furnitureProxy.children.forEach(child => child.position.sub(center));
     furnitureProxy.position.copy(center);
 
-    furnitureProxy.userData = { config, componentState, propertyState, materialState: {} };
+    // =================================================================
+    // === ÚJ LOGIKA: BÚTOR MEGEMELÉSE A LÁB MAGASSÁGÁVAL =============
+    // =================================================================
+    let legHeight = 0;
+    const legComponentId = componentState['leg'];
+    if (legComponentId) {
+      const legConfig = this.experience.configManager.getComponentById(legComponentId);
+      legHeight = legConfig?.height || 0;
+    }
+    furnitureProxy.position.y += legHeight;
+    // =================================================================
+
+    // =================================================================
+    // === A USERDATA "STERILIZÁLÁSA" A LÉTREHOZÁSKOR ==========
+    // =================================================================
+    furnitureProxy.userData = {
+      config: config, // A config egy statikus objektum, nem kell másolni
+      // A JSON trükk garantálja, hogy egy tiszta, nem reaktív másolatot hozunk létre
+      componentState: JSON.parse(JSON.stringify(componentState)),
+      propertyState: JSON.parse(JSON.stringify(propertyState)),
+      materialState: {}, // Mindig üresen indul
+    };
+    
     return furnitureProxy;
   }
 
-     private async loadModel(url: string): Promise<Group> {
+  private async loadModel(url: string): Promise<Group> {
     if (this.modelCache.has(url)) {
-      const cachedObject = this.modelCache.get(url)!;
-      const clone = cachedObject.clone(true);
-      clone.traverse((child: Object3D) => {
-        if (child instanceof Mesh && child.material instanceof MeshStandardMaterial) {
-          child.material = child.material.clone();
-        }
-      });
-      return clone;
+      return this.modelCache.get(url)!.clone(true);
     }
+    
     try {
       const gltf = await this.loader.loadAsync(url);
-      const scene = gltf.scene;
-      scene.traverse((child: Object3D) => {
+      
+      // =================================================================
+      // === VISSZAEGYSZERŰSÍTETT "KICSOMAGOLÓ" LOGIKA ===================
+      // =================================================================
+      // Feltételezzük, hogy a GLB fájl már egy lapos hierarchiát tartalmaz.
+      const modelContent = new Group();
+      
+      // Áthelyezzük a betöltött jelenet összes gyerekét ebbe az új, tiszta Group-ba.
+      for (const child of [...gltf.scene.children]) {
+        modelContent.add(child);
+      }
+      
+      // Általános beállítások
+      modelContent.traverse((child: Object3D) => {
         if (child instanceof Mesh) {
           child.castShadow = true;
           child.receiveShadow = true;
+          if (child.material instanceof MeshStandardMaterial) {
+            child.material = child.material.clone();
+          }
         }
       });
-      this.modelCache.set(url, scene);
-      const firstInstance = scene.clone(true);
-      firstInstance.traverse((child: Object3D) => {
-        if (child instanceof Mesh && child.material instanceof MeshStandardMaterial) {
-          child.material = child.material.clone();
-        }
-      });
-      return firstInstance;
+      
+      this.modelCache.set(url, modelContent);
+      return modelContent.clone(true);
+
     } catch (error) {
       this.experience.debugManager.logModelLoadError(url, error);
       throw new Error(`Modell betöltése sikertelen: ${url}`);

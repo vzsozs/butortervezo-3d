@@ -129,44 +129,40 @@ export default class Experience {
     console.log("[Experience] Állapot betöltve.");
   }
 
-  public async rebuildObject(oldObject: Group): Promise<Group | null> {
-    const rawOldObject = toRaw(oldObject);
-    console.groupCollapsed(`--- [Experience.rebuildObject] Átépítés kezdődik ---`);
-    
-    // JAVÍTÁS: A TypeScript hiba elnyomása
-    // @ts-expect-error - object is a private property but we need to access it
-    if (this.transformControls.object === rawOldObject) {
-      this.transformControls.detach();
-    }
+  public async rebuildObject(oldObject: Group, newComponentState: Record<string, string>): Promise<Group | null> {
+  const rawOldObject = toRaw(oldObject);
+  this.debugManager.logSeparator('ÚJRAÉPÍTÉS FOLYAMAT');
+  this.debugManager.logObjectState('1. Régi objektum állapota (induláskor)', rawOldObject);
 
-    const { config, componentState, propertyState, materialState } = rawOldObject.userData;
-    if (!config) {
-      console.error("Hiba: A régi objektumnak nincs configja!");
-      console.groupEnd();
-      return null;
-    }
+  const { config, propertyState, materialState } = rawOldObject.userData;
+  if (!config) return null;
 
-    const newObject = await this.assetManager.buildFurnitureFromConfig(config, componentState, propertyState);
-    
-    newObject.position.copy(rawOldObject.position);
-    newObject.rotation.copy(rawOldObject.rotation);
-    newObject.userData.materialState = materialState;
-    
-    await this.stateManager.applyMaterialsToObject(newObject);
+  const newObject = await this.assetManager.buildFurnitureFromConfig(config, newComponentState, propertyState);
+  
+  newObject.position.copy(rawOldObject.position);
+  newObject.rotation.copy(rawOldObject.rotation);
+  newObject.userData.materialState = JSON.parse(JSON.stringify(materialState));
+  
+  this.debugManager.logObjectState('2. Új objektum állapota (összerakás után, anyagok előtt)', newObject);
+  
+  await this.stateManager.applyMaterialsToObject(newObject);
+  this.debugManager.logObjectState('3. Új objektum állapota (anyagok alkalmazása után)', newObject);
 
-    this.scene.remove(rawOldObject);
-    this.scene.add(newObject);
-    this.experienceStore.replaceObject(rawOldObject.uuid, newObject);
-
-    if (this.selectionStore.selectedObject?.uuid === rawOldObject.uuid) {
-      this.selectionStore.selectObject(newObject);
-      this.transformControls.attach(toRaw(newObject));
-    }
-
-    this.updateTotalPrice();
-    console.groupEnd();
-    return newObject;
-  }
+  // =================================================================
+  // === JAVÍTÁS: A SORREND BIZTOSÍTÁSA ===============================
+  // =================================================================
+  // Először eltávolítjuk a régit
+  this.scene.remove(rawOldObject);
+  // Frissítjük a store-t
+  this.experienceStore.replaceObject(rawOldObject.uuid, newObject);
+  // ÉS CSAK UTÁNA adjuk hozzá az újat
+  this.scene.add(newObject);
+  
+  this.updateTotalPrice();
+  
+  // A kiválasztással kapcsolatos logikát teljesen eltávolítottuk innen.
+  return newObject;
+}
 
   public removeObject(objectToRemove: Group) {
     const rawObjectToRemove = toRaw(objectToRemove);
@@ -176,6 +172,7 @@ export default class Experience {
     if (attachedObject && toRaw(attachedObject) === rawObjectToRemove) {
       this.transformControls.detach();
       this.selectionStore.clearSelection();
+      this.debug.selectionBoxHelper.visible = false;
     }
     this.scene.remove(rawObjectToRemove);
     const allObjects = this.experienceStore.placedObjects.slice();

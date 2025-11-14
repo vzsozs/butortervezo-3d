@@ -1,15 +1,40 @@
 // src/three/Managers/DebugManager.ts
 
 import Experience from '../Experience';
+import type { Group } from 'three';
 
 // Stílusok a konzol üzenetekhez
 const ERROR_STYLE = 'background: #ff4757; color: white; padding: 2px 6px; border-radius: 3px; font-weight: bold;';
 const WARN_STYLE = 'background: #ffa502; color: white; padding: 2px 6px; border-radius: 3px; font-weight: bold;';
-//const INFO_STYLE = 'background: #2e86de; color: white; padding: 2px 6px; border-radius: 3px;';
+const ACTION_STYLE = 'background: #2e86de; color: white; padding: 2px 6px; border-radius: 3px;';
+const STATE_STYLE = 'background: #444; color: #f1f2f6; padding: 2px 6px; border-radius: 3px;';
 const CONTEXT_STYLE = 'font-family: monospace; color: #576574;';
+
 
 export default class DebugManager {
   constructor(private experience: Experience) {}
+
+  public logSeparator(title = '') {
+    console.log(`%c--- ${title} ---`, 'color: #7f8c8d; font-weight: bold;');
+  }
+
+  public logAction(name: string, details: Record<string, unknown> = {}) {
+    console.group(`%cAKCIÓ%c ${name}`, ACTION_STYLE, '');
+    console.log('Paraméterek:', details);
+    console.groupEnd();
+  }
+
+  public logObjectState(message: string, object: Group) {
+    console.group(`%cÁLLAPOT%c ${message} (UUID: ${object.uuid.substring(0, 6)})`, STATE_STYLE, '');
+    try {
+      console.log('componentState:', JSON.parse(JSON.stringify(object.userData.componentState || {})));
+      console.log('materialState:', JSON.parse(JSON.stringify(object.userData.materialState || {})));
+    } catch (e) {
+      console.error('Hiba a userData logolása közben:', e);
+      console.log('Sérült userData:', object.userData);
+    }
+    console.groupEnd();
+  }
 
   /**
    * Akkor hívódik, ha egy 3D modell betöltése hálózati vagy parse-olási hiba miatt meghiúsul.
@@ -48,5 +73,11 @@ export default class DebugManager {
    */
   public logConfigNotFound(type: 'Bútor' | 'Komponens', id: string) {
     console.warn(`%cFIGYELMEZTETÉS%c ${type} konfiguráció nem található a(z) %c"${id}"%c ID-val. Ellenőrizd a JSON fájlokat.`, WARN_STYLE, '', CONTEXT_STYLE, '');
+  }
+  // --- ÚJ, ÁLLAPOTKEZELÉSI LOGGOLÓK ---
+
+  /** Figyelmeztetést naplóz, ha valami gyanús történik. */
+  public logWarning(message: string, context: unknown = '') {
+    console.warn(`%cFIGYELEM%c ${message}`, WARN_STYLE, '', context);
   }
 }

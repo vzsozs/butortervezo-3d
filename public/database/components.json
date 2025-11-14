@@ -4,7 +4,8 @@
       "id": "corpus_bottom_60",
       "name": "Alsó korpusz (60cm)",
       "model": "/models/corpus/corpus_bottom_60.glb",
-      "materialTarget": "MAT_Korpusz"
+      "materialTarget": "MAT_Korpusz",
+      "price": 45000
     }
   ],
   "fronts": [
@@ -12,13 +13,15 @@
       "id": "front_bottom_sima_60",
       "name": "Sima Front",
       "model": "/models/fronts/front_bottom_sima_60_L.glb",
-      "materialTarget": "MAT_Frontok"
+      "materialTarget": "MAT_Frontok",
+      "price": 20000
     },
     {
-      "id": "front_bottom_keretes_60_L",
+      "id": "front_bottom_keretes_60",
       "name": "Keretes Front",
       "model": "/models/fronts/front_bottom_keretes_60_L.glb",
-      "materialTarget": "MAT_Frontok"
+      "materialTarget": "MAT_Frontok",
+      "price": 30000
     }
   ],
   "handles": [
@@ -26,13 +29,15 @@
       "id": "handle_standard",
       "name": "Standard Fogantyú",
       "model": "/models/handles/handle_standard.glb",
-      "materialTarget": "MAT_Fem_Kiegeszitok"
+      "materialTarget": "MAT_Fem_Kiegeszitok",
+      "price": 3000
     },
     {
       "id": "handle_design",
       "name": "Design Fogantyú",
       "model": "/models/handles/handle_design.glb",
-      "materialTarget": "MAT_Fem_Kiegeszitok"
+      "materialTarget": "MAT_Fem_Kiegeszitok",
+      "price": 5000
     }
   ],
   "legs": [
@@ -41,14 +46,25 @@
       "name": "Bútorlap Láb",
       "model": "/models/legs/leg_standard.glb",
       "height": 0.1,
-      "materialSource": "corpus"
+      "materialSource": "corpus",
+      "attachmentPoints": { "self": "attach_leg_frontLeft" },
+      "price": 15000
     },
     {
       "id": "leg_design",
       "name": "Design Láb (Cső)",
       "model": "/models/legs/leg_design.glb",
       "height": 0.1,
-      "materialTarget": "MAT_Lab_Fem"
+      "materialTarget": "MAT_Lab_Fem",
+      "attachmentPoints": { 
+        "multiple": [
+          "attach_leg_frontLeft",
+          "attach_leg_frontRight",
+          "attach_leg_backLeft",
+          "attach_leg_backRight"
+        ]
+      },
+      "price": 555
     }
   ]
 }

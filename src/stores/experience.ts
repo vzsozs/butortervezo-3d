@@ -38,43 +38,32 @@ export const useExperienceStore = defineStore('experience', () => {
   }
   
   function calculateTotalPrice() {
-    const configStore = useConfigStore();
-    let newTotal = 0;
+  const configStore = useConfigStore();
+  let newTotal = 0;
 
-    for (const furniture of placedObjects.value) {
-      if (!furniture.userData.config || !furniture.userData.componentState) continue;
+  // 1. Végigmegyünk az összes lehelyezett bútoron
+  for (const furniture of placedObjects.value) {
+    if (!furniture.userData.componentState) continue;
 
-      const furnitureConfig = configStore.getFurnitureById(furniture.userData.config.id);
-      
-      // JAVÍTÁS: A bútor alapárát a korpusz komponensből vesszük, ha van
-      const corpusSlot = furnitureConfig?.componentSlots.find(s => s.slotId === 'corpus');
-      if (corpusSlot) {
-        const corpusId = furniture.userData.componentState[corpusSlot.slotId];
-        const corpusConfig = configStore.getComponentById(corpusId);
-        if (corpusConfig?.price) {
-          newTotal += corpusConfig.price;
-        }
-      }
-
-      const componentState = furniture.userData.componentState;
-      for (const slotId in componentState) {
-        if (slotId === 'corpus') continue; // A korpuszt már számoltuk
-
-        const componentId = componentState[slotId];
-        if (componentId) {
-          const componentConfig = configStore.getComponentById(componentId);
-          if (componentConfig?.price) {
-            const slotConfig = furnitureConfig?.componentSlots.find(s => s.slotId === slotId);
-            const quantity = slotConfig?.attachmentPoints?.multiple?.length || 1;
-            newTotal += componentConfig.price * quantity;
-          }
+    const componentState = furniture.userData.componentState;
+    // 2. Végigmegyünk a bútorhoz kiválasztott komponenseken
+    for (const slotId in componentState) {
+      const componentId = componentState[slotId];
+      if (componentId) {
+        const componentConfig = configStore.getComponentById(componentId);
+        if (componentConfig?.price) {
+          // 3. Meghatározzuk a darabszámot
+          // A mennyiséget a komponens configjából vesszük!
+          const quantity = componentConfig.attachmentPoints?.multiple?.length || 1;
+          newTotal += componentConfig.price * quantity;
         }
       }
     }
-    
-    totalPrice.value = newTotal;
-    console.log(`Ár újraszámolva: ${newTotal} Ft`);
   }
+  
+  totalPrice.value = newTotal;
+  console.log(`Ár újraszámolva: ${newTotal} Ft`);
+}
 
   return { 
     instance, 

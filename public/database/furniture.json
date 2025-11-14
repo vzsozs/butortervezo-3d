@@ -16,9 +16,10 @@
         "name": "Front",
         "componentType": "fronts",
         "defaultComponent": "front_bottom_sima_60", 
-        "allowedComponents": ["front_bottom_sima_60", "front_keretes_60"],
+        "allowedComponents": ["front_bottom_sima_60", "front_bottom_keretes_60"],
         "attachToSlot": "corpus", 
-        "attachmentPoints": { "self": "attach_front" } 
+        "attachmentPoints": { "self": "attach_front" }, 
+        "rotation": { "x": 1.571, "y": 0, "z": -1.571 }
       },
       {
         "slotId": "handle",
@@ -27,23 +28,17 @@
         "defaultComponent": "handle_standard",
         "allowedComponents": ["handle_standard", "handle_design"],
         "attachToSlot": "front", 
-        "attachmentPoints": { "self": "attach_handle_vertical" } 
+        "attachmentPoints": { "self": "attach_handle_vertical" }, 
+        "rotation": { "x": 1.571, "y": 1.571, "z": -1.571 }
       },
       {
-        "slotId": "legs",
+        "slotId": "leg",
         "name": "Lábak",
         "componentType": "legs",
         "defaultComponent": "leg_standard",
         "allowedComponents": ["leg_standard", "leg_design"],
-        "attachToSlot": "corpus", 
-        "attachmentPoints": { 
-          "multiple": [
-            "attach_leg_frontLeft",
-            "attach_leg_frontRight",
-            "attach_leg_backLeft",
-            "attach_leg_backRight"
-          ]
-        }
+        "attachToSlot": "corpus",
+        "rotation": { "x": 1.571, "y": 0, "z": -1.571 }
       }
     ]
   }

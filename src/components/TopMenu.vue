@@ -42,7 +42,14 @@ function newScene() {
   }
 }
 
-function toggleFrontsVisibility() { settingsStore.toggleFrontsVisibility(); }
+function toggleFrontsVisibility() {
+  // =================================================================
+  // === DIAGNOSZTIKAI LOG ===========================================
+  // =================================================================
+  console.log('[TopMenu] toggleFrontsVisibility gomb lenyomva!');
+  settingsStore.toggleFrontsVisibility(); 
+}
+
 function toggleElementList() { settingsStore.toggleElementListVisibility(); }
 function toggleRuler() { settingsStore.toggleRulerMode(); }
 function undoLastAction() { historyStore.undo(); }

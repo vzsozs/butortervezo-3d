@@ -16,21 +16,21 @@
     "name": "Lábak Stílusa",
     "type": "style",
     "targetSlotId": "leg",
-    "options": [ "standard_leg", "design_leg" ]
+    "options": [ "leg_standard", "leg_design" ] 
   },
   {
     "id": "global_handle_style",
     "name": "Fogantyúk Stílusa",
     "type": "style",
     "targetSlotId": "handle",
-    "options": [ "standard_handle", "design_handle" ]
+    "options": [ "handle_standard", "handle_design" ]
   },
   {
     "id": "global_front_style",
     "name": "Frontok Stílusa",
     "type": "style",
     "targetSlotId": "front",
-    "options": [ "sima_front_60", "keretes_front_60" ]
+    "options": [ "front_bottom_sima_60", "front_bottom_keretes_60" ]
   },
   {
     "id": "global_leg_material",

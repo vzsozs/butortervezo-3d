@@ -178,23 +178,19 @@ export default class InteractionManager {
     const activeId = this.experience.settingsStore.activeFurnitureId;
     if (!activeId) return null;
 
-    // 1. Lekérjük a bútor teljes konfigurációját
     const config = this.experience.configManager.getFurnitureById(activeId);
     if (!config) {
       console.error(`Nem található bútor konfiguráció a(z) "${activeId}" ID-val.`);
       return null;
     }
 
-    // 2. Összeállítjuk az alapértelmezett állapotot a config alapján
     const defaultComponentState: Record<string, string> = {};
     for (const slot of config.componentSlots) {
-      // Ha a slot nem opcionális, vagy opcionális de van defaultja, beállítjuk
       if (!slot.isOptional || (slot.isOptional && slot.defaultComponent)) {
         defaultComponentState[slot.slotId] = slot.defaultComponent;
       }
     }
 
-    // 3. Meghívjuk az ÚJ építő függvényt a configgal és az állapottal
     const furnitureProxy = await this.experience.assetManager.buildFurnitureFromConfig(
       config,
       defaultComponentState
@@ -202,7 +198,27 @@ export default class InteractionManager {
     
     if (!furnitureProxy) return null;
 
-    // 4. Áttetszővé tesszük a húzáshoz
+    // =================================================================
+    // === ÚJ LOGIKA: ANYAGOK INICIALIZÁLÁSA A GLOBÁLIS BEÁLLÍTÁSOKBÓL ==
+    // =================================================================
+    const initialMaterialState: Record<string, string> = {};
+    const globalMaterials = this.experience.settingsStore.globalMaterialSettings;
+
+    // Végigmegyünk a bútor LÉTREJÖTT componentState-jén, ami tartalmazza az összes aktív slotot
+    for (const slotId in furnitureProxy.userData.componentState) {
+      // Ha van ehhez a slothoz globális anyagbeállítás, azt használjuk
+      if (globalMaterials[slotId]) {
+        initialMaterialState[slotId] = globalMaterials[slotId];
+      }
+    }
+    furnitureProxy.userData.materialState = initialMaterialState;
+    await this.experience.stateManager.applyMaterialsToObject(furnitureProxy);
+    // =================================================================
+
+    // === ÚJ LOG ===
+    this.experience.debugManager.logObjectState('Új bútor létrehozva, húzás előtt', furnitureProxy);
+
+
     furnitureProxy.traverse((child: Object3D) => {
       if (child instanceof Mesh && child.material instanceof MeshStandardMaterial) {
         child.material = child.material.clone();
@@ -211,8 +227,7 @@ export default class InteractionManager {
       }
     });
 
-    // 5. Pozicionálás
-    furnitureProxy.rotation.y = -Math.PI / 2; // Ez maradhat, ha ez a default rotáció
+    furnitureProxy.rotation.y = -Math.PI / 2;
     furnitureProxy.position.set(point.x, furnitureProxy.position.y, point.z);
     
     return furnitureProxy;

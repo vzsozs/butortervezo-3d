@@ -14,6 +14,7 @@ export interface ComponentConfig {
   materialSource?: 'corpus'; // Speciális szabály: anyagot örököl (pl. bútorlap láb)
   height?: number;
   price?: number;
+  attachmentPoints?: Record<string, string | string[]>; 
 }
 
 /**
@@ -27,9 +28,10 @@ export interface ComponentSlotConfig {
   allowedComponents: string[]; // Mely konkrét komponens ID-k jöhetnek szóba
   defaultComponent: string;
   isOptional?: boolean; // A felhasználó kikapcsolhatja-e (pl. fogantyú)
-  attachmentPoints: Record<string, string | string[]>; // Hova csatlakozik a 3D-ben
+  attachmentPoints?: Record<string, string | string[]>;  // Hova csatlakozik a 3D-ben
   properties?: PropertyConfig[]; // Extra, dinamikus beállítások (pl. nyitásirány)
   attachToSlot?: string; 
+  rotation?: { x: number; y: number; z: number };
 }
 
 /**
