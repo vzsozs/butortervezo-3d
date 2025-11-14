@@ -1,96 +1,177 @@
 // src/three/Experience.ts
+
+// =================================================================
+// === EZ AZ ÚJ, REFAKTORÁLT EXPERIENCE OSZTÁLY =====================
+// =================================================================
+// Ez az osztály most már egy "karmester" (singleton), ami
+// összefogja a különálló, egy-egy feladatért felelős modulokat
+// (Sizes, Camera, Renderer, World) és a magas szintű logikát.
+// =================================================================
+
 import { toRaw } from 'vue';
-// JAVÍTÁS: A felesleges EulerOrder import eltávolítva
-import { Scene, AmbientLight, DirectionalLight, PerspectiveCamera, WebGLRenderer, Raycaster, Vector2, Object3D, Group, Clock, Mesh, PlaneGeometry } from 'three';
-import { OrbitControls } from 'three-stdlib';
-import { TransformControls } from 'three-stdlib';
-import { CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
-import { useExperienceStore } from '@/stores/experience'; 
-import { useSelectionStore } from '@/stores/selection';
-import { useSettingsStore } from '@/stores/settings';
-import { useHistoryStore, type SceneState } from '@/stores/history';
-import ConfigManager from './Managers/ConfigManager';
+import { Scene, Clock, Raycaster, Vector2, Object3D, Group, Mesh, PlaneGeometry, AmbientLight, DirectionalLight } from 'three';
+
+// Új, moduláris komponensek importálása
+import Sizes from './Utils/Sizes';
+import Camera from './Camera';
+import Renderer from './Renderer';
 import World from './World/World';
-import Debug from './Utils/Debug';
+
+// Manager importok (a ConfigManager már a globális singleton)
+import ConfigManager from './Managers/ConfigManager';
 import AssetManager from './Managers/AssetManager';
 import PlacementManager from './Managers/PlacementManager';
 import InteractionManager from './Managers/InteractionManager';
 import StateManager from './Managers/StateManager';
-import DebugManager from './Managers/DebugManager'; // <-- ÚJ IMPORT
+import DebugManager from './Managers/DebugManager';
+import Debug from './Utils/Debug';
+
+// Store importok
+import { useExperienceStore } from '@/stores/experience';
+import { useSelectionStore } from '@/stores/selection';
+import { useSettingsStore } from '@/stores/settings';
+import { useHistoryStore, type SceneState } from '@/stores/history';
+
+// A Singleton példány tárolása a modul szintjén
+let instance: Experience | null = null;
 
 export default class Experience {
-  // ... a property-k (canvas, scene, stb.) változatlanok ...
-  public canvas: HTMLDivElement;
-  public scene: Scene;
-  public camera: PerspectiveCamera;
-  public renderer: WebGLRenderer;
-  public labelRenderer: CSS2DRenderer;
-  public rulerElements: Group;
-  private clock: Clock;
-  public configManager: ConfigManager;
-  public controls: OrbitControls;
-  public transformControls: TransformControls;
-  public raycaster: Raycaster;
+  public canvas!: HTMLDivElement;
+  public scene!: Scene;
+  private clock!: Clock;
+
+  // Új, moduláris property-k
+  public sizes!: Sizes;
+  public camera!: Camera;
+  public renderer!: Renderer;
+  public world!: World;
+  public debug!: Debug;
+
+  // Interakcióhoz szükséges property-k
+  public raycaster!: Raycaster;
   public mouse = new Vector2();
   public intersectableObjects: Object3D[] = [];
+  public rulerElements!: Group;
+
+  // Managerek és Store-ok
+  public configManager = ConfigManager; // A globális singleton példány használata
+  public assetManager!: AssetManager;
+  public placementManager!: PlacementManager;
+  public interactionManager!: InteractionManager;
+  public stateManager!: StateManager;
+  public debugManager!: DebugManager;
+  
+  public experienceStore = useExperienceStore();
   public selectionStore = useSelectionStore();
   public settingsStore = useSettingsStore();
-  public experienceStore = useExperienceStore();
   public historyStore = useHistoryStore();
-  public world: World;
-  public debug: Debug;
-  public assetManager: AssetManager;
-  public placementManager: PlacementManager;
-  public interactionManager: InteractionManager;
-  public stateManager: StateManager;
-  public debugManager: DebugManager; // <-- ÚJ PROPERTY
 
   private constructor(canvas: HTMLDivElement) {
+    // Singleton minta érvényesítése
+    if (instance) {
+      return instance;
+    }
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
+    instance = this;
+
+    // Alapvető Three.js elemek
     this.canvas = canvas;
     this.scene = new Scene();
-    this.camera = new PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    this.camera.position.set(0, 2, 3);
-    this.renderer = new WebGLRenderer({ antialias: true });
-    this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    this.renderer.shadowMap.enabled = true;
-    this.canvas.appendChild(this.renderer.domElement);
-    this.labelRenderer = new CSS2DRenderer();
-    this.labelRenderer.setSize(window.innerWidth, window.innerHeight);
-    this.labelRenderer.domElement.style.position = 'absolute';
-    this.labelRenderer.domElement.style.top = '0px';
-    this.labelRenderer.domElement.style.pointerEvents = 'none';
-    this.canvas.appendChild(this.labelRenderer.domElement);
     this.clock = new Clock();
     this.raycaster = new Raycaster();
-    this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-    this.controls.enableDamping = true;
-    this.transformControls = new TransformControls(this.camera, this.renderer.domElement);
-    this.scene.add(this.transformControls);
-    this.configManager = new ConfigManager();
-    this.debug = new Debug(this.scene);
+
+    // Modulok inicializálása
+    this.sizes = new Sizes();
+    this.camera = new Camera();
+    this.renderer = new Renderer();
     this.world = new World(this.scene);
+    this.debug = new Debug(this.scene);
+
+    // Magas szintű Managerek inicializálása
     this.assetManager = new AssetManager(this);
     this.placementManager = new PlacementManager(this);
     this.interactionManager = new InteractionManager(this);
     this.stateManager = new StateManager(this);
     this.debugManager = new DebugManager(this);
+
+    // Jelenet specifikus elemek
     this.rulerElements = new Group();
     this.scene.add(this.rulerElements);
     const floor = this.scene.children.find(c => c instanceof Mesh && c.geometry instanceof PlaneGeometry);
     if (floor) this.intersectableObjects.push(floor);
-    window.addEventListener('resize', this.onWindowResize);
+
+    // Eseményfigyelők beállítása
+    this.sizes.addEventListener('resize', this.onResize);
     window.addEventListener('mousemove', this.onPointerMove);
     this.setupTransformControlsListeners();
-    this.animate();
+
+    // A historyStore első állapotának mentése, miután minden felállt
+    this.historyStore.addState();
+
+    // Az update ciklus elindítása
+    this.update();
   }
 
-  public static async create(canvas: HTMLDivElement): Promise<Experience> {
-    const experience = new Experience(canvas);
-    await experience.configManager.loadData();
-    experience.historyStore.addState();
-    return experience;
+  // Statikus metódus a singleton példány elérésére/létrehozására
+  public static getInstance(canvas?: HTMLDivElement): Experience {
+    if (!instance && canvas) {
+      instance = new Experience(canvas);
+    } else if (!instance && !canvas) {
+      throw new Error("Experience has not been initialized yet. Provide a canvas element.");
+    }
+    return instance!;
   }
+
+  // --- ESEMÉNYKEZELŐK ---
+
+  private onResize = () => {
+    this.camera.onResize();
+    this.renderer.onResize();
+  }
+
+  private onPointerMove = (event: MouseEvent) => {
+    this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+  }
+  
+  private setupTransformControlsListeners() {
+    // @ts-expect-error - event listeners are not fully typed
+    this.camera.transformControls.addEventListener('objectChange', this.onObjectChange);
+    // @ts-expect-error - event listeners are not fully typed
+    this.camera.transformControls.addEventListener('dragging-changed', this.onDraggingChanged);
+  }
+
+  private onObjectChange = () => {
+    // @ts-expect-error - dragging is a private property but we need to check it
+    if (!this.camera.transformControls.dragging) return;
+    const selectedObject = this.selectionStore.selectedObject;
+    if (!selectedObject) return;
+    const objectsToCompare = this.experienceStore.placedObjects.filter(obj => obj.uuid !== selectedObject.uuid);
+    const finalPosition = this.placementManager.calculateFinalPosition(selectedObject, selectedObject.position, objectsToCompare);
+    selectedObject.position.copy(finalPosition);
+    this.debug.selectionBoxHelper.setFromObject(selectedObject);
+  }
+
+  private onDraggingChanged = (event: { value: boolean }) => {
+    this.camera.controls.enabled = !event.value;
+    if (event.value) {
+      this.interactionManager.handleTransformStart();
+    } else {
+      this.interactionManager.handleTransformEnd();
+      this.debug.hideAll();
+    }
+  }
+
+  // --- FŐ UPDATE CIKLUS ---
+
+  private update = () => {
+    requestAnimationFrame(this.update);
+    this.camera.update();
+    this.renderer.update();
+  }
+
+  // --- MAGAS SZINTŰ ALKALMAZÁS LOGIKA ---
+  // Ezek a metódusok a régi Experience osztályból lettek átemelve és adaptálva.
 
   public addObjectToScene(newObject: Group) {
     this.scene.add(newObject);
@@ -101,6 +182,10 @@ export default class Experience {
 
   public async loadState(state: SceneState) {
     console.log("[Experience] Állapot betöltése...", state);
+    this.camera.transformControls.detach();
+    this.selectionStore.clearSelection();
+    this.debug.selectionBoxHelper.visible = false;
+
     const objectsToRemove = [...this.experienceStore.placedObjects];
     for (const obj of objectsToRemove) {
       this.scene.remove(toRaw(obj));
@@ -130,47 +215,53 @@ export default class Experience {
   }
 
   public async rebuildObject(oldObject: Group, newComponentState: Record<string, string>): Promise<Group | null> {
-  const rawOldObject = toRaw(oldObject);
-  this.debugManager.logSeparator('ÚJRAÉPÍTÉS FOLYAMAT');
-  this.debugManager.logObjectState('1. Régi objektum állapota (induláskor)', rawOldObject);
+    const rawOldObject = toRaw(oldObject);
+    this.debugManager.logSeparator('ÚJRAÉPÍTÉS FOLYAMAT');
+    this.debugManager.logObjectState('1. Régi objektum állapota (induláskor)', rawOldObject);
 
-  const { config, propertyState, materialState } = rawOldObject.userData;
-  if (!config) return null;
+    const { config, propertyState, materialState } = rawOldObject.userData;
+    if (!config) return null;
 
-  const newObject = await this.assetManager.buildFurnitureFromConfig(config, newComponentState, propertyState);
-  
-  newObject.position.copy(rawOldObject.position);
-  newObject.rotation.copy(rawOldObject.rotation);
-  newObject.userData.materialState = JSON.parse(JSON.stringify(materialState));
-  
-  this.debugManager.logObjectState('2. Új objektum állapota (összerakás után, anyagok előtt)', newObject);
-  
-  await this.stateManager.applyMaterialsToObject(newObject);
-  this.debugManager.logObjectState('3. Új objektum állapota (anyagok alkalmazása után)', newObject);
+    const newObject = await this.assetManager.buildFurnitureFromConfig(config, newComponentState, propertyState);
+    
+    newObject.position.copy(rawOldObject.position);
+    newObject.rotation.copy(rawOldObject.rotation);
+    newObject.userData.materialState = JSON.parse(JSON.stringify(materialState));
+    
+    this.debugManager.logObjectState('2. Új objektum állapota (összerakás után, anyagok előtt)', newObject);
+    
+    await this.stateManager.applyMaterialsToObject(newObject);
+    this.debugManager.logObjectState('3. Új objektum állapota (anyagok alkalmazása után)', newObject);
 
-  // =================================================================
-  // === JAVÍTÁS: A SORREND BIZTOSÍTÁSA ===============================
-  // =================================================================
-  // Először eltávolítjuk a régit
-  this.scene.remove(rawOldObject);
-  // Frissítjük a store-t
-  this.experienceStore.replaceObject(rawOldObject.uuid, newObject);
-  // ÉS CSAK UTÁNA adjuk hozzá az újat
-  this.scene.add(newObject);
-  
-  this.updateTotalPrice();
-  
-  // A kiválasztással kapcsolatos logikát teljesen eltávolítottuk innen.
-  return newObject;
-}
+    // Objektumok cseréje a jelenetben és a store-ban
+    this.scene.remove(rawOldObject);
+    this.experienceStore.replaceObject(rawOldObject.uuid, newObject);
+    this.scene.add(newObject);
+    
+    // =================================================================
+    // === JAVÍTÁS: A kiválasztás állapotának frissítése az új objektumra
+    // =================================================================
+    // Miután lecseréltük az objektumot, a kiválasztást is át kell irányítanunk
+    // az új objektumra, hogy a TransformControls és a SelectionStore konzisztens maradjon.
+    this.selectionStore.selectObject(newObject);
+    this.camera.transformControls.attach(newObject);
+    this.debug.selectionBoxHelper.setFromObject(newObject);
+    this.debug.selectionBoxHelper.visible = true;
+    // =================================================================
+    
+    this.updateTotalPrice();
+    // A historyStore-t nem kell itt hívni, mert a Vue komponens, ami a rebuild-ot
+    // indította, felelős az új állapot mentéséért.
+    
+    return newObject;
+  }
 
   public removeObject(objectToRemove: Group) {
     const rawObjectToRemove = toRaw(objectToRemove);
-    // JAVÍTÁS: A TypeScript hiba elnyomása
     // @ts-expect-error - object is a private property but we need to access it
-    const attachedObject = this.transformControls.object;
+    const attachedObject = this.camera.transformControls.object;
     if (attachedObject && toRaw(attachedObject) === rawObjectToRemove) {
-      this.transformControls.detach();
+      this.camera.transformControls.detach();
       this.selectionStore.clearSelection();
       this.debug.selectionBoxHelper.visible = false;
     }
@@ -181,12 +272,11 @@ export default class Experience {
       allObjects.splice(index, 1);
       this.experienceStore.updatePlacedObjects(allObjects);
     }
+
     this.updateTotalPrice();
     this.historyStore.addState();
   }
 
-  // ... a többi függvény (newScene, getScreenshotCanvas, onWindowResize, stb.) változatlan ...
-  // A teljesség kedvéért idemásolom őket, de nem változtak.
   public newScene() {
     console.log("[Experience] Új jelenet létrehozása...");
     const objectsToRemove = [...this.experienceStore.placedObjects];
@@ -196,7 +286,7 @@ export default class Experience {
     this.experienceStore.updatePlacedObjects([]);
     this.rulerElements.clear();
     this.selectionStore.clearSelection();
-    this.transformControls.detach();
+    this.camera.transformControls.detach();
     this.debug.selectionBoxHelper.visible = false;
     this.settingsStore.resetToDefaults();
     this.historyStore.clearHistory();
@@ -222,76 +312,31 @@ export default class Experience {
         const rawObject = toRaw(proxyObject);
         screenshotScene.add(rawObject.clone());
       }
-      this.renderer.render(screenshotScene, this.camera);
-      return this.renderer.domElement;
+      this.renderer.instance.render(screenshotScene, this.camera.instance);
+      return this.renderer.instance.domElement;
     } catch (error) {
       console.error("[Experience] Hiba a screenshot canvas előkészítése közben:", error);
       return undefined;
     }
   }
 
-  private onWindowResize = () => {
-    this.camera.aspect = window.innerWidth / window.innerHeight;
-    this.camera.updateProjectionMatrix();
-    this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.labelRenderer.setSize(window.innerWidth, window.innerHeight);
-  }
-
-  private onPointerMove = (event: MouseEvent) => {
-    this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-    this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-  }
-
-  private onObjectChange = () => {
-    // JAVÍTÁS: A TypeScript hiba elnyomása
-    // @ts-expect-error - dragging is a private property but we need to check it
-    if (!this.transformControls.dragging) return;
-    const selectedObject = this.selectionStore.selectedObject;
-    if (!selectedObject) return;
-    const objectsToCompare = this.experienceStore.placedObjects.filter(obj => obj.uuid !== selectedObject.uuid);
-    const finalPosition = this.placementManager.calculateFinalPosition(selectedObject, selectedObject.position, objectsToCompare);
-    selectedObject.position.copy(finalPosition);
-    this.debug.selectionBoxHelper.setFromObject(selectedObject);
-  }
-
-  private onDraggingChanged = (event: { value: boolean }) => {
-    this.controls.enabled = !event.value;
-    if (event.value) {
-      this.interactionManager.handleTransformStart();
-    } else {
-      this.interactionManager.handleTransformEnd();
-      this.debug.hideAll();
-    }
-  }
-
-  private setupTransformControlsListeners() {
-    // @ts-expect-error - event listeners are not fully typed
-    this.transformControls.addEventListener('objectChange', this.onObjectChange);
-    // @ts-expect-error - event listeners are not fully typed
-    this.transformControls.addEventListener('dragging-changed', this.onDraggingChanged);
-  }
-
-  private animate = () => {
-    requestAnimationFrame(this.animate);
-    this.controls.update();
-    this.renderer.render(this.scene, this.camera);
-    this.labelRenderer.render(this.scene, this.camera);
-  }
+  // --- TAKARÍTÁS ---
 
   public destroy() {
-    // ... a destroy metódus tartalma változatlan ...
-    window.removeEventListener('resize', this.onWindowResize);
+    // Eseményfigyelők eltávolítása
+    this.sizes.destroy();
     window.removeEventListener('mousemove', this.onPointerMove);
     this.interactionManager.removeEventListeners();
     // @ts-expect-error - a
-    this.transformControls.removeEventListener('objectChange', this.onObjectChange);
+    this.camera.transformControls.removeEventListener('objectChange', this.onObjectChange);
     // @ts-expect-error - a
-    this.transformControls.removeEventListener('dragging-changed', this.onDraggingChanged);
+    this.camera.transformControls.removeEventListener('dragging-changed', this.onDraggingChanged);
 
-    if (this.labelRenderer.domElement.parentNode === this.canvas) {
-        this.canvas.removeChild(this.labelRenderer.domElement);
-    }
+    // Modulok megsemmisítése
+    this.camera.destroy();
+    this.renderer.destroy();
     
+    // Three.js objektumok felszabadítása
     this.scene.traverse((child) => {
       if (child instanceof Mesh) {
         child.geometry.dispose();
@@ -306,10 +351,8 @@ export default class Experience {
       }
     });
 
-    this.transformControls.dispose();
-    this.controls.dispose();
-    this.renderer.dispose();
-    this.scene.remove(this.debug.virtualBoxMesh, this.debug.staticBoxHelper, this.debug.snapPointHelper, this.debug.selectionBoxHelper);
+    // Singleton példány nullázása
+    instance = null;
     console.log("Experience destroyed");
   }
 }

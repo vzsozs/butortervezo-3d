@@ -1,6 +1,7 @@
+// src/router/index.ts
 import { createRouter, createWebHistory } from 'vue-router'
-// Valószínűleg van itt egy import, ami egy nem létező HomeView-ra mutat.
-// Ezt kell majd javítanunk.
+import HomeView from '../views/HomeView.vue'
+import AdminView from '../views/AdminView.vue' // Győződj meg róla, hogy importálva van
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -8,10 +9,19 @@ const router = createRouter({
     {
       path: '/',
       name: 'home',
-      // Itt a component sor a lényeg
-      component: () => import('../views/HomeView.vue') // VAGY valami hasonló
+      component: HomeView
     },
-    // ... lehet itt más útvonal is, pl. /about
+    {
+      path: '/admin',
+      name: 'admin',
+      component: AdminView,
+      // =================================================================
+      // === EZT A META BLOKKOT ADD HOZZÁ ================================
+      // =================================================================
+      meta: {
+        hideDesignerUI: true
+      }
+    }
   ]
 })
 

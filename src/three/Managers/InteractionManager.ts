@@ -6,7 +6,6 @@ import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import Experience from '../Experience';
 
 export default class InteractionManager {
-  // ... a property-k (draggedObject, stb.) változatlanok ...
   private draggedObject: Group | null = null;
   private dragStartPosition: Vector3 | null = null;
   private isMouseDown = false;
@@ -20,19 +19,19 @@ export default class InteractionManager {
   private activeRulerStartDot: Mesh | null = null;
   private activeRulerEndDot: Mesh | null = null;
 
-
   constructor(private experience: Experience) {
     this.addEventListeners();
     this.setupWatchers();
   }
 
-  // ... onMouseDown, onMouseUp, és a többi egérkezelő változatlan ...
   private onMouseDown = (event: MouseEvent) => {
+    // JAVÍTÁS: A transformControls a camera property-be került
     // @ts-expect-error - a
-    if (event.button !== 0 || this.experience.transformControls.dragging) return;
+    if (event.button !== 0 || this.experience.camera.transformControls.dragging) return;
     this.isMouseDown = true;
     this.mouseDownPosition.set(event.clientX, event.clientY);
-    this.experience.raycaster.setFromCamera(this.experience.mouse, this.experience.camera);
+    // JAVÍTÁS: A raycasternek a natív kamera instance kell
+    this.experience.raycaster.setFromCamera(this.experience.mouse, this.experience.camera.instance);
 
     if (!this.experience.settingsStore.isRulerModeActive && this.experience.settingsStore.activeFurnitureId) {
       const intersects = this.experience.raycaster.intersectObjects(this.experience.intersectableObjects);
@@ -54,7 +53,8 @@ export default class InteractionManager {
     const isClick = this.mouseDownPosition.distanceTo(new Vector2(event.clientX, event.clientY)) < 5;
     if (!isClick) return;
 
-    this.experience.raycaster.setFromCamera(this.experience.mouse, this.experience.camera);
+    // JAVÍTÁS: A raycasternek a natív kamera instance kell
+    this.experience.raycaster.setFromCamera(this.experience.mouse, this.experience.camera.instance);
     if (this.experience.settingsStore.isRulerModeActive) {
       this.handleRulerClick();
     } else {
@@ -86,14 +86,16 @@ export default class InteractionManager {
     if (!object.parent) {
       this.experience.scene.add(this.draggedObject);
     }
-    this.experience.controls.enabled = false;
+    // JAVÍTÁS: A controls a camera property-be került
+    this.experience.camera.controls.enabled = false;
     window.addEventListener('mousemove', this.onMouseMove);
     window.addEventListener('contextmenu', this.onRightClickCancel);
   }
 
   private onMouseMove = (_event: MouseEvent) => {
     if (!this.draggedObject) return;
-    this.experience.raycaster.setFromCamera(this.experience.mouse, this.experience.camera);
+    // JAVÍTÁS: A raycasternek a natív kamera instance kell
+    this.experience.raycaster.setFromCamera(this.experience.mouse, this.experience.camera.instance);
     const intersects = this.experience.raycaster.intersectObjects(this.experience.intersectableObjects);
     if (intersects.length > 0) {
       const point = intersects[0]!.point;
@@ -116,21 +118,20 @@ export default class InteractionManager {
 
     const isNewObject = !this.experience.experienceStore.placedObjects.find(obj => obj.uuid === this.draggedObject?.uuid);
     if (isNewObject) {
-      // JAVÍTÁS: Az új, központi addObjectToScene-t használjuk
       this.experience.addObjectToScene(this.draggedObject);
       this.experience.settingsStore.setActiveFurnitureId(null);
     } else {
-      // Ha létező objektumot mozgattunk, csak egy history state-et mentünk
       this.experience.historyStore.addState();
     }
     
     this.experience.debug.hideAll();
     this.endDrag();
-    this.experience.updateTotalPrice(); // Az addObjectToScene már hívja, de itt is maradhat
+    this.experience.updateTotalPrice();
   }
 
   private endDrag = () => {
-    this.experience.controls.enabled = true;
+    // JAVÍTÁS: A controls a camera property-be került
+    this.experience.camera.controls.enabled = true;
     this.draggedObject = null;
     this.dragStartPosition = null;
     window.removeEventListener('mousemove', this.onMouseMove);
@@ -138,7 +139,6 @@ export default class InteractionManager {
   }
 
   private handleObjectSelection() {
-    // ... (ez a függvény változatlan)
     const intersects = this.experience.raycaster.intersectObjects(this.experience.experienceStore.placedObjects, true);
     if (intersects.length > 0) {
       let parentGroup: Group | null = null;
@@ -155,26 +155,27 @@ export default class InteractionManager {
           this.experience.selectionStore.selectObject(parentGroup);
           this.experience.debug.selectionBoxHelper.setFromObject(parentGroup);
           this.experience.debug.selectionBoxHelper.visible = true;
-          this.experience.transformControls.attach(parentGroup);
+          // JAVÍTÁS: A transformControls a camera property-be került
+          this.experience.camera.transformControls.attach(parentGroup);
           this.setTransformMode('translate'); 
         } else {
           this.experience.selectionStore.clearSelection();
         }
       }
     } else {
+      // JAVÍTÁS: A transformControls a camera property-be került
       // @ts-expect-error - a
-      if (!this.experience.transformControls.axis) {
+      if (!this.experience.camera.transformControls.axis) {
         this.experience.selectionStore.clearSelection();
         this.experience.debug.selectionBoxHelper.visible = false;
-        this.experience.transformControls.detach();
+        // JAVÍTÁS: A transformControls a camera property-be került
+        this.experience.camera.transformControls.detach();
       }
     }
   }
 
-  // =================================================================
-  // === JAVÍTOTT FÜGGVÉNY AZ ÚJ BÚTOR LÉTREHOZÁSÁHOZ ================
-  // =================================================================
   private async createDraggableObject(point: Vector3): Promise<Group | null> {
+    // ... (ez a metódus változatlan maradt, mert nem használta a hibás property-ket)
     const activeId = this.experience.settingsStore.activeFurnitureId;
     if (!activeId) return null;
 
@@ -198,26 +199,18 @@ export default class InteractionManager {
     
     if (!furnitureProxy) return null;
 
-    // =================================================================
-    // === ÚJ LOGIKA: ANYAGOK INICIALIZÁLÁSA A GLOBÁLIS BEÁLLÍTÁSOKBÓL ==
-    // =================================================================
     const initialMaterialState: Record<string, string> = {};
     const globalMaterials = this.experience.settingsStore.globalMaterialSettings;
 
-    // Végigmegyünk a bútor LÉTREJÖTT componentState-jén, ami tartalmazza az összes aktív slotot
     for (const slotId in furnitureProxy.userData.componentState) {
-      // Ha van ehhez a slothoz globális anyagbeállítás, azt használjuk
       if (globalMaterials[slotId]) {
         initialMaterialState[slotId] = globalMaterials[slotId];
       }
     }
     furnitureProxy.userData.materialState = initialMaterialState;
     await this.experience.stateManager.applyMaterialsToObject(furnitureProxy);
-    // =================================================================
 
-    // === ÚJ LOG ===
     this.experience.debugManager.logObjectState('Új bútor létrehozva, húzás előtt', furnitureProxy);
-
 
     furnitureProxy.traverse((child: Object3D) => {
       if (child instanceof Mesh && child.material instanceof MeshStandardMaterial) {
@@ -233,7 +226,6 @@ export default class InteractionManager {
     return furnitureProxy;
   }
 
-  // ... a többi függvény (vonalzó, billentyűzet, stb.) változatlan ...
   private startRulerMode() {
     if (!this.floatingDot) {
       this.floatingDot = this.createRulerDot(0.025, 0x00ffff);
@@ -255,7 +247,8 @@ export default class InteractionManager {
   private onRulerHover = () => {
     if (!this.floatingDot) return;
     const intersectableForRuler = [...this.experience.intersectableObjects, ...this.experience.experienceStore.placedObjects];
-    this.experience.raycaster.setFromCamera(this.experience.mouse, this.experience.camera);
+    // JAVÍTÁS: A raycasternek a natív kamera instance kell
+    this.experience.raycaster.setFromCamera(this.experience.mouse, this.experience.camera.instance);
     const intersects = this.experience.raycaster.intersectObjects(intersectableForRuler, true);
     if (intersects.length === 0) {
         this.floatingDot.visible = false;
@@ -283,7 +276,8 @@ export default class InteractionManager {
 
   private onRulerMouseMove = () => {
     if (!this.rulerStartPoint || !this.activeRulerLine || !this.activeRulerLabel || !this.activeRulerEndDot) return;
-    this.experience.raycaster.setFromCamera(this.experience.mouse, this.experience.camera);
+    // JAVÍTÁS: A raycasternek a natív kamera instance kell
+    this.experience.raycaster.setFromCamera(this.experience.mouse, this.experience.camera.instance);
     const intersects = this.experience.raycaster.intersectObjects([...this.experience.intersectableObjects, ...this.experience.experienceStore.placedObjects], true);
     if (intersects.length === 0) return;
     let currentPoint = intersects[0]!.point.clone();
@@ -359,8 +353,9 @@ export default class InteractionManager {
   }
 
   public handleTransformStart() {
+    // JAVÍTÁS: A transformControls a camera property-be került
     // @ts-expect-error - .object is private
-    const attachedObject = toRaw(this.experience.transformControls.object);
+    const attachedObject = toRaw(this.experience.camera.transformControls.object);
     if (attachedObject) {
       console.log("[Transform] Húzás elindult.");
       this.isTransforming = true;
@@ -377,21 +372,23 @@ export default class InteractionManager {
     }
   }
 
-
   private handleEscape() {
     if (this.isTransforming) {
       console.log("[Escape] TransformControls húzás megszakítása.");
+      // JAVÍTÁS: A transformControls a camera property-be került
       // @ts-expect-error - .object is private
-      const attachedObject = toRaw(this.experience.transformControls.object);
+      const attachedObject = toRaw(this.experience.camera.transformControls.object);
       if (attachedObject && this.dragStartPosition) {
         attachedObject.position.copy(this.dragStartPosition);
         this.experience.debug.selectionBoxHelper.setFromObject(attachedObject);
       }
       this.isTransforming = false;
       this.dragStartPosition = null;
+      // JAVÍTÁS: A transformControls a camera property-be került
       // @ts-expect-error - .dragging is private
-      this.experience.transformControls.dragging = false;
-      this.experience.controls.enabled = true;
+      this.experience.camera.transformControls.dragging = false;
+      // JAVÍTÁS: A controls a camera property-be került
+      this.experience.camera.controls.enabled = true;
       return;
     }
     if (this.rulerStartPoint) {
@@ -404,7 +401,8 @@ export default class InteractionManager {
         this.experience.scene.remove(this.draggedObject);
         this.experience.settingsStore.setActiveFurnitureId(null);
         this.experience.debug.hideAll();
-        this.experience.transformControls.detach();
+        // JAVÍTÁS: A transformControls a camera property-be került
+        this.experience.camera.transformControls.detach();
         this.experience.debug.selectionBoxHelper.visible = false;
       } else {
         this.draggedObject.traverse((child) => {
@@ -418,7 +416,8 @@ export default class InteractionManager {
     } 
     else if (this.experience.selectionStore.selectedObject) {
       this.experience.selectionStore.clearSelection();
-      this.experience.transformControls.detach();
+      // JAVÍTÁS: A transformControls a camera property-be került
+      this.experience.camera.transformControls.detach();
       this.experience.debug.selectionBoxHelper.visible = false;
     }
   }
@@ -478,25 +477,28 @@ export default class InteractionManager {
 
   public setTransformMode(mode: 'translate' | 'rotate') {
     const selectedObject = this.experience.selectionStore.selectedObject;
-    const controls = this.experience.transformControls;
+    // JAVÍTÁS: A transformControls a camera property-be került
+    const controls = this.experience.camera.transformControls;
     controls.setMode(mode);
-    // @ts-expect-error - A típusdefiníciók hibásan privátként jelölik
+    
+    // @ts-expect-error - a
     controls.showX = true;
-    // @ts-expect-error - A típusdefiníciók hibásan privátként jelölik
+    // @ts-expect-error - a
     controls.showY = true;
-    // @ts-expect-error - A típusdefiníciók hibásan privátként jelölik
+    // @ts-expect-error - a
     controls.showZ = true;
+
     if (selectedObject) {
       const category = selectedObject.userData.config?.category;
       if (mode === 'translate') {
         if (category === 'bottom_cabinets') {
-          // @ts-expect-error - A típusdefiníciók hibásan privátként jelölik
+          // @ts-expect-error - a
           controls.showY = false;
         }
       } else if (mode === 'rotate') {
-      // @ts-expect-error - A típusdefiníciók hibásan privátként jelölik
+        // @ts-expect-error - a
         controls.showX = false;
-      // @ts-expect-error - A típusdefiníciók hibásan privátként jelölik
+        // @ts-expect-error - a
         controls.showZ = false;
       }
     }
@@ -517,15 +519,15 @@ export default class InteractionManager {
   }
 
   public addEventListeners() {
-    this.experience.renderer.domElement.addEventListener('mousedown', this.onMouseDown);
-    this.experience.renderer.domElement.addEventListener('mouseup', this.onMouseUp);
+    this.experience.renderer.instance.domElement.addEventListener('mousedown', this.onMouseDown);
+    this.experience.renderer.instance.domElement.addEventListener('mouseup', this.onMouseUp);
     window.addEventListener('keydown', this.onKeyDown);
   }
 
   public removeEventListeners() {
-    if (this.experience.renderer.domElement) {
-      this.experience.renderer.domElement.removeEventListener('mousedown', this.onMouseDown);
-      this.experience.renderer.domElement.removeEventListener('mouseup', this.onMouseUp);
+    if (this.experience.renderer.instance.domElement) {
+      this.experience.renderer.instance.domElement.removeEventListener('mousedown', this.onMouseDown);
+      this.experience.renderer.instance.domElement.removeEventListener('mouseup', this.onMouseUp);
     }
     window.removeEventListener('keydown', this.onKeyDown);
   }

@@ -22,8 +22,7 @@ function selectObject(object: Group) {
     // A meglévő store akciót használjuk a kiválasztásra
     selectionStore.selectObject(object);
     // A TransformControls-t is rácsatoljuk
-    experienceStore.instance.transformControls.attach(object);
-    // A debug segédvonalakat is frissítjük
+    experienceStore.instance.camera.transformControls.attach(object);
     experienceStore.instance.debug.selectionBoxHelper.setFromObject(object);
     experienceStore.instance.debug.selectionBoxHelper.visible = true;
   }

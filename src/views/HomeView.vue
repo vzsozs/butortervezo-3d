@@ -1,6 +1,6 @@
 <!-- views/HomeView.vue -->
 <template>
-  <div ref="sceneContainer" class="absolute inset-0"></div>
+  <!-- A dupla ref-et és id-t javítottam egyre -->
   <div id="experience-canvas" ref="sceneContainer" class="absolute inset-0"></div>
 </template>
 
@@ -8,7 +8,6 @@
 import { onMounted, onUnmounted, ref } from 'vue';
 import Experience from '@/three/Experience';
 import { useExperienceStore } from '@/stores/experience';
-// === ÚJ IMPORT A BETÖLTÉSHEZ ===
 import { usePersistenceStore } from '@/stores/persistence';
 
 const sceneContainer = ref<HTMLDivElement | null>(null);
@@ -17,11 +16,20 @@ let experience: Experience | null = null;
 const experienceStore = useExperienceStore();
 const persistenceStore = usePersistenceStore(); 
 
-onMounted(async () => {
+// Az 'async' kulcsszó már nem kell, mert az getInstance szinkron
+onMounted(() => {
   if (sceneContainer.value) {
-    experience = await Experience.create(sceneContainer.value);
+    // =================================================================
+    // === VÁLTOZTATÁS: .create() helyett .getInstance() ===============
+    // =================================================================
+    // Az getInstance() létrehozza az Experience példányt, ha még nem
+    // létezik, vagy visszaadja a meglévőt, ha már létezik.
+    experience = Experience.getInstance(sceneContainer.value);
+    // =================================================================
+
     experienceStore.setExperience(experience);
 
+    // Ez a logika maradhat, az állapot betöltése a 3D inicializálása után történik
     persistenceStore.loadStateFromLocalStorage();
   }
 });
@@ -30,6 +38,8 @@ onUnmounted(() => {
   if (experience) {
     experience.destroy();
     experienceStore.setExperience(null);
+    // Fontos: a destroy metódusunk már nullázza a belső singleton
+    // példányt, így a rendszer tiszta marad.
   }
 });
 </script>
