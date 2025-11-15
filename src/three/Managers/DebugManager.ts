@@ -1,6 +1,4 @@
 // src/three/Managers/DebugManager.ts
-
-import Experience from '../Experience';
 import type { Group } from 'three';
 
 // Stílusok a konzol üzenetekhez
@@ -10,10 +8,22 @@ const ACTION_STYLE = 'background: #2e86de; color: white; padding: 2px 6px; borde
 const STATE_STYLE = 'background: #444; color: #f1f2f6; padding: 2px 6px; border-radius: 3px;';
 const CONTEXT_STYLE = 'font-family: monospace; color: #576574;';
 
+// Singleton minta
+let instance: DebugManager | null = null;
 
-export default class DebugManager {
-  constructor(private experience: Experience) {}
+class DebugManager {
+  // JAVÍTÁS: A konstruktor privát és nem függ semmitől
+  private constructor() {}
 
+  // Statikus metódus a példány elérésére
+  public static getInstance(): DebugManager {
+    if (!instance) {
+      instance = new DebugManager();
+    }
+    return instance;
+  }
+
+  // A többi metódus változatlan, mivel nem használtak semmilyen belső állapotot.
   public logSeparator(title = '') {
     console.log(`%c--- ${title} ---`, 'color: #7f8c8d; font-weight: bold;');
   }
@@ -36,12 +46,7 @@ export default class DebugManager {
     console.groupEnd();
   }
 
-  /**
-   * Akkor hívódik, ha egy 3D modell betöltése hálózati vagy parse-olási hiba miatt meghiúsul.
-   * @param url A sikertelenül betöltött modell URL-je.
-   * @param error A betöltő által dobott eredeti hiba.
-   */
-    public logModelLoadError(url: string, error: unknown) {
+  public logModelLoadError(url: string, error: unknown) {
     console.groupCollapsed(`%cHIBA%c Modell betöltése sikertelen`, ERROR_STYLE, '');
     console.log(`A GLTFLoader nem tudta betölteni vagy feldolgozni a modellt.`);
     console.log(`%cURL:%c ${url}`, 'font-weight: bold;', CONTEXT_STYLE);
@@ -51,12 +56,6 @@ export default class DebugManager {
     console.groupEnd();
   }
 
-  /**
-   * Akkor hívódik, ha egy bútor összeszerelésekor nem található egy csatlakozási pont (dummy).
-   * @param pointName A keresett dummy objektum neve.
-   * @param baseComponentName Annak a komponensnek a neve, AMIN kerestük a pontot (pl. korpusz).
-   * @param componentToAttachName Annak a komponensnek a neve, AMIT csatlakoztatni akartunk (pl. fogantyú).
-   */
   public logAttachmentPointNotFound(pointName: string, baseComponentName: string, componentToAttachName: string) {
     console.groupCollapsed(`%cFIGYELMEZTETÉS%c Csatlakozási pont nem található`, WARN_STYLE, '');
     console.log(`A(z) %c${componentToAttachName}%c komponenst nem lehetett csatlakoztatni.`, 'font-weight: bold;', '');
@@ -66,18 +65,14 @@ export default class DebugManager {
     console.groupEnd();
   }
 
-  /**
-   * Akkor hívódik, ha egy komponens vagy bútor configot nem talál az ID alapján.
-   * @param type 'Bútor' vagy 'Komponens'.
-   * @param id A keresett ID.
-   */
   public logConfigNotFound(type: 'Bútor' | 'Komponens', id: string) {
     console.warn(`%cFIGYELMEZTETÉS%c ${type} konfiguráció nem található a(z) %c"${id}"%c ID-val. Ellenőrizd a JSON fájlokat.`, WARN_STYLE, '', CONTEXT_STYLE, '');
   }
-  // --- ÚJ, ÁLLAPOTKEZELÉSI LOGGOLÓK ---
 
-  /** Figyelmeztetést naplóz, ha valami gyanús történik. */
   public logWarning(message: string, context: unknown = '') {
     console.warn(`%cFIGYELEM%c ${message}`, WARN_STYLE, '', context);
   }
 }
+
+// JAVÍTÁS: A singleton példányt exportáljuk alapértelmezetten
+export default DebugManager;

@@ -1,13 +1,5 @@
 // src/three/Experience.ts
 
-// =================================================================
-// === EZ AZ ÚJ, REFAKTORÁLT EXPERIENCE OSZTÁLY =====================
-// =================================================================
-// Ez az osztály most már egy "karmester" (singleton), ami
-// összefogja a különálló, egy-egy feladatért felelős modulokat
-// (Sizes, Camera, Renderer, World) és a magas szintű logikát.
-// =================================================================
-
 import { toRaw } from 'vue';
 import { Scene, Clock, Raycaster, Vector2, Object3D, Group, Mesh, PlaneGeometry, AmbientLight, DirectionalLight } from 'three';
 
@@ -55,11 +47,11 @@ export default class Experience {
 
   // Managerek és Store-ok
   public configManager = ConfigManager; // A globális singleton példány használata
-  public assetManager!: AssetManager;
+  public assetManager = AssetManager.getInstance();
   public placementManager!: PlacementManager;
   public interactionManager!: InteractionManager;
   public stateManager!: StateManager;
-  public debugManager!: DebugManager;
+  public debugManager = DebugManager.getInstance(); 
   
   public experienceStore = useExperienceStore();
   public selectionStore = useSelectionStore();
@@ -88,11 +80,11 @@ export default class Experience {
     this.debug = new Debug(this.scene);
 
     // Magas szintű Managerek inicializálása
-    this.assetManager = new AssetManager(this);
+    //this.assetManager = new AssetManager(this);
     this.placementManager = new PlacementManager(this);
     this.interactionManager = new InteractionManager(this);
     this.stateManager = new StateManager(this);
-    this.debugManager = new DebugManager(this);
+    //this.debugManager = new DebugManager(this);
 
     // Jelenet specifikus elemek
     this.rulerElements = new Group();

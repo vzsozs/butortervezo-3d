@@ -1,258 +1,190 @@
-<!-- src/components/admin/FurnitureEditor.vue -->
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue';
+import { ref, watch, computed, type ComponentPublicInstance } from 'vue';
 import { storeToRefs } from 'pinia';
-import type { FurnitureConfig, ComponentSlotConfig, SlotRotation, AttachmentPoints } from '@/config/furniture';
+import type { FurnitureConfig, ComponentSlotConfig } from '@/config/furniture';
 import { useConfigStore } from '@/stores/config';
+import SlotNode from './SlotNode.vue';
+
+type SlotUpdateEvent = {
+  key: keyof ComponentSlotConfig;
+  value: ComponentSlotConfig[keyof ComponentSlotConfig];
+};
+
+// PROPS: Megkapja a szülőtől a szerkesztendő bútort és azt, hogy új-e.
+const props = defineProps<{
+  furniture: Partial<FurnitureConfig> | null;
+  isNew: boolean;
+}>();
+
+// EMITS: Jelzi a szülőnek, ha menteni vagy megszakítani kell a műveletet.
+const emit = defineEmits<{
+  (e: 'save', value: FurnitureConfig): void;
+  (e: 'cancel'): void;
+}>();
 
 const configStore = useConfigStore();
 const { components: storeComponents } = storeToRefs(configStore);
 
-const allFurniture = ref<FurnitureConfig[]>([]);
-const selectedFurniture = ref<Partial<FurnitureConfig> | null>(null);
-const isNewFurniture = ref(false);
+// A szerkesztéshez egy helyi, módosítható másolatot használunk a prop helyett.
+const editableFurniture = ref<Partial<FurnitureConfig> | null>(null);
 
-const componentTypesForSelect = computed(() => Object.keys(storeComponents.value));
+const highlightedSlotId = ref<string | null>(null);
+const slotNodeRefs = ref<Record<string, ComponentPublicInstance | Element | null>>({});
 
-const attachmentPointSuggestions = computed(() => {
-  const points = new Set<string>();
-  Object.values(storeComponents.value).flat().forEach(comp => {
-    if (comp.attachmentPoints) {
-      if ('self' in comp.attachmentPoints && comp.attachmentPoints.self) points.add(comp.attachmentPoints.self);
-      if ('multiple' in comp.attachmentPoints && comp.attachmentPoints.multiple) comp.attachmentPoints.multiple.forEach(p => points.add(p));
-    }
-  });
-  return Array.from(points).sort();
-});
-
-// JAVÍTÁS: Konstansok a radián értékekhez a pontosságért
-const PI_HALF = Math.PI / 2;
-
-onMounted(async () => {
-  try {
-    const response = await fetch('/database/furniture.json');
-    if (!response.ok) throw new Error('A furniture.json betöltése sikertelen.');
-    allFurniture.value = await response.json();
-  } catch (error) {
-    console.error(error);
+// Figyeljük, ha a szülő új bútort ad, és frissítjük a helyi másolatot.
+watch(() => props.furniture, (newFurniture) => {
+  if (newFurniture) {
+    editableFurniture.value = JSON.parse(JSON.stringify(newFurniture));
+  } else {
+    editableFurniture.value = null;
   }
-});
+}, { deep: true, immediate: true });
 
-watch(() => selectedFurniture.value?.name, (newName) => {
-  if (isNewFurniture.value && selectedFurniture.value && newName) {
-    const normalizedName = newName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, '_').replace(/[^\w-]+/g, '');
-    selectedFurniture.value.id = normalizedName;
+// Figyeljük a név változását, hogy generáljunk ID-t (ez a logika megmarad)
+watch(() => editableFurniture.value?.name, (newName) => {
+  if (props.isNew && editableFurniture.value && newName) {
+    const diacritics = new RegExp('[\\u0300-\\u036f]', 'g');
+    const normalizedName = newName.toLowerCase().normalize("NFD").replace(diacritics, "").replace(/\s+/g, '_').replace(/[^\w-]+/g, '');
+    editableFurniture.value.id = normalizedName;
   }
 }, { deep: true });
 
-function setRotation(axis: 'x' | 'y' | 'z', degrees: number, slot: ComponentSlotConfig) {
-  if (!slot.rotation) slot.rotation = { x: 0, y: 0, z: 0 };
-  slot.rotation[axis] = degrees === 0 ? 0 : (degrees / 180) * Math.PI;
-}
 
-function selectFurniture(furniture: FurnitureConfig) {
-  selectedFurniture.value = JSON.parse(JSON.stringify(furniture));
-  isNewFurniture.value = false;
-}
+// --- A MEGLÉVŐ FÜGGVÉNYEK NAGYRÉSZT VÁLTOZATLANOK ---
 
-function createNewFurniture() {
-  selectedFurniture.value = {
-    id: '',
-    name: '',
-    category: 'bottom_cabinets',
-    componentSlots: [],
-  };
-  isNewFurniture.value = true;
-}
+const setSlotNodeRef = (el: ComponentPublicInstance | Element | null, slotId: string) => {
+  if (el) slotNodeRefs.value[slotId] = el;
+};
 
-function addSlot() {
-  if (!selectedFurniture.value?.componentSlots) return;
-  selectedFurniture.value.componentSlots.push({
-    slotId: '',
-    name: '',
-    componentType: componentTypesForSelect.value[0] || '',
-    allowedComponents: [],
-    defaultComponent: '',
-    attachToSlot: '',
-    attachmentPoints: { self: '' },
-    rotation: { x: 0, y: 0, z: 0 },
-  });
-}
+const slotTemplates: Record<string, Partial<ComponentSlotConfig>> = {
+  corpus: { slotId: 'corpus', name: 'Korpusz', componentType: 'corpuses', attachToSlot: '' },
+  front: { slotId: 'front', name: 'Front', componentType: 'fronts', attachToSlot: 'corpus' },
+  handle: { slotId: 'handle', name: 'Fogantyú', componentType: 'handles', attachToSlot: 'front' },
+  leg: { slotId: 'leg', name: 'Láb', componentType: 'legs', attachToSlot: 'corpus' },
+};
 
-function removeSlot(index: number) {
-  if (!selectedFurniture.value?.componentSlots) return;
-  selectedFurniture.value.componentSlots.splice(index, 1);
-}
-
-async function saveToServer() {
-  const cleanData = allFurniture.value.map(furniture => {
-    const cleanSlots = furniture.componentSlots.map(slot => {
-      const cleanSlot: Partial<ComponentSlotConfig> = {};
-      for (const key in slot) {
-        const typedKey = key as keyof ComponentSlotConfig;
-        const value = slot[typedKey];
-        if (typedKey === 'attachmentPoints') {
-          const points = value as AttachmentPoints;
-          if (points && 'self' in points && points.self) cleanSlot.attachmentPoints = { self: points.self };
-          else if (points && 'multiple' in points && points.multiple && points.multiple.length > 0) cleanSlot.attachmentPoints = { multiple: points.multiple };
-        } else if (typedKey === 'rotation') {
-          const rot = value as SlotRotation;
-          if (rot && (rot.x !== 0 || rot.y !== 0 || rot.z !== 0)) cleanSlot.rotation = rot;
-        } else if (value !== '' && value !== null && value !== undefined && (!Array.isArray(value) || value.length > 0)) {
-          // JAVÍTÁS: Itt is a szándékos 'any' kényszerítést használjuk az ESLint kikapcsolásával.
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (cleanSlot as any)[typedKey] = value;
-        }
-      }
-      return cleanSlot as ComponentSlotConfig;
-    });
-    return { ...furniture, componentSlots: cleanSlots };
-  });
-
-  try {
-    const response = await fetch('/api/save-database', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filename: 'furniture.json', data: cleanData }),
-    });
-    if (!response.ok) throw new Error(await response.text());
-    alert('Bútorok sikeresen mentve!');
-  } catch (error) {
-    console.error(error);
-    alert('Hiba a mentés közben.');
-  }
-}
-
-function saveFurniture() {
-  if (!selectedFurniture.value || !selectedFurniture.value.id) return;
-  if (isNewFurniture.value) {
-    allFurniture.value.push(selectedFurniture.value as FurnitureConfig);
-  } else {
-    const index = allFurniture.value.findIndex(f => f.id === selectedFurniture.value!.id);
-    if (index !== -1) {
-      allFurniture.value[index] = selectedFurniture.value as FurnitureConfig;
+const hierarchicalSlots = computed(() => {
+  if (!editableFurniture.value?.componentSlots) return [];
+  type SlotWithChildren = ComponentSlotConfig & { children: SlotWithChildren[] };
+  const slots: SlotWithChildren[] = JSON.parse(JSON.stringify(editableFurniture.value.componentSlots));
+  const slotMap = new Map(slots.map(s => [s.slotId, s]));
+  const tree: SlotWithChildren[] = [];
+  slots.forEach(s => s.children = []);
+  slots.forEach(s => {
+    if (s.attachToSlot && slotMap.has(s.attachToSlot)) {
+      slotMap.get(s.attachToSlot)!.children.push(s);
+    } else {
+      tree.push(s);
     }
-  }
-  selectedFurniture.value = null;
+  });
+  return tree;
+});
+
+const suggestions = computed(() => ({
+  componentTypes: Object.keys(storeComponents.value),
+  attachmentPoints: [],
+}));
+
+function addSlotFromTemplate(template: Partial<ComponentSlotConfig>) {
+  if (!editableFurniture.value?.componentSlots) return;
+  const newSlot = JSON.parse(JSON.stringify(template));
+  editableFurniture.value.componentSlots.push(newSlot);
 }
+
+function handleSlotUpdate({ slotId, update }: { slotId: string, update: SlotUpdateEvent }): void {
+  if (!editableFurniture.value?.componentSlots) return;
+  
+  const slot = editableFurniture.value.componentSlots.find(s => s.slotId === slotId);
+  
+  if (slot) {
+    // A 'ComponentSlotConfig' szó egybeírva, helyesen.
+    // A 'value' típusát a TypeScript a SlotUpdateEvent-ből már tudja.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (slot as any)[update.key as keyof ComponentSlotConfig] = update.value;
+  }
+}
+
+function handleSlotRemove(slotId: string) {
+  if (!editableFurniture.value?.componentSlots) return;
+  const index = editableFurniture.value.componentSlots.findIndex(s => s.slotId === slotId);
+  if (index > -1) {
+    editableFurniture.value.componentSlots.splice(index, 1);
+  }
+}
+
+function saveChanges() {
+  if (editableFurniture.value) {
+    emit('save', editableFurniture.value as FurnitureConfig);
+  }
+}
+
+// Ezt a függvényt a szülő fogja meghívni a ref-en keresztül
+function scrollToSlot(slotId: string) {
+  highlightedSlotId.value = slotId;
+  const targetRef = slotNodeRefs.value[slotId];
+  const targetElement = targetRef && '$el' in targetRef ? targetRef.$el : targetRef;
+  if (targetElement) {
+    (targetElement as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+  setTimeout(() => {
+    highlightedSlotId.value = null;
+  }, 1500);
+}
+
+// Ezt a függvényt a szülőnek kell elérnie, ezért defineExpose
+defineExpose({ scrollToSlot });
+
 </script>
 
 <template>
-  <div class="flex flex-col lg:flex-row gap-8">
-    <!-- Bal oldali oszlop: Bútorlista -->
-    <div class="w-full lg:w-1/3 bg-gray-900 p-4 rounded-lg self-start">
-      <div class="flex justify-end mb-4">
-        <button @click="saveToServer" class="admin-btn">Mentés</button>
+  <div class="admin-panel overflow-y-auto" v-if="editableFurniture">
+    <h3 class="text-xl font-bold mb-6">{{ isNew ? 'Új Bútor Létrehozása' : `Szerkesztés: ${editableFurniture.name}` }}</h3>
+    
+    <div class="grid grid-cols-1 gap-4 mb-8">
+      <div>
+        <label class="admin-label">name</label>
+        <input type="text" v-model="editableFurniture.name" placeholder="Bútor neve..." class="admin-input" />
       </div>
-      <div class="space-y-2 max-h-[70vh] overflow-y-auto">
-        <div v-for="furniture in allFurniture" :key="furniture.id"
-          @click="selectFurniture(furniture)"
-          class="p-2 rounded cursor-pointer hover:bg-gray-700"
-          :class="{ 'bg-blue-600 hover:bg-blue-500': selectedFurniture?.id === furniture.id }">
-          <p class="font-semibold">{{ furniture.name }}</p>
-          <p class="text-xs text-gray-400">{{ furniture.id }}</p>
-        </div>
+      <div>
+        <label class="admin-label">id</label>
+        <input type="text" v-model="editableFurniture.id" placeholder="Automatikus..." class="admin-input" :disabled="!isNew" />
       </div>
-      <button @click="createNewFurniture" class="admin-btn w-full mt-4">Új Bútor</button>
-    </div>
-
-    <!-- Jobb oldali oszlop: Bútor Szerkesztő -->
-    <div class="w-full lg:w-2/3 bg-gray-900 p-6 rounded-lg" v-if="selectedFurniture">
-      <h3 class="text-xl font-bold mb-6">{{ isNewFurniture ? 'Új Bútor' : 'Szerkesztés' }}</h3>
-      
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        <div>
-          <label class="admin-label">name</label>
-          <input type="text" v-model="selectedFurniture.name" placeholder="Bútor neve..." class="admin-input" />
-        </div>
-        <div>
-          <label class="admin-label">id</label>
-          <input type="text" v-model="selectedFurniture.id" placeholder="Automatikus..." class="admin-input" :disabled="!isNewFurniture" />
-        </div>
-        <div>
-          <label class="admin-label">category</label>
-          <input type="text" v-model="selectedFurniture.category" placeholder="pl. bottom_cabinets" class="admin-input" />
-        </div>
-      </div>
-
-      <div class="space-y-6">
-        <div v-for="(slot, index) in selectedFurniture.componentSlots" :key="index" class="bg-gray-800 p-4 rounded-md border border-gray-700">
-          <div class="flex justify-between items-center">
-            <input type="text" v-model="slot.name" placeholder="Slot olvasható neve..." class="admin-input bg-transparent text-lg font-semibold !p-0 !border-0"/>
-            <button @click="removeSlot(index)" class="admin-btn-danger text-xs !py-1 !px-2">Slot Törlése</button>
-          </div>
-          <div class="grid grid-cols-2 gap-4 mt-4">
-            <div>
-              <label class="admin-label">slotId</label>
-              <input type="text" v-model="slot.slotId" placeholder="pl. corpus, front" class="admin-input" />
-            </div>
-            <div>
-              <label class="admin-label">attachToSlot</label>
-              <input type="text" v-model="slot.attachToSlot" placeholder="pl. corpus (üres = gyökér)" class="admin-input" />
-            </div>
-            <div>
-              <label class="admin-label">componentType</label>
-              <select v-model="slot.componentType" class="admin-select">
-                <option v-for="type in componentTypesForSelect" :key="type" :value="type">{{ type }}</option>
-              </select>
-            </div>
-            <div>
-              <label class="admin-label">defaultComponent</label>
-              <select v-if="slot.componentType && storeComponents[slot.componentType]" v-model="slot.defaultComponent" class="admin-select">
-                <option v-for="comp in storeComponents[slot.componentType]" :key="comp.id" :value="comp.id">{{ comp.name }}</option>
-              </select>
-            </div>
-            <div class="col-span-2">
-              <label class="admin-label">allowedComponents</label>
-              <select v-if="slot.componentType && storeComponents[slot.componentType]" multiple v-model="slot.allowedComponents" class="admin-input h-32">
-                <option v-for="comp in storeComponents[slot.componentType]" :key="comp.id" :value="comp.id">{{ comp.name }}</option>
-              </select>
-            </div>
-            
-            <!-- Haladó beállítások: Forgatás és Csatolási Pontok -->
-            <div class="col-span-2 grid grid-cols-1 gap-4 mt-4">
-              <div v-if="slot.rotation" class="bg-gray-900 p-3 rounded">
-                <label class="admin-label mb-2">rotation</label>
-                <div class="flex items-center gap-x-4">
-                  <span class="font-mono text-lg text-center">X</span>
-                  <div class="flex gap-1">
-                    <button @click="setRotation('x', -90, slot)" class="admin-btn-secondary !px-2 !py-1 text-xs" :class="{'!bg-blue-600 text-white': Math.abs(slot.rotation.x + PI_HALF) < 0.001}">-90°</button>
-                    <button @click="setRotation('x', 0, slot)" class="admin-btn-secondary !px-2 !py-1 text-xs" :class="{'!bg-blue-600 text-white': Math.abs(slot.rotation.x) < 0.001}">0°</button>
-                    <button @click="setRotation('x', 90, slot)" class="admin-btn-secondary !px-2 !py-1 text-xs" :class="{'!bg-blue-600 text-white': Math.abs(slot.rotation.x - PI_HALF) < 0.001}">+90°</button>
-                  </div>
-                  <span class="font-mono text-lg text-center">Y</span>
-                  <div class="flex gap-1">
-                    <button @click="setRotation('y', -90, slot)" class="admin-btn-secondary !px-2 !py-1 text-xs" :class="{'!bg-blue-600 text-white': Math.abs(slot.rotation.y + PI_HALF) < 0.001}">-90°</button>
-                    <button @click="setRotation('y', 0, slot)" class="admin-btn-secondary !px-2 !py-1 text-xs" :class="{'!bg-blue-600 text-white': Math.abs(slot.rotation.y) < 0.001}">0°</button>
-                    <button @click="setRotation('y', 90, slot)" class="admin-btn-secondary !px-2 !py-1 text-xs" :class="{'!bg-blue-600 text-white': Math.abs(slot.rotation.y - PI_HALF) < 0.001}">+90°</button>
-                  </div>
-                  <span class="font-mono text-lg text-center">Z</span>
-                  <div class="flex gap-1">
-                    <button @click="setRotation('z', -90, slot)" class="admin-btn-secondary !px-2 !py-1 text-xs" :class="{'!bg-blue-600 text-white': Math.abs(slot.rotation.z + PI_HALF) < 0.001}">-90°</button>
-                    <button @click="setRotation('z', 0, slot)" class="admin-btn-secondary !px-2 !py-1 text-xs" :class="{'!bg-blue-600 text-white': Math.abs(slot.rotation.z) < 0.001}">0°</button>
-                    <button @click="setRotation('z', 90, slot)" class="admin-btn-secondary !px-2 !py-1 text-xs" :class="{'!bg-blue-600 text-white': Math.abs(slot.rotation.z - PI_HALF) < 0.001}">+90°</button>
-                  </div>
-                </div>
-              </div>
-              
-              <div v-if="slot.attachmentPoints && typeof slot.attachmentPoints === 'object'" class="bg-gray-900 p-3 rounded">
-                <label class="admin-label">attachmentPoints</label>
-                <input v-if="'self' in slot.attachmentPoints" type="text" v-model="slot.attachmentPoints.self" placeholder="attach_pont_neve" class="admin-input" list="attachment-points-list"/>
-                <datalist id="attachment-points-list">
-                  <option v-for="point in attachmentPointSuggestions" :key="point" :value="point" />
-                </datalist>
-              </div>
-            </div>
-          </div> <!-- JAVÍTÁS: EZ VOLT A HIÁNYZÓ LEZÁRÓ DIV -->
-        </div>
-      </div>
-      
-      <button @click="addSlot" class="admin-btn-secondary w-full mt-6">Új Slot Hozzáadása</button>
-
-      <div class="flex justify-end gap-4 mt-8 pt-6 border-t border-gray-700">
-        <button @click="selectedFurniture = null" class="admin-btn-secondary">Mégse</button>
-        <button @click="saveFurniture" class="admin-btn">Változások Alkalmazása</button>
+      <div>
+        <label class="admin-label">category</label>
+        <input type="text" v-model="editableFurniture.category" placeholder="pl. bottom_cabinets" class="admin-input" />
       </div>
     </div>
+
+    <div class="mb-6 p-4 bg-gray-800 rounded-lg">
+      <h4 class="font-semibold mb-2 text-gray-300">Új Slot Hozzáadása</h4>
+      <div class="flex flex-wrap gap-2">
+        <button v-for="(template, key) in slotTemplates" :key="key" @click="addSlotFromTemplate(template)" class="admin-btn-secondary text-sm">
+          + {{ template.name }}
+        </button>
+      </div>
+    </div>
+
+    <div class="space-y-4">
+      <p v-if="!hierarchicalSlots || hierarchicalSlots.length === 0" class="text-center text-gray-500 py-4">Nincsenek slotok. Adj hozzá egyet a sablonok közül!</p>
+      <SlotNode 
+        v-for="slot in hierarchicalSlots" 
+        :key="slot.slotId"
+        :node="slot"
+        :suggestions="suggestions"
+        :highlighted-slot-id="highlightedSlotId"
+        :ref="(el) => setSlotNodeRef(el, slot.slotId)"
+        @update:slot="handleSlotUpdate({ slotId: slot.slotId, update: $event })"
+        @remove:slot="handleSlotRemove(slot.slotId)"
+      />
+    </div>
+    
+    <div class="flex justify-end gap-4 mt-8 pt-6 border-t border-gray-700">
+      <button @click="emit('cancel')" class="admin-btn-secondary">Mégse</button>
+      <button @click="saveChanges" class="admin-btn">Változások Alkalmazása</button>
+    </div>
+  </div>
+  
+  <div class="admin-panel flex items-center justify-center text-gray-500" v-else>
+    <p>Válassz ki egy bútort a szerkesztéshez, vagy hozz létre egy újat.</p>
   </div>
 </template>

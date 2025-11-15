@@ -1,41 +1,55 @@
+// src/three/Managers/AssetManager.ts
 import { Mesh, Group, TextureLoader, Texture, Object3D, SRGBColorSpace, RepeatWrapping, Vector3, Box3, MeshStandardMaterial } from 'three';
 import { GLTFLoader } from 'three-stdlib';
-import Experience from '../Experience';
 import type { ComponentConfig, FurnitureConfig, ComponentSlotConfig } from '@/config/furniture';
+// JAVÍTÁS: Közvetlen importok a többi singletonból
+import ConfigManager from './ConfigManager';
+import DebugManager from './DebugManager';
+
+// Singleton minta
+let instance: AssetManager | null = null;
 
 export default class AssetManager {
   private textureLoader: TextureLoader;
   private textureCache: Map<string, Texture> = new Map();
   private modelCache: Map<string, Group> = new Map();
   private loader = new GLTFLoader();
+  
+  // JAVÍTÁS: A DebugManager-t is singletonként érjük el
+  private debugManager = DebugManager.getInstance();
 
-  constructor(private experience: Experience) {
+  // JAVÍTÁS: A konstruktor privát és független
+  private constructor() {
     this.textureLoader = new TextureLoader();
   }
 
-  /**
-   * Az új, központi bútorépítő függvény.
-   */
+  // Statikus metódus a példány elérésére
+  public static getInstance(): AssetManager {
+    if (!instance) {
+      instance = new AssetManager();
+    }
+    return instance;
+  }
+
   public async buildFurnitureFromConfig(
-  config: FurnitureConfig,
-  componentState: Record<string, string>,
-  propertyState: Record<string, Record<string, string | number | boolean>> = {}
-): Promise<Group> {
-  const furnitureProxy = new Group();
-  furnitureProxy.name = `proxy_${config.id}`;
+    config: FurnitureConfig,
+    componentState: Record<string, string>,
+    propertyState: Record<string, Record<string, string | number | boolean>> = {}
+  ): Promise<Group> {
+    const furnitureProxy = new Group();
+    furnitureProxy.name = `proxy_${config.id}`;
     
-    // =================================================================
-    // === 1. FÁZIS: MINDEN MODELL BETÖLTÉSE ===========================
-    // =================================================================
     const loadedComponents: Map<string, { model: Group, config: ComponentConfig, slot: ComponentSlotConfig }> = new Map();
     
     const loadPromises = config.componentSlots.map(async (slot) => {
       const componentId = componentState[slot.slotId];
       if (!componentId) return;
 
-      const componentConfig = this.experience.configManager.getComponentById(componentId);
+      // JAVÍTÁS: A ConfigManager singleton használata
+      const componentConfig = ConfigManager.getComponentById(componentId);
       if (!componentConfig) {
-        this.experience.debugManager.logConfigNotFound('Komponens', componentId);
+        // JAVÍTÁS: A DebugManager singleton használata
+        this.debugManager.logConfigNotFound('Komponens', componentId);
         return;
       }
 
@@ -48,13 +62,9 @@ export default class AssetManager {
 
     await Promise.all(loadPromises);
 
-    // =================================================================
-    // === 2. FÁZIS: HIERARCHIA ÖSSZEÉPÍTÉSE A MEMÓRIÁBAN ==============
-    // =================================================================
     loadedComponents.forEach((childData) => {
       const { model: childModel, slot: childSlot, config: childConfig } = childData;
 
-      // Ha a slotnak van szülője, csatlakoztatjuk
       if (childSlot.attachToSlot) {
         const parentData = loadedComponents.get(childSlot.attachToSlot);
         if (parentData) {
@@ -62,10 +72,11 @@ export default class AssetManager {
           const attachmentPointsData = childConfig.attachmentPoints || childSlot.attachmentPoints;
           if (!attachmentPointsData) return;
 
-          const attachmentPoints = attachmentPointsData.multiple || [attachmentPointsData.self];
+          const attachmentPoints = 'multiple' in attachmentPointsData && attachmentPointsData.multiple ? attachmentPointsData.multiple : ('self' in attachmentPointsData ? [attachmentPointsData.self] : []);
           
           for (const pointName of attachmentPoints) {
-            const attachmentDummy = parentModel.getObjectByName(pointName as string);
+            if (!pointName) continue;
+            const attachmentDummy = parentModel.getObjectByName(pointName);
             if (attachmentDummy) {
               const instance = attachmentPoints.length > 1 ? childModel.clone() : childModel;
               instance.position.copy(attachmentDummy.position);
@@ -75,10 +86,11 @@ export default class AssetManager {
                 instance.rotation.y += childSlot.rotation.y;
                 instance.rotation.z += childSlot.rotation.z;
               }
-              parentModel.add(instance); // <-- A SZÜLŐ MODELLHEZ ADJUK HOZZÁ
+              parentModel.add(instance);
             } else {
-              this.experience.debugManager.logAttachmentPointNotFound(
-                pointName as string,
+              // JAVÍTÁS: A DebugManager singleton használata
+              this.debugManager.logAttachmentPointNotFound(
+                pointName,
                 parentConfig.name,
                 childConfig.name
               );
@@ -88,9 +100,6 @@ export default class AssetManager {
       }
     });
 
-    // =================================================================
-    // === 3. FÁZIS: GYÖKÉR MEGKERESÉSE ÉS VÉGLEGESÍTÉS ===============
-    // =================================================================
     let rootNode: Group | null = null;
     loadedComponents.forEach((data) => {
       if (!data.slot.attachToSlot) {
@@ -111,27 +120,20 @@ export default class AssetManager {
     furnitureProxy.children.forEach(child => child.position.sub(center));
     furnitureProxy.position.copy(center);
 
-    // =================================================================
-    // === ÚJ LOGIKA: BÚTOR MEGEMELÉSE A LÁB MAGASSÁGÁVAL =============
-    // =================================================================
     let legHeight = 0;
     const legComponentId = componentState['leg'];
     if (legComponentId) {
-      const legConfig = this.experience.configManager.getComponentById(legComponentId);
+      // JAVÍTÁS: A ConfigManager singleton használata
+      const legConfig = ConfigManager.getComponentById(legComponentId);
       legHeight = legConfig?.height || 0;
     }
     furnitureProxy.position.y += legHeight;
-    // =================================================================
 
-    // =================================================================
-    // === A USERDATA "STERILIZÁLÁSA" A LÉTREHOZÁSKOR ==========
-    // =================================================================
     furnitureProxy.userData = {
-      config: config, // A config egy statikus objektum, nem kell másolni
-      // A JSON trükk garantálja, hogy egy tiszta, nem reaktív másolatot hozunk létre
+      config: config,
       componentState: JSON.parse(JSON.stringify(componentState)),
       propertyState: JSON.parse(JSON.stringify(propertyState)),
-      materialState: {}, // Mindig üresen indul
+      materialState: {},
     };
     
     return furnitureProxy;
@@ -144,19 +146,12 @@ export default class AssetManager {
     
     try {
       const gltf = await this.loader.loadAsync(url);
-      
-      // =================================================================
-      // === VISSZAEGYSZERŰSÍTETT "KICSOMAGOLÓ" LOGIKA ===================
-      // =================================================================
-      // Feltételezzük, hogy a GLB fájl már egy lapos hierarchiát tartalmaz.
       const modelContent = new Group();
       
-      // Áthelyezzük a betöltött jelenet összes gyerekét ebbe az új, tiszta Group-ba.
       for (const child of [...gltf.scene.children]) {
         modelContent.add(child);
       }
       
-      // Általános beállítások
       modelContent.traverse((child: Object3D) => {
         if (child instanceof Mesh) {
           child.castShadow = true;
@@ -171,7 +166,8 @@ export default class AssetManager {
       return modelContent.clone(true);
 
     } catch (error) {
-      this.experience.debugManager.logModelLoadError(url, error);
+      // JAVÍTÁS: A DebugManager singleton használata
+      this.debugManager.logModelLoadError(url, error);
       throw new Error(`Modell betöltése sikertelen: ${url}`);
     }
   }

@@ -41,7 +41,15 @@ onMounted(async () => {
 
 watch(() => selectedComponent.value?.name, (newName) => {
   if (isNewComponent.value && selectedComponent.value && newName && selectedType.value) {
-    const normalizedName = newName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, '_').replace(/[^\w-]+/g, '');
+    // JAVÍTÁS: A .replace(/.../) helyett a new RegExp() konstruktort használjuk
+    const diacritics = new RegExp('[\\u0300-\\u036f]', 'g');
+    const normalizedName = newName
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(diacritics, "") // Az ékezetek eltávolítása a biztonságos módon
+      .replace(/\s+/g, '_')
+      .replace(/[^\w-]+/g, '');
+      
     selectedComponent.value.id = `${selectedType.value}_${normalizedName}`;
     selectedComponent.value.model = `/models/${selectedType.value}/${selectedComponent.value.id}.glb`;
   }
