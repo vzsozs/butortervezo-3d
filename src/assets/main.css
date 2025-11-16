@@ -2,6 +2,38 @@
 @tailwind components;
 @tailwind utilities;
 
+
+/* === EGYEDI GÖRGETŐSÁV STÍLUSOK === */
+/* A legtöbb modern böngészőhöz (Chrome, Safari, Edge, Opera) */
+::-webkit-scrollbar {
+  width: 8px; /* A görgetősáv szélessége */
+  height: 8px; /* Vízszintes görgetősáv magassága (ha lenne) */
+}
+
+/* A görgetősáv "sínje", amin a csúszka mozog */
+::-webkit-scrollbar-track {
+  background: transparent; /* Legyen láthatatlan */
+}
+
+/* Maga a csúszka */
+::-webkit-scrollbar-thumb {
+  background-color: #4a5568; /* Egy sötétszürke szín (Tailwind gray-700) */
+  border-radius: 10px; /* Lekerekített sarkok */
+  border: 2px solid transparent; /* Opcionális: belső "keret" */
+  background-clip: content-box; /* Ez biztosítja, hogy a border átlátszó legyen */
+}
+
+/* A csúszka, amikor ráviszed az egeret */
+::-webkit-scrollbar-thumb:hover {
+  background-color: #718096; /* Egy világosabb szürke (Tailwind gray-500) */
+}
+
+/* Firefox-hoz (kicsit más a szintaxis) */
+* {
+  scrollbar-width: thin; /* 'auto', 'thin', vagy 'none' */
+  scrollbar-color: #4a5568 transparent; /* "csúszka színe" "sín színe" */
+}
+
 @layer components {
   .custom-select-wrapper {
     @apply relative grid; /* Létrehozunk egy grid konténert */

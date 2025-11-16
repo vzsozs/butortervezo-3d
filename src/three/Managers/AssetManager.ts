@@ -36,6 +36,7 @@ export default class AssetManager {
     componentState: Record<string, string>,
     propertyState: Record<string, Record<string, string | number | boolean>> = {}
   ): Promise<Group> {
+    console.log('%c[AssetManager] Bútor építése elkezdődött:', 'color: blue', { config, componentState });
     const furnitureProxy = new Group();
     furnitureProxy.name = `proxy_${config.id}`;
     
@@ -54,6 +55,7 @@ export default class AssetManager {
       }
 
       const modelUrl = componentConfig.model;
+      console.log(`[AssetManager] Modell betöltése a(z) '${slot.slotId}' slothoz: ${modelUrl}`);
       const componentModel = await this.loadModel(modelUrl);
       
       componentModel.name = slot.slotId;
@@ -61,21 +63,37 @@ export default class AssetManager {
     });
 
     await Promise.all(loadPromises);
+    console.log('[AssetManager] Minden modell betöltve. Betöltött komponensek:', loadedComponents);
 
+    console.log('[AssetManager] Összeszerelés megkezdése...');
     loadedComponents.forEach((childData) => {
       const { model: childModel, slot: childSlot, config: childConfig } = childData;
 
       if (childSlot.attachToSlot) {
+        console.log(`[AssetManager] Gyerek elem feldolgozása: '${childSlot.slotId}'. Szülő keresése: '${childSlot.attachToSlot}'`);
         const parentData = loadedComponents.get(childSlot.attachToSlot);
         if (parentData) {
+          console.log(`[AssetManager] Szülő ('${childSlot.attachToSlot}') megtalálva.`);
           const { model: parentModel, config: parentConfig } = parentData;
+
+          // --- DIAGNOSZTIKAI LOG ---
+          // Listázzuk ki a szülő modell összes belső objektumának a nevét
+          const childNames: string[] = [];
+          parentModel.traverse(child => childNames.push(child.name));
+          console.log(`[AssetManager] A(z) '${parentConfig.name}' szülő modell belső objektumai:`, childNames);
+          // --- DIAGNOSZTIKA VÉGE ---
+          
           const attachmentPointsData = childConfig.attachmentPoints || childSlot.attachmentPoints;
           if (!attachmentPointsData) return;
+          console.warn(`[AssetManager] FIGYELMEZTETÉS: A(z) '${childSlot.slotId}' elemnek nincs attachmentPoints adata! Csatolás kihagyva.`);
 
           const attachmentPoints = 'multiple' in attachmentPointsData && attachmentPointsData.multiple ? attachmentPointsData.multiple : ('self' in attachmentPointsData ? [attachmentPointsData.self] : []);
+
+          console.log(`[AssetManager] Csatolási pont(ok) keresése a(z) '${childSlot.slotId}' elemhez:`, attachmentPoints);
           
           for (const pointName of attachmentPoints) {
             if (!pointName) continue;
+            console.log(`[AssetManager] Dummy objektum keresése a szülőn: '${pointName}'`);
             const attachmentDummy = parentModel.getObjectByName(pointName);
             if (attachmentDummy) {
               const instance = attachmentPoints.length > 1 ? childModel.clone() : childModel;
@@ -88,7 +106,7 @@ export default class AssetManager {
               }
               parentModel.add(instance);
             } else {
-              // JAVÍTÁS: A DebugManager singleton használata
+              console.error(`[AssetManager] HIBA: A(z) '${pointName}' nevű dummy objektum nem található a(z) '${parentConfig.name}' modellen!`);
               this.debugManager.logAttachmentPointNotFound(
                 pointName,
                 parentConfig.name,
@@ -97,18 +115,25 @@ export default class AssetManager {
             }
           }
         }
+        else {
+        console.error(`[AssetManager] HIBA: A(z) '${childSlot.attachToSlot}' nevű szülő slot nem lett betöltve!`);
+        }
       }
     });
+
+    console.log('[AssetManager] Gyökér elem keresése...');
 
     let rootNode: Group | null = null;
     loadedComponents.forEach((data) => {
       if (!data.slot.attachToSlot) {
+        console.log(`[AssetManager] Gyökér elem megtalálva: '${data.slot.slotId}'`);
         rootNode = data.model;
       }
     });
 
     if (rootNode) {
       furnitureProxy.add(rootNode);
+      console.log('[AssetManager] Gyökér elem hozzáadva a végső objektumhoz.');
     } else {
       console.error("Hiba: Nem található gyökér elem!");
     }
@@ -135,7 +160,8 @@ export default class AssetManager {
       propertyState: JSON.parse(JSON.stringify(propertyState)),
       materialState: {},
     };
-    
+
+    console.log('%c[AssetManager] Bútor építése befejeződött.', 'color: blue', furnitureProxy);
     return furnitureProxy;
   }
 

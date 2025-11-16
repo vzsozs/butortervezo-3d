@@ -1,14 +1,15 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { computed, ref, onMounted } from 'vue'; // onMounted visszakerül
 import type { FurnitureConfig } from '@/config/furniture';
 import AdminPreviewCanvas from './AdminPreviewCanvas.vue';
+import CollapsibleCategory from './CollapsibleCategory.vue';
 
-// JAVÍTÁS: A prop neve 'selectedFurniture', és a típusa Partial<...>
 const props = defineProps<{
+  furnitureList: FurnitureConfig[];
   selectedFurniture: Partial<FurnitureConfig> | null;
+  updateTrigger: number; // <-- ÚJ PROP
 }>();
 
-// EMITS: Jelzi a szülőnek, ha a user új bútort választ, vagy ha a 3D-ben kattint
 const emit = defineEmits<{
   (e: 'update:selectedFurniture', value: FurnitureConfig | null): void;
   (e: 'createNew'): void;
@@ -16,85 +17,92 @@ const emit = defineEmits<{
   (e: 'slot-clicked', slotId: string): void;
 }>();
 
-const allFurniture = ref<FurnitureConfig[]>([]);
 const searchQuery = ref('');
+const previewCanvasRef = ref<{ updateCanvas: (config: any) => void } | null>(null);
 
-// A bútorlista most már a kereső alapján szűrődik
-const filteredFurniture = computed(() => {
-  if (!searchQuery.value) {
-    return allFurniture.value;
+function forcePreviewUpdate() {
+  previewCanvasRef.value?.updateCanvas(props.selectedFurniture);
+}
+
+onMounted(() => {
+  previewCanvasRef.value?.updateCanvas(props.selectedFurniture);
+});
+
+const categorizedFurniture = computed(() => {
+  const list = props.furnitureList || [];
+  const filtered = searchQuery.value
+    ? list.filter(f => 
+        f.name.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+        f.id.toLowerCase().includes(searchQuery.value.toLowerCase())
+      )
+    : list;
+
+  const categories: Record<string, FurnitureConfig[]> = {};
+  for (const furniture of filtered) {
+    const category = furniture.category || 'Uncategorized';
+    if (!categories[category]) {
+      categories[category] = [];
+    }
+    categories[category].push(furniture);
   }
-  return allFurniture.value.filter(f => 
-    f.name.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-    f.id.toLowerCase().includes(searchQuery.value.toLowerCase())
-  );
+  return categories;
 });
 
-onMounted(async () => {
-  try {
-    const response = await fetch('/database/furniture.json');
-    if (!response.ok) throw new Error('A furniture.json betöltése sikertelen.');
-    allFurniture.value = await response.json();
-  } catch (error) { console.error(error); }
-});
-
-// Ha a user egy bútorra kattint, jelezzük a szülőnek az 'emit' segítségével
 function selectFurniture(furniture: FurnitureConfig) {
   emit('update:selectedFurniture', furniture);
 }
-
 </script>
 
 <template>
-  <!-- Az admin-panel egy új, általános stílusosztály lesz -->
-  <div class="admin-panel flex flex-col gap-4">
+  <div class="admin-panel flex flex-col p-4 max-h-[calc(100vh-4rem)]">
     
-    <!-- JAVÍTÁS: Új gomb-elrendezés a tetején -->
+    <!-- FELSŐ SZEKCIÓ (nem görgetődik) -->
     <div class="flex-shrink-0">
-      <!-- A grid 2 oszlopra osztja a helyet a gomboknak -->
       <div class="grid grid-cols-2 gap-2">
         <button @click="emit('createNew')" class="admin-btn">Új Bútor</button>
-        <button @click="emit('saveToServer')" class="admin-btn bg-red-600 hover:bg-red-700">
-          Mentés
-        </button>
+        <button @click="emit('saveToServer')" class="admin-btn bg-red-600 hover:bg-red-700">Mentés</button>
       </div>
-    </div>
-
-    <!-- 3D Előnézet (fix magassággal) -->
-    <div class="flex-shrink-0">
-      <h2 class="section-header">3D Preview</h2>
-      <div class="bg-gray-900 p-1 rounded-lg h-64">
-        <AdminPreviewCanvas 
-          v-if="props.selectedFurniture"
-          :furniture-config="props.selectedFurniture"
-          @slot-clicked="emit('slot-clicked', $event)"
-        />
-        <div v-else class="w-full h-full flex items-center justify-center text-gray-500 text-sm">
-          <p>Válassz ki egy bútort.</p>
+      <div class="mt-4">
+        <h2 class="section-header">3D Preview</h2>
+        <div class="bg-gray-900 p-1 rounded-lg h-64">
+          <AdminPreviewCanvas 
+            ref="previewCanvasRef"
+            v-if="props.selectedFurniture"
+            :key="props.updateTrigger" 
+            :furniture-config="props.selectedFurniture"
+            @slot-clicked="emit('slot-clicked', $event)"
+          />
+          <div v-else class="w-full h-full flex items-center justify-center text-gray-500 text-sm">
+            <p>Válassz ki egy bútort.</p>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- Bútorok Lista (kitölti a maradék helyet és görgethető) -->
-    <div class="flex-shrink-0 flex-1 flex flex-col min-h-0">
-      <h2 class="section-header">Bútorok</h2>
-      <div class="flex flex-col gap-2">
-        <input 
-          type="text" 
-          v-model="searchQuery" 
-          placeholder="Keresés név vagy ID alapján..." 
-          class="admin-input w-full mb-2"
-        />
-      </div>
-      
-      <div class="space-y-2 overflow-y-auto mt-4">
-        <div v-for="furniture in filteredFurniture" :key="furniture.id"
-          @click="selectFurniture(furniture)"
-          class="p-2 rounded cursor-pointer hover:bg-gray-700 border-2"
-          :class="[props.selectedFurniture?.id === furniture.id ? 'bg-blue-600/30 border-blue-500' : 'bg-gray-800 border-transparent']">
-          <p class="font-semibold text-sm">{{ furniture.name }}</p>
-          <p class="text-xs text-gray-400">{{ furniture.id }}</p>
-        </div>
+    <!-- ALSÓ SZEKCIÓ (görgetődik) -->
+    <div class="flex-1 min-h-0 flex flex-col mt-4">
+      <h2 class="section-header flex-shrink-0">Bútorok</h2>
+      <input 
+        type="text" 
+        v-model="searchQuery" 
+        placeholder="Keresés..." 
+        class="admin-input w-full mb-2 flex-shrink-0"
+      />
+      <div class="overflow-y-auto space-y-2">
+        <CollapsibleCategory 
+          v-for="(items, categoryName) in categorizedFurniture" 
+          :key="categoryName"
+          :title="categoryName.toString().replace(/_/g, ' ')"
+          start-open
+        >
+          <div v-for="furniture in items" :key="furniture.id"
+            @click="selectFurniture(furniture)"
+            class="p-2 rounded cursor-pointer hover:bg-gray-700 border-2"
+            :class="[props.selectedFurniture?.id === furniture.id ? 'bg-blue-600/30 border-blue-500' : 'bg-gray-800 border-transparent']">
+            <p class="font-semibold text-sm">{{ furniture.name }}</p>
+            <p class="text-xs text-gray-400">{{ furniture.id }}</p>
+          </div>
+        </CollapsibleCategory>
       </div>
     </div>
   </div>

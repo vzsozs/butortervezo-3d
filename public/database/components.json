@@ -6,11 +6,6 @@
       "model": "/models/corpus/corpus_bottom_60.glb",
       "materialTarget": "MAT_Korpusz",
       "price": 45000
-    },
-    {
-      "id": "corpus_bottom_15",
-      "name": "Alsó korpusz (15cm)",
-      "model": "/models/corpus/corpus_bottom_15.glb"
     }
   ],
   "fronts": [
@@ -19,6 +14,7 @@
       "name": "Sima Front",
       "model": "/models/fronts/front_bottom_sima_60_L.glb",
       "materialTarget": "MAT_Frontok",
+      "attachmentPoints":  { "self": "attach_front" },
       "price": 20000
     },
     {
@@ -26,12 +22,8 @@
       "name": "Keretes Front",
       "model": "/models/fronts/front_bottom_keretes_60_L.glb",
       "materialTarget": "MAT_Frontok",
+      "attachmentPoints":  { "self": "attach_front" },
       "price": 30000
-    },
-    {
-      "id": "front_bottom_sima_15",
-      "name": "Sima Front (15cm)",
-      "model": "/models/fronts/front_bottom_sima_15_L.glb"
     }
   ],
   "handles": [
@@ -40,6 +32,7 @@
       "name": "Standard Fogantyú",
       "model": "/models/handles/handle_standard.glb",
       "materialTarget": "MAT_Fem_Kiegeszitok",
+      "attachmentPoints": { "self": "attach_handle_vertical" },
       "price": 3000
     },
     {
@@ -47,6 +40,7 @@
       "name": "Design Fogantyú",
       "model": "/models/handles/handle_design.glb",
       "materialTarget": "MAT_Fem_Kiegeszitok",
+      "attachmentPoints": { "self": "attach_handle_vertical" },
       "price": 5000
     }
   ],

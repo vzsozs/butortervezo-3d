@@ -97,21 +97,24 @@ function setRotation(axis: 'x' | 'y' | 'z', degrees: number) {
         <div class="flex items-center gap-x-4 flex-wrap">
           <span class="font-mono text-lg text-center">X</span>
           <div class="flex gap-1">
-            <button @click="setRotation('x', -90)" class="admin-btn-secondary !px-2 !py-1 text-xs" :class="{'!bg-blue-600 text-white': node.rotation && Math.abs(node.rotation.x + PI_HALF) < 0.001}">-90°</button>
-            <button @click="setRotation('x', 0)" class="admin-btn-secondary !px-2 !py-1 text-xs" :class="{'!bg-blue-600 text-white': !node.rotation || Math.abs(node.rotation.x) < 0.001}">0°</button>
-            <button @click="setRotation('x', 90)" class="admin-btn-secondary !px-2 !py-1 text-xs" :class="{'!bg-blue-600 text-white': node.rotation && Math.abs(node.rotation.x - PI_HALF) < 0.001}">+90°</button>
+            <!-- JAVÍTÁS: -PI_HALF -->
+            <button @click="setRotation('x', -90)" class="admin-btn-secondary !px-2 !py-1 text-xs" :class="{'!bg-blue-600 text-white': node.rotation && node.rotation.x.toFixed(4) === (-PI_HALF).toFixed(4)}">-90°</button>
+            <button @click="setRotation('x', 0)" class="admin-btn-secondary !px-2 !py-1 text-xs" :class="{'!bg-blue-600 text-white': !node.rotation || node.rotation.x.toFixed(4) === (0.0).toFixed(4)}">0°</button>
+            <button @click="setRotation('x', 90)" class="admin-btn-secondary !px-2 !py-1 text-xs" :class="{'!bg-blue-600 text-white': node.rotation && node.rotation.x.toFixed(4) === PI_HALF.toFixed(4)}">+90°</button>
           </div>
           <span class="font-mono text-lg text-center">Y</span>
           <div class="flex gap-1">
-            <button @click="setRotation('y', -90)" class="admin-btn-secondary !px-2 !py-1 text-xs" :class="{'!bg-blue-600 text-white': node.rotation && Math.abs(node.rotation.y + PI_HALF) < 0.001}">-90°</button>
-            <button @click="setRotation('y', 0)" class="admin-btn-secondary !px-2 !py-1 text-xs" :class="{'!bg-blue-600 text-white': !node.rotation || Math.abs(node.rotation.y) < 0.001}">0°</button>
-            <button @click="setRotation('y', 90)" class="admin-btn-secondary !px-2 !py-1 text-xs" :class="{'!bg-blue-600 text-white': node.rotation && Math.abs(node.rotation.y - PI_HALF) < 0.001}">+90°</button>
+            <!-- JAVÍTÁS: -PI_HALF -->
+            <button @click="setRotation('y', -90)" class="admin-btn-secondary !px-2 !py-1 text-xs" :class="{'!bg-blue-600 text-white': node.rotation && node.rotation.y.toFixed(4) === (-PI_HALF).toFixed(4)}">-90°</button>
+            <button @click="setRotation('y', 0)" class="admin-btn-secondary !px-2 !py-1 text-xs" :class="{'!bg-blue-600 text-white': !node.rotation || node.rotation.y.toFixed(4) === (0.0).toFixed(4)}">0°</button>
+            <button @click="setRotation('y', 90)" class="admin-btn-secondary !px-2 !py-1 text-xs" :class="{'!bg-blue-600 text-white': node.rotation && node.rotation.y.toFixed(4) === PI_HALF.toFixed(4)}">+90°</button>
           </div>
           <span class="font-mono text-lg text-center">Z</span>
           <div class="flex gap-1">
-            <button @click="setRotation('z', -90)" class="admin-btn-secondary !px-2 !py-1 text-xs" :class="{'!bg-blue-600 text-white': node.rotation && Math.abs(node.rotation.z + PI_HALF) < 0.001}">-90°</button>
-            <button @click="setRotation('z', 0)" class="admin-btn-secondary !px-2 !py-1 text-xs" :class="{'!bg-blue-600 text-white': !node.rotation || Math.abs(node.rotation.z) < 0.001}">0°</button>
-            <button @click="setRotation('z', 90)" class="admin-btn-secondary !px-2 !py-1 text-xs" :class="{'!bg-blue-600 text-white': node.rotation && Math.abs(node.rotation.z - PI_HALF) < 0.001}">+90°</button>
+            <!-- JAVÍTÁS: -PI_HALF -->
+            <button @click="setRotation('z', -90)" class="admin-btn-secondary !px-2 !py-1 text-xs" :class="{'!bg-blue-600 text-white': node.rotation && node.rotation.z.toFixed(4) === (-PI_HALF).toFixed(4)}">-90°</button>
+            <button @click="setRotation('z', 0)" class="admin-btn-secondary !px-2 !py-1 text-xs" :class="{'!bg-blue-600 text-white': !node.rotation || node.rotation.z.toFixed(4) === (0.0).toFixed(4)}">0°</button>
+            <button @click="setRotation('z', 90)" class="admin-btn-secondary !px-2 !py-1 text-xs" :class="{'!bg-blue-600 text-white': node.rotation && node.rotation.z.toFixed(4) === PI_HALF.toFixed(4)}">+90°</button>
           </div>
         </div>
       </div>

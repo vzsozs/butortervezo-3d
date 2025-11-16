@@ -5,25 +5,19 @@ import type { FurnitureConfig, ComponentSlotConfig } from '@/config/furniture';
 import { useConfigStore } from '@/stores/config';
 import SlotNode from './SlotNode.vue';
 
-type SlotUpdateEvent = {
-  key: keyof ComponentSlotConfig;
-  value: ComponentSlotConfig[keyof ComponentSlotConfig];
-};
-
 // PROPS: Megkapja a szülőtől a szerkesztendő bútort és azt, hogy új-e.
 const props = defineProps<{
   furniture: Partial<FurnitureConfig> | null;
   isNew: boolean;
 }>();
 
-// EMITS: Jelzi a szülőnek, ha menteni vagy megszakítani kell a műveletet.
 const emit = defineEmits<{
   (e: 'save', value: FurnitureConfig): void;
   (e: 'cancel'): void;
+  (e: 'preview-updated', payload: Partial<FurnitureConfig>): void; // <-- MÓDOSÍTVA
 }>();
-
 const configStore = useConfigStore();
-const { components: storeComponents } = storeToRefs(configStore);
+const { components: storeComponents } = storeToRefs(configStore); // Használjuk a store-t
 
 // A szerkesztéshez egy helyi, módosítható másolatot használunk a prop helyett.
 const editableFurniture = ref<Partial<FurnitureConfig> | null>(null);
@@ -57,10 +51,10 @@ const setSlotNodeRef = (el: ComponentPublicInstance | Element | null, slotId: st
 };
 
 const slotTemplates: Record<string, Partial<ComponentSlotConfig>> = {
-  corpus: { slotId: 'corpus', name: 'Korpusz', componentType: 'corpuses', attachToSlot: '' },
-  front: { slotId: 'front', name: 'Front', componentType: 'fronts', attachToSlot: 'corpus' },
-  handle: { slotId: 'handle', name: 'Fogantyú', componentType: 'handles', attachToSlot: 'front' },
-  leg: { slotId: 'leg', name: 'Láb', componentType: 'legs', attachToSlot: 'corpus' },
+  corpus: { slotId: 'corpus', name: 'Korpusz', componentType: 'corpuses', attachToSlot: '', allowedComponents: [], defaultComponent: '' },
+  front: { slotId: 'front', name: 'Front', componentType: 'fronts', attachToSlot: 'corpus', allowedComponents: [], defaultComponent: '' },
+  handle: { slotId: 'handle', name: 'Fogantyú', componentType: 'handles', attachToSlot: 'front', allowedComponents: [], defaultComponent: '' },
+  leg: { slotId: 'leg', name: 'Láb', componentType: 'legs', attachToSlot: 'corpus', allowedComponents: [], defaultComponent: '' },
 };
 
 const hierarchicalSlots = computed(() => {
@@ -89,18 +83,50 @@ function addSlotFromTemplate(template: Partial<ComponentSlotConfig>) {
   if (!editableFurniture.value?.componentSlots) return;
   const newSlot = JSON.parse(JSON.stringify(template));
   editableFurniture.value.componentSlots.push(newSlot);
+  
+  console.log('%c[FurnitureEditor] 1. Slot hozzáadva, esemény küldése a friss bútorral.', 'color: #FFD700;', JSON.parse(JSON.stringify(editableFurniture.value)));
+  emit('preview-updated', editableFurniture.value);
 }
 
-function handleSlotUpdate({ slotId, update }: { slotId: string, update: SlotUpdateEvent }): void {
+// A SlotUpdateEvent most már lehet a régi {key, value} VAGY az új {slotId, update}
+type SlotUpdatePayload = { key: keyof ComponentSlotConfig; value: any } | { slotId: string; update: { key: keyof ComponentSlotConfig; value: any } };
+
+function handleSlotUpdate(payload: SlotUpdatePayload, topLevelSlotId: string): void {
+  let targetSlotId: string;
+  let updateData: { key: keyof ComponentSlotConfig; value: any };
+
+  // Megnézzük, milyen típusú payload érkezett
+  if ('slotId' in payload) {
+    // Ez egy gyerek komponenstől jött, már tartalmazza a helyes slotId-t
+    targetSlotId = payload.slotId;
+    updateData = payload.update;
+  } else {
+    // Ez a legfelső szintű komponenstől jött
+    targetSlotId = topLevelSlotId;
+    updateData = payload;
+  }
+
+  // ... a console.log és a többi logika most már a helyes adatokkal dolgozik ...
+  const logValue = updateData.value !== undefined ? JSON.parse(JSON.stringify(updateData.value)) : undefined;
+  console.log(`[FurnitureEditor] Slot frissítés érkezett. SlotID: ${targetSlotId}`, { 
+    key: updateData.key, 
+    value: logValue
+  });
+
   if (!editableFurniture.value?.componentSlots) return;
-  
-  const slot = editableFurniture.value.componentSlots.find(s => s.slotId === slotId);
+  const slot = editableFurniture.value.componentSlots.find(s => s.slotId === targetSlotId);
   
   if (slot) {
-    // A 'ComponentSlotConfig' szó egybeírva, helyesen.
-    // A 'value' típusát a TypeScript a SlotUpdateEvent-ből már tudja.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (slot as any)[update.key as keyof ComponentSlotConfig] = update.value;
+    (slot as any)[updateData.key] = updateData.value;
+
+    if (updateData.key === 'allowedComponents' && Array.isArray(updateData.value)) {
+      if (!slot.defaultComponent && updateData.value.length > 0) {
+        slot.defaultComponent = updateData.value[0] as string;
+      }
+    }
+    console.log('%c[FurnitureEditor] 1. Slot frissítve, esemény küldése a friss bútorral.', 'color: #FFD700;', JSON.parse(JSON.stringify(editableFurniture.value)));
+    emit('preview-updated', editableFurniture.value);
   }
 }
 
@@ -173,7 +199,7 @@ defineExpose({ scrollToSlot });
         :suggestions="suggestions"
         :highlighted-slot-id="highlightedSlotId"
         :ref="(el) => setSlotNodeRef(el, slot.slotId)"
-        @update:slot="handleSlotUpdate({ slotId: slot.slotId, update: $event })"
+        @update:slot="handleSlotUpdate($event, slot.slotId)"
         @remove:slot="handleSlotRemove(slot.slotId)"
       />
     </div>

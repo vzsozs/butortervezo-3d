@@ -1,34 +1,38 @@
-<!-- src/components/admin/AdminPreviewCanvas.vue -->
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import type { FurnitureConfig } from '@/config/furniture';
 import AdminExperience from '@/three/AdminExperience';
 
 const props = defineProps<{
-  furnitureConfig: Partial<FurnitureConfig> | null; // A null-t is fogadnia kell
+  furnitureConfig: Partial<FurnitureConfig> | null;
 }>();
 
 const emit = defineEmits(['slot-clicked']);
-
 const canvas = ref<HTMLDivElement | null>(null);
 let experience: AdminExperience | null = null;
 
-// Egy segédfüggvény, hogy ne ismételjük a kódot
-function updateExperienceObject(config: Partial<FurnitureConfig> | null) {
-  if (!experience) return;
+onMounted(() => {
+  console.log('%c[Canvas] 4. onMounted lefutott. A kapott config:', 'color: #32CD32;', JSON.parse(JSON.stringify(props.furnitureConfig)));
+  
+  if (canvas.value) {
+    experience = new AdminExperience(canvas.value);
+    experience.addEventListener('slotClicked', handleSlotClickFrom3D);
 
-  // A "gyökér elem" az a slot, aminek nincs 'attachToSlot' tulajdonsága.
-  const hasRootElement = config?.componentSlots?.some(slot => !slot.attachToSlot);
-
-  // Csak akkor frissítjük a 3D objektumot, ha a config valid ÉS van benne gyökér elem.
-  if (config && hasRootElement) {
-    const plainConfig = JSON.parse(JSON.stringify(config));
-    experience.updateObject(plainConfig as FurnitureConfig);
-  } else {
-    // Ha nincs mit mutatni (pl. új, üres bútor), akkor ürítsük ki a vásznat.
-    experience.clearCanvas();
+    const config = props.furnitureConfig;
+    
+    // JAVÍTOTT FELTÉTEL:
+    // Van gyökér slot (nincs attachToSlot) ÉS van neki defaultComponent-je is.
+    const hasDrawableRoot = config?.componentSlots?.some(slot => !slot.attachToSlot && slot.defaultComponent);
+    
+    if (config && hasDrawableRoot) {
+      console.log('%c[Canvas] 5. Config valid ÉS RAJZOLHATÓ, 3D objektum frissítése...', 'color: #32CD32;');
+      experience.updateObject(config as FurnitureConfig);
+    } else {
+      console.log('%c[Canvas] 5. Config invalid vagy nem rajzolható, vászon törlése.', 'color: #FFA500;');
+      experience.clearCanvas(); // Biztonság kedvéért ürítsük a vásznat
+    }
   }
-}
+});
 
 function handleSlotClickFrom3D(event: Event) {
   const customEvent = event as CustomEvent;
@@ -37,29 +41,11 @@ function handleSlotClickFrom3D(event: Event) {
   }
 }
 
-onMounted(() => {
-  if (canvas.value) {
-    experience = new AdminExperience(canvas.value);
-    experience.addEventListener('slotClicked', handleSlotClickFrom3D);
-
-    // MOST, hogy az experience létezik, beállítjuk a kezdeti állapotot
-    // a props.furnitureConfig aktuális értékével.
-    updateExperienceObject(props.furnitureConfig);
-  }
-});
-
 onUnmounted(() => {
-  experience?.removeEventListener('slot-clicked', handleSlotClickFrom3D);
+  experience?.removeEventListener('slotClicked', handleSlotClickFrom3D);
   experience?.destroy();
 });
 
-// A watch most már NEM fut le azonnal (nincs 'immediate: true')
-// Csak a props.furnitureConfig KÉSŐBBI változásaira reagál.
-watch(() => props.furnitureConfig, (newConfig) => {
-  updateExperienceObject(newConfig);
-}, { 
-  deep: true
-}); 
 </script>
 
 <template>

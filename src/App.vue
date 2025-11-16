@@ -19,7 +19,7 @@ const isDesignerUIVisible = computed(() => {
 </script>
 
 <template>
-  <div class="relative w-screen h-screen bg-gray-800">
+  <div class="relative w-full h-screen bg-gray-800">
     <!-- A 3D vászon vagy az admin felület -->
     <RouterView />
     
