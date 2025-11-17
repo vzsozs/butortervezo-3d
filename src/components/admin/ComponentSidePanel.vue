@@ -4,17 +4,15 @@ import type { ComponentConfig, ComponentDatabase, FurnitureConfig } from '@/conf
 import AdminPreviewCanvas from './AdminPreviewCanvas.vue';
 import CollapsibleCategory from './CollapsibleCategory.vue'; 
 
-// PROPS: Megkapja a kiválasztott komponenst ÉS a 3D nézethez generált "ál" bútort
 const props = defineProps<{
-  componentDatabase: ComponentDatabase; // <-- ÚJ PROP
+  componentDatabase: ComponentDatabase;
   selectedComponent: Partial<ComponentConfig> | null;
   previewConfig: Partial<FurnitureConfig> | null;
-  updateTrigger: number; // <-- ÚJ PROP
 }>();
 
-// EMITS: Változatlan
 const emit = defineEmits<{
-  (e: 'select-component', value: ComponentConfig): void;
+  // JAVÍTÁS: Hozzáadjuk a hiányzó 'select-component' eseményt a definícióhoz
+  (e: 'select-component', component: ComponentConfig, type: string): void;
   (e: 'create-new', type: string): void;
   (e: 'save-to-server'): void;
 }>();
@@ -23,9 +21,14 @@ const componentTypes = computed(() => Object.keys(props.componentDatabase));
 const selectedType = ref<string>('');
 
 watch(componentTypes, (newTypes) => {
-  if (newTypes[0]) selectedType.value = newTypes[0];
+  if (newTypes[0] && !selectedType.value) selectedType.value = newTypes[0];
 }, { immediate: true });
 
+// --- ÚJ FÜGGVÉNY LOGGAL ---
+function selectComponent(component: ComponentConfig, type: string) {
+  console.log(`➡️ LOG 1: [ComponentSidePanel] Komponensre kattintás történt (típus: ${type}), ezt küldöm fel:`, JSON.parse(JSON.stringify(component)));
+  emit('select-component', component, type);
+}
 </script>
 
 <template>
@@ -43,8 +46,8 @@ watch(componentTypes, (newTypes) => {
         <h2 class="section-header">3D Preview</h2>
         <div class="bg-gray-900 p-1 rounded-lg h-64">
           <AdminPreviewCanvas 
-            :key="props.updateTrigger"
             v-if="props.previewConfig"
+            :key="props.selectedComponent?.id || 'preview-canvas'"
             :furniture-config="props.previewConfig"
           />
           <div v-else class="w-full h-full flex items-center justify-center text-gray-500 text-sm">
@@ -68,7 +71,7 @@ watch(componentTypes, (newTypes) => {
              <button @click="emit('create-new', type)" class="admin-btn-secondary text-xs py-1 px-2">+ Új {{ type }}</button>
           </div>
           <div v-for="component in props.componentDatabase[type]" :key="component.id"
-            @click="emit('select-component', component)"
+            @click="selectComponent(component, type)"
             class="p-2 rounded cursor-pointer hover:bg-gray-700 border-2"
             :class="[props.selectedComponent?.id === component.id ? 'bg-blue-600/30 border-blue-500' : 'bg-gray-800 border-transparent']">
             <p class="font-semibold text-sm">{{ component.name }}</p>

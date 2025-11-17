@@ -3,14 +3,23 @@
 import { useConfigStore } from '@/stores/config';
 import type { FurnitureConfig, ComponentConfig } from '@/config/furniture';
 
+/**
+ * A ConfigManager egy "híd" a Three.js világ és a Pinia store között.
+ * Singletonként működik, hogy a Three.js kódbázis bármely pontjáról
+ * könnyen elérhessük a központi állapotkezelő (Pinia) adatait anélkül,
+ * hogy a Vue reaktivitási rendszerét közvetlenül importálnánk.
+ *
+ * FONTOS: Ez az osztály NEM tárol saját állapotot vagy cache-t.
+ * Minden adatlekérdezést azonnal a Pinia store-hoz delegál,
+ * így mindig a legfrissebb adatokat adja vissza.
+ */
 class ConfigManager {
-  // Statikus property a példány tárolására
   private static instance: ConfigManager;
 
-  // A konstruktort priváttá tesszük, hogy kívülről ne lehessen példányosítani
-  private constructor() {}
+  private constructor() {
+    // A konstruktor üres, mivel nincs mit inicializálni.
+  }
 
-  // Statikus metódus a példány elérésére
   public static getInstance(): ConfigManager {
     if (!ConfigManager.instance) {
       ConfigManager.instance = new ConfigManager();
@@ -18,40 +27,26 @@ class ConfigManager {
     return ConfigManager.instance;
   }
 
-  public async loadData() {
-    // --- HOZZÁADNI ---
-    // A store-t közvetlenül a metódusban kérjük el.
-    const configStore = useConfigStore();
-    try {
-      const [furnitureResponse, componentsResponse, globalSettingsResponse] = await Promise.all([
-        fetch('/database/furniture.json'),
-        fetch('/database/components.json'),
-        fetch('/database/globalSettings.json')
-      ]);
-      if (!furnitureResponse.ok || !componentsResponse.ok || !globalSettingsResponse.ok) {
-        throw new Error('Hiba az adatbázis fájlok betöltése közben.');
-      }
-      const furniture = await furnitureResponse.json();
-      const components = await componentsResponse.json();
-      const globalSettings = await globalSettingsResponse.json();
-      configStore.setConfigs({ furniture, components, globalSettings });
-      console.log('Adatbázis sikeresen betöltve a store-ba a központi helyről.');
-    } catch (error) {
-      console.error('Nem sikerült betölteni a konfigurációs fájlokat:', error);
-    }
-  }
-
-  // A get metódusok is maradhatnak
+  /**
+   * Lekér egy bútorkonfigurációt ID alapján a Pinia store-ból.
+   * @param id A bútor egyedi azonosítója.
+   * @returns A megtalált FurnitureConfig vagy undefined.
+   */
   public getFurnitureById(id: string): FurnitureConfig | undefined {
-    const configStore = useConfigStore();
-    return configStore.furnitureList.find(f => f.id === id);
+    // Közvetlenül a store-ból kérjük le az adatot.
+    return useConfigStore().getFurnitureById(id);
   }
 
-  public getComponentById(id:string): ComponentConfig | undefined {
-    const configStore = useConfigStore();
-    return configStore.getComponentById(id);
+  /**
+   * Lekér egy komponenst ID alapján a Pinia store-ból.
+   * @param id A komponens egyedi azonosítója.
+   * @returns A megtalált ComponentConfig vagy undefined.
+   */
+  public getComponentById(id: string): ComponentConfig | undefined {
+    // Közvetlenül a store-ból kérjük le az adatot.
+    return useConfigStore().getComponentById(id);
   }
 }
 
-// Exportáljuk a singleton példányt
+// Exportáljuk a singleton példányt, hogy mindenhol ugyanazt használjuk.
 export default ConfigManager.getInstance();

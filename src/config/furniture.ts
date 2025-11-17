@@ -1,87 +1,71 @@
 // src/config/furniture.ts
 
-// --- VÉGLEGES, EGYESÍTETT TÍPUSOK ---
-
-/**
- * Egy komponens csatolási pontjait definiálja. Szigorúan csak 'self' VAGY 'multiple' lehet.
- */
-export type AttachmentPoints = { self?: string } | { multiple?: string[] };
-
-/**
- * Egy komponens forgatási korrekcióját definiálja.
- */
-export interface SlotRotation {
-  x: number;
-  y: number;
-  z: number;
+// --- ÚJ, TISZTA DEFINÍCIÓ EGY CSATLAKOZÁSI PONTHOZ ---
+// Ezt használja a components.json
+export interface AttachmentPoint {
+  id: string;
+  allowedComponentTypes: string[];
 }
 
-/**
- * Egyetlen választható alkatrész (pl. egy fogantyú, egy front) leírása.
- * Ez a 'components.json' egy elemének felel meg.
- */
+// --- KOMPONENS DEFINÍCIÓ FRISSÍTÉSE ---
 export interface ComponentConfig {
   id: string;
   name: string;
   model: string;
-  price?: number;
   materialTarget?: string;
+  materialSource?: string;
+  price: number;
   height?: number;
-  materialSource?: 'corpus';
-  attachmentPoints?: AttachmentPoints; // A szigorúbb típus használata
+  // A RÉGI TÍPUS HELYETT EZ KELL: egy tömb, ami AttachmentPoint objektumokat tartalmaz
+  attachmentPoints?: AttachmentPoint[];
 }
 
-/**
- * A teljes components.json adatbázis típusa.
- */
-export type ComponentDatabase = Record<string, ComponentConfig[]>;
-
-/**
- * Egy dinamikus property leírása (pl. egy select opció a panelen).
- */
 export interface PropertyConfig {
   id: string;
-  name: string;
+  label: string;
   type: 'select' | 'checkbox' | 'number';
-  options?: { value: string; label: string }[];
-  defaultValue: string | boolean | number;
+  options?: { label: string; value: string | number }[];
+  defaultValue: string | number | boolean;
+  // És bármi más, ami egy property-hez kellhet
+  [key: string]: string | number | boolean | undefined | { label: string; value: string | number }[];
 }
 
-/**
- * Egy bútoron belüli "hely" (slot) leírása, ahova komponens kerülhet.
- */
+
 export interface ComponentSlotConfig {
   slotId: string;
   name: string;
   componentType: string;
-  allowedComponents: string[];
   defaultComponent: string;
+  allowedComponents: string[];
   attachToSlot?: string;
-  isOptional?: boolean;
-  attachmentPoints?: AttachmentPoints; // A szigorúbb típus használata
-  rotation?: SlotRotation;
+  useAttachmentPoint?: string;
+  rotation?: {
+    x: number;
+    y: number;
+    z: number;
+  };
+  // JAVÍTÁS: Az 'any' helyett egy konkrétabb típust használunk
   properties?: PropertyConfig[];
+  isOptional?: boolean;
 }
 
-/**
- * Egy teljes bútor "receptjének" leírása.
- * Ez a 'furniture.json' egy elemének felel meg.
- */
+// --- A TÖBBI DEFINÍCIÓ VALÓSZÍNŰLEG VÁLTOZATLAN ---
 export interface FurnitureConfig {
   id: string;
   name: string;
   category: string;
   componentSlots: ComponentSlotConfig[];
-  price?: number; // Ezt a mezőt a te verziódból vettem át
+  price?: number;
 }
 
-/**
- * A globalSettings.json egy elemének leírása.
- */
+export interface ComponentDatabase {
+  [key: string]: ComponentConfig[];
+}
+
 export interface GlobalSettingConfig {
   id: string;
   name: string;
-  type: 'material' | 'style';
+  type: string;
   targetSlotId: string;
   options?: string[];
 }

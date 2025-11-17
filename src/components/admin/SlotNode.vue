@@ -1,19 +1,14 @@
 <!-- src/components/admin/SlotNode.vue -->
 <script setup lang="ts">
-import { storeToRefs } from 'pinia';
-import { useConfigStore } from '@/stores/config';
-import type { ComponentSlotConfig } from '@/config/furniture';
 import { computed } from 'vue';
+import { storeToRefs } from 'pinia'; // VISSZATÉVE
+import { useConfigStore } from '@/stores/config'; // VISSZATÉVE
+import type { ComponentSlotConfig } from '@/config/furniture';
 
-// --- TÍPUSOK ---
-// JAVÍTÁS: Helyes rekurzív típus definiálása az 'any' helyett.
-// Egy fa-csomópont, ami egy slot, és lehetnek gyerekei, amik szintén fa-csomópontok.
 type TreeNode = ComponentSlotConfig & { children?: TreeNode[] };
 
-// --- PROPS & EMITS ---
 const props = defineProps<{
   node: TreeNode;
-  // JAVÍTÁS: A konkrét slot ID-t kapjuk meg, nem egy boolean-t
   highlightedSlotId?: string | null; 
   suggestions: {
     componentTypes: string[];
@@ -21,16 +16,21 @@ const props = defineProps<{
   };
 }>();
 
-const isHighlighted = computed(() => props.node.slotId === props.highlightedSlotId);
-
-const emit = defineEmits(['update:slot', 'remove:slot']);
-
-// --- STORE ---
+// --- STORE IMPORT VISSZAÁLLÍTVA ---
 const configStore = useConfigStore();
 const { components: storeComponents } = storeToRefs(configStore);
 
-// --- HELPER FÜGGVÉNYEK ---
-const PI_HALF = Math.PI / 2;
+// --- TÍPUSOK ÉS EMIT DEFINÍCIÓ ---
+type SlotUpdatePayload = { key: keyof ComponentSlotConfig; value: ComponentSlotConfig[keyof ComponentSlotConfig] };
+
+const emit = defineEmits<{
+  (e: 'update:slot', payload: SlotUpdatePayload): void;
+  (e: 'remove:slot'): void;
+  (e: 'update:slot', payload: { slotId: string; update: SlotUpdatePayload }): void;
+  (e: 'remove:slot', slotId: string): void;
+}>();
+
+const isHighlighted = computed(() => props.node.slotId === props.highlightedSlotId);
 
 function updateSlot<K extends keyof ComponentSlotConfig>(key: K, value: ComponentSlotConfig[K]) {
   emit('update:slot', { key, value });
@@ -40,9 +40,24 @@ function removeSlot() {
   emit('remove:slot');
 }
 
-function setRotation(axis: 'x' | 'y' | 'z', degrees: number) {
+// --- FORGATÁSI LOGIKA (VÁLTOZATLAN) ---
+const rotationInDegrees = computed(() => {
+  const rad = props.node.rotation || { x: 0, y: 0, z: 0 };
+  const toDeg = (r: number) => Math.round(r * (180 / Math.PI));
+  const normalize = (deg: number) => (deg % 360 + 360) % 360;
+  return {
+    x: normalize(toDeg(rad.x)),
+    y: normalize(toDeg(rad.y)),
+    z: normalize(toDeg(rad.z)),
+  };
+});
+
+function rotate(axis: 'x' | 'y' | 'z', degrees: number) {
+  const currentDegrees = rotationInDegrees.value[axis];
+  let newDegrees = currentDegrees + degrees;
+  newDegrees = (newDegrees % 360 + 360) % 360;
   const newRotation = { ...(props.node.rotation || { x: 0, y: 0, z: 0 }) };
-  newRotation[axis] = degrees === 0 ? 0 : (degrees / 180) * Math.PI;
+  newRotation[axis] = newDegrees * (Math.PI / 180);
   updateSlot('rotation', newRotation);
 }
 </script>
@@ -70,6 +85,7 @@ function setRotation(axis: 'x' | 'y' | 'z', degrees: number) {
 
     <!-- Komponens választás -->
     <div class="grid grid-cols-2 gap-4 mt-4 border-t border-gray-700 pt-4">
+      <!-- ... a komponens választó részek változatlanok ... -->
       <div>
         <label class="admin-label">componentType</label>
         <select :value="node.componentType" @change="updateSlot('componentType', ($event.target as HTMLSelectElement).value)" class="admin-select">
@@ -92,39 +108,51 @@ function setRotation(axis: 'x' | 'y' | 'z', degrees: number) {
 
     <!-- Haladó beállítások -->
     <div class="grid grid-cols-1 gap-4 mt-4 border-t border-gray-700 pt-4">
-      <div class="bg-gray-900 p-3 rounded">
-        <label class="admin-label mb-2">rotation</label>
-        <div class="flex items-center gap-x-4 flex-wrap">
-          <span class="font-mono text-lg text-center">X</span>
-          <div class="flex gap-1">
-            <!-- JAVÍTÁS: -PI_HALF -->
-            <button @click="setRotation('x', -90)" class="admin-btn-secondary !px-2 !py-1 text-xs" :class="{'!bg-blue-600 text-white': node.rotation && node.rotation.x.toFixed(4) === (-PI_HALF).toFixed(4)}">-90°</button>
-            <button @click="setRotation('x', 0)" class="admin-btn-secondary !px-2 !py-1 text-xs" :class="{'!bg-blue-600 text-white': !node.rotation || node.rotation.x.toFixed(4) === (0.0).toFixed(4)}">0°</button>
-            <button @click="setRotation('x', 90)" class="admin-btn-secondary !px-2 !py-1 text-xs" :class="{'!bg-blue-600 text-white': node.rotation && node.rotation.x.toFixed(4) === PI_HALF.toFixed(4)}">+90°</button>
+      
+      <!-- AZ ÚJ, JAVÍTOTT FORGATÓ UI -->
+      <div v-if="node.attachToSlot" class="bg-gray-900 p-3 rounded">
+        <label class="admin-label mb-2">Rotation</label>
+        <div class="grid grid-cols-3 gap-2 items-center text-center">
+          <!-- X Tengely -->
+          <div class="flex items-center justify-center gap-1"> <!-- JAVÍTÁS: items-center -->
+            <button @click="rotate('x', -90)" class="admin-btn-secondary !p-2">&lt;</button>
+            <div class="flex flex-col items-center"> 
+              <span class="text-xs text-gray-500">X</span>
+              <span class="font-mono text-lg w-16 block bg-gray-800 rounded py-1 text-gray-400">{{ rotationInDegrees.x }}°</span>
+            </div>
+            <button @click="rotate('x', 90)" class="admin-btn-secondary !p-2">&gt;</button>
           </div>
-          <span class="font-mono text-lg text-center">Y</span>
-          <div class="flex gap-1">
-            <!-- JAVÍTÁS: -PI_HALF -->
-            <button @click="setRotation('y', -90)" class="admin-btn-secondary !px-2 !py-1 text-xs" :class="{'!bg-blue-600 text-white': node.rotation && node.rotation.y.toFixed(4) === (-PI_HALF).toFixed(4)}">-90°</button>
-            <button @click="setRotation('y', 0)" class="admin-btn-secondary !px-2 !py-1 text-xs" :class="{'!bg-blue-600 text-white': !node.rotation || node.rotation.y.toFixed(4) === (0.0).toFixed(4)}">0°</button>
-            <button @click="setRotation('y', 90)" class="admin-btn-secondary !px-2 !py-1 text-xs" :class="{'!bg-blue-600 text-white': node.rotation && node.rotation.y.toFixed(4) === PI_HALF.toFixed(4)}">+90°</button>
+          <!-- Y Tengely -->
+          <div class="flex items-center justify-center gap-1"> <!-- JAVÍTÁS: items-center -->
+            <button @click="rotate('y', -90)" class="admin-btn-secondary !p-2">&lt;</button>
+            <div class="flex flex-col items-center"> 
+              <span class="text-xs text-gray-500">Y</span>
+              <span class="font-mono text-lg w-16 block bg-gray-800 rounded py-1 text-gray-400">{{ rotationInDegrees.y }}°</span>
+            </div>
+            <button @click="rotate('y', 90)" class="admin-btn-secondary !p-2">&gt;</button>
           </div>
-          <span class="font-mono text-lg text-center">Z</span>
-          <div class="flex gap-1">
-            <!-- JAVÍTÁS: -PI_HALF -->
-            <button @click="setRotation('z', -90)" class="admin-btn-secondary !px-2 !py-1 text-xs" :class="{'!bg-blue-600 text-white': node.rotation && node.rotation.z.toFixed(4) === (-PI_HALF).toFixed(4)}">-90°</button>
-            <button @click="setRotation('z', 0)" class="admin-btn-secondary !px-2 !py-1 text-xs" :class="{'!bg-blue-600 text-white': !node.rotation || node.rotation.z.toFixed(4) === (0.0).toFixed(4)}">0°</button>
-            <button @click="setRotation('z', 90)" class="admin-btn-secondary !px-2 !py-1 text-xs" :class="{'!bg-blue-600 text-white': node.rotation && node.rotation.z.toFixed(4) === PI_HALF.toFixed(4)}">+90°</button>
+          <!-- Z Tengely -->
+          <div class="flex items-center justify-center gap-1"> <!-- JAVÍTÁS: items-center -->
+            <button @click="rotate('z', -90)" class="admin-btn-secondary !p-2">&lt;</button>
+            <div class="flex flex-col items-center"> 
+              <span class="text-xs text-gray-500">Z</span>
+              <span class="font-mono text-lg w-16 block bg-gray-800 rounded py-1 text-gray-400">{{ rotationInDegrees.z }}°</span>
+            </div>
+            <button @click="rotate('z', 90)" class="admin-btn-secondary !p-2">&gt;</button>
           </div>
         </div>
       </div>
       
-      <div v-if="node.attachmentPoints" class="bg-gray-900 p-3 rounded">
-        <label class="admin-label">attachmentPoints</label>
-        <input v-if="'self' in node.attachmentPoints" type="text" :value="node.attachmentPoints.self" @input="updateSlot('attachmentPoints', { self: ($event.target as HTMLInputElement).value })" placeholder="attach_pont_neve" class="admin-input" list="attachment-points-list"/>
-        <datalist id="attachment-points-list">
-          <option v-for="point in suggestions.attachmentPoints" :key="point" :value="point" />
-        </datalist>
+      <div v-if="node.attachToSlot" class="bg-gray-900 p-3 rounded">
+        <label class="admin-label">Használt csatlakozási pont a szülőn</label>
+        <input
+          type="text"
+          :value="node.useAttachmentPoint"
+          @input="updateSlot('useAttachmentPoint', ($event.target as HTMLInputElement).value)"
+          placeholder="attach_pont_neve"
+          class="admin-input"
+          list="attachment-points-list"
+        />
       </div>
     </div>
 
@@ -136,7 +164,7 @@ function setRotation(axis: 'x' | 'y' | 'z', degrees: number) {
         :node="childNode"
         :suggestions="suggestions"
         :highlighted-slot-id="highlightedSlotId" 
-        @update:slot="$emit('update:slot', { slotId: childNode.slotId, update: $event })"
+        @update:slot="payload => emit('update:slot', { slotId: childNode.slotId, update: payload as SlotUpdatePayload })"
         @remove:slot="$emit('remove:slot', childNode.slotId)"
       />
     </div>

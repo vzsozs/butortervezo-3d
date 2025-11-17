@@ -5,7 +5,14 @@
       "name": "Alsó korpusz (60cm)",
       "model": "/models/corpus/corpus_bottom_60.glb",
       "materialTarget": "MAT_Korpusz",
-      "price": 45000
+      "price": 45000,
+      "attachmentPoints": [
+        { "id": "attach_front", "allowedComponentTypes": ["fronts"] },
+        { "id": "attach_leg_frontLeft", "allowedComponentTypes": ["legs"] },
+        { "id": "attach_leg_frontRight", "allowedComponentTypes": ["legs"] },
+        { "id": "attach_leg_backLeft", "allowedComponentTypes": ["legs"] },
+        { "id": "attach_leg_backRight", "allowedComponentTypes": ["legs"] }
+      ]
     }
   ],
   "fronts": [
@@ -14,16 +21,20 @@
       "name": "Sima Front",
       "model": "/models/fronts/front_bottom_sima_60_L.glb",
       "materialTarget": "MAT_Frontok",
-      "attachmentPoints":  { "self": "attach_front" },
-      "price": 20000
+      "price": 20000,
+      "attachmentPoints": [
+        { "id": "attach_handle_vertical", "allowedComponentTypes": ["handles"] }
+      ]
     },
     {
       "id": "front_bottom_keretes_60",
       "name": "Keretes Front",
       "model": "/models/fronts/front_bottom_keretes_60_L.glb",
       "materialTarget": "MAT_Frontok",
-      "attachmentPoints":  { "self": "attach_front" },
-      "price": 30000
+      "price": 30000,
+      "attachmentPoints": [
+        { "id": "attach_handle_vertical", "allowedComponentTypes": ["handles"] }
+      ]
     }
   ],
   "handles": [
@@ -32,7 +43,6 @@
       "name": "Standard Fogantyú",
       "model": "/models/handles/handle_standard.glb",
       "materialTarget": "MAT_Fem_Kiegeszitok",
-      "attachmentPoints": { "self": "attach_handle_vertical" },
       "price": 3000
     },
     {
@@ -40,7 +50,6 @@
       "name": "Design Fogantyú",
       "model": "/models/handles/handle_design.glb",
       "materialTarget": "MAT_Fem_Kiegeszitok",
-      "attachmentPoints": { "self": "attach_handle_vertical" },
       "price": 5000
     }
   ],
@@ -51,9 +60,6 @@
       "model": "/models/legs/leg_standard.glb",
       "height": 0.1,
       "materialSource": "corpus",
-      "attachmentPoints": {
-        "self": "attach_leg_frontLeft"
-      },
       "price": 15000
     },
     {
@@ -62,14 +68,6 @@
       "model": "/models/legs/leg_design.glb",
       "height": 0.1,
       "materialTarget": "MAT_Lab_Fem",
-      "attachmentPoints": {
-        "multiple": [
-          "attach_leg_frontLeft",
-          "attach_leg_frontRight",
-          "attach_leg_backLeft",
-          "attach_leg_backRight"
-        ]
-      },
       "price": 555
     }
   ]

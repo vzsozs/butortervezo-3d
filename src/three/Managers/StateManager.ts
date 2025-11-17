@@ -101,7 +101,7 @@ public updateFrontsVisibility(isVisible: boolean) {
 
       if (newObject && wasSelected) {
         this.experience.selectionStore.selectObject(newObject);
-        this.experience.transformControls.attach(toRaw(newObject));
+        this.experience.camera.transformControls.attach(toRaw(newObject));
       }
       this.experience.historyStore.addState();
       selectionStore.acknowledgeStyleChange();

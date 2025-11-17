@@ -1,50 +1,42 @@
 <script setup lang="ts">
-import { ref, watch, computed, type ComponentPublicInstance } from 'vue';
+import { computed, ref, type ComponentPublicInstance } from 'vue';
 import { storeToRefs } from 'pinia';
 import type { FurnitureConfig, ComponentSlotConfig } from '@/config/furniture';
 import { useConfigStore } from '@/stores/config';
 import SlotNode from './SlotNode.vue';
 
-// PROPS: Megkapja a szülőtől a szerkesztendő bútort és azt, hogy új-e.
+// JAVÍTÁS: A 'v-model' a 'modelValue' prop-ot és az 'update:modelValue' eseményt használja
 const props = defineProps<{
   furniture: Partial<FurnitureConfig> | null;
   isNew: boolean;
 }>();
 
 const emit = defineEmits<{
+  (e: 'update:furniture', value: Partial<FurnitureConfig> | null): void;
   (e: 'save', value: FurnitureConfig): void;
   (e: 'cancel'): void;
-  (e: 'preview-updated', payload: Partial<FurnitureConfig>): void; // <-- MÓDOSÍTVA
 }>();
-const configStore = useConfigStore();
-const { components: storeComponents } = storeToRefs(configStore); // Használjuk a store-t
 
-// A szerkesztéshez egy helyi, módosítható másolatot használunk a prop helyett.
-const editableFurniture = ref<Partial<FurnitureConfig> | null>(null);
+// JAVÍTÁS: A belső másolat helyett egy 'computed' property-t használunk
+// Ez olvassa a prop-ot, és íráskor kibocsát egy 'update' eseményt.
+const editableFurniture = computed({
+  get() {
+    return props.furniture;
+  },
+  set(newValue) {
+    console.log('➡️ LOG A: [FurnitureEditor] A computed.set lefutott, ezt küldöm fel:', JSON.parse(JSON.stringify(newValue)));
+    emit('update:furniture', newValue);
+  }
+});
+
+const configStore = useConfigStore();
+const { components: storeComponents } = storeToRefs(configStore);
 
 const highlightedSlotId = ref<string | null>(null);
 const slotNodeRefs = ref<Record<string, ComponentPublicInstance | Element | null>>({});
 
-// Figyeljük, ha a szülő új bútort ad, és frissítjük a helyi másolatot.
-watch(() => props.furniture, (newFurniture) => {
-  if (newFurniture) {
-    editableFurniture.value = JSON.parse(JSON.stringify(newFurniture));
-  } else {
-    editableFurniture.value = null;
-  }
-}, { deep: true, immediate: true });
-
-// Figyeljük a név változását, hogy generáljunk ID-t (ez a logika megmarad)
-watch(() => editableFurniture.value?.name, (newName) => {
-  if (props.isNew && editableFurniture.value && newName) {
-    const diacritics = new RegExp('[\\u0300-\\u036f]', 'g');
-    const normalizedName = newName.toLowerCase().normalize("NFD").replace(diacritics, "").replace(/\s+/g, '_').replace(/[^\w-]+/g, '');
-    editableFurniture.value.id = normalizedName;
-  }
-}, { deep: true });
-
-
-// --- A MEGLÉVŐ FÜGGVÉNYEK NAGYRÉSZT VÁLTOZATLANOK ---
+// A watch blokkok már nem kellenek, mert a 'computed' kezeli a szinkronizációt
+// és az ID generálást a 'handleCreateNewFurniture'-be helyezzük át.
 
 const setSlotNodeRef = (el: ComponentPublicInstance | Element | null, slotId: string) => {
   if (el) slotNodeRefs.value[slotId] = el;
@@ -59,11 +51,23 @@ const slotTemplates: Record<string, Partial<ComponentSlotConfig>> = {
 
 const hierarchicalSlots = computed(() => {
   if (!editableFurniture.value?.componentSlots) return [];
+  
+  // JAVÍTÁS: Nincs többé mély másolás, közvetlenül a reaktív adatokkal dolgozunk
   type SlotWithChildren = ComponentSlotConfig & { children: SlotWithChildren[] };
-  const slots: SlotWithChildren[] = JSON.parse(JSON.stringify(editableFurniture.value.componentSlots));
+  const slots = editableFurniture.value.componentSlots as SlotWithChildren[];
+  
   const slotMap = new Map(slots.map(s => [s.slotId, s]));
   const tree: SlotWithChildren[] = [];
-  slots.forEach(s => s.children = []);
+
+  // Biztosítjuk, hogy minden slotnak legyen 'children' tömbje
+  slots.forEach(s => {
+    if (!s.children) {
+      s.children = [];
+    } else {
+      s.children.length = 0; // Kiürítjük a régit, hogy ne duplikálódjon
+    }
+  });
+
   slots.forEach(s => {
     if (s.attachToSlot && slotMap.has(s.attachToSlot)) {
       slotMap.get(s.attachToSlot)!.children.push(s);
@@ -83,50 +87,35 @@ function addSlotFromTemplate(template: Partial<ComponentSlotConfig>) {
   if (!editableFurniture.value?.componentSlots) return;
   const newSlot = JSON.parse(JSON.stringify(template));
   editableFurniture.value.componentSlots.push(newSlot);
-  
-  console.log('%c[FurnitureEditor] 1. Slot hozzáadva, esemény küldése a friss bútorral.', 'color: #FFD700;', JSON.parse(JSON.stringify(editableFurniture.value)));
-  emit('preview-updated', editableFurniture.value);
 }
 
-// A SlotUpdateEvent most már lehet a régi {key, value} VAGY az új {slotId, update}
 type SlotUpdatePayload = { key: keyof ComponentSlotConfig; value: any } | { slotId: string; update: { key: keyof ComponentSlotConfig; value: any } };
 
 function handleSlotUpdate(payload: SlotUpdatePayload, topLevelSlotId: string): void {
+  if (!editableFurniture.value?.componentSlots) return;
+  
   let targetSlotId: string;
   let updateData: { key: keyof ComponentSlotConfig; value: any };
 
-  // Megnézzük, milyen típusú payload érkezett
   if ('slotId' in payload) {
-    // Ez egy gyerek komponenstől jött, már tartalmazza a helyes slotId-t
     targetSlotId = payload.slotId;
     updateData = payload.update;
   } else {
-    // Ez a legfelső szintű komponenstől jött
     targetSlotId = topLevelSlotId;
     updateData = payload;
   }
 
-  // ... a console.log és a többi logika most már a helyes adatokkal dolgozik ...
-  const logValue = updateData.value !== undefined ? JSON.parse(JSON.stringify(updateData.value)) : undefined;
-  console.log(`[FurnitureEditor] Slot frissítés érkezett. SlotID: ${targetSlotId}`, { 
-    key: updateData.key, 
-    value: logValue
-  });
-
-  if (!editableFurniture.value?.componentSlots) return;
   const slot = editableFurniture.value.componentSlots.find(s => s.slotId === targetSlotId);
   
   if (slot) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (slot as any)[updateData.key] = updateData.value;
+    // @ts-expect-error - a
+    slot[updateData.key] = updateData.value;
 
     if (updateData.key === 'allowedComponents' && Array.isArray(updateData.value)) {
       if (!slot.defaultComponent && updateData.value.length > 0) {
         slot.defaultComponent = updateData.value[0] as string;
       }
     }
-    console.log('%c[FurnitureEditor] 1. Slot frissítve, esemény küldése a friss bútorral.', 'color: #FFD700;', JSON.parse(JSON.stringify(editableFurniture.value)));
-    emit('preview-updated', editableFurniture.value);
   }
 }
 
@@ -144,7 +133,6 @@ function saveChanges() {
   }
 }
 
-// Ezt a függvényt a szülő fogja meghívni a ref-en keresztül
 function scrollToSlot(slotId: string) {
   highlightedSlotId.value = slotId;
   const targetRef = slotNodeRefs.value[slotId];
@@ -157,9 +145,7 @@ function scrollToSlot(slotId: string) {
   }, 1500);
 }
 
-// Ezt a függvényt a szülőnek kell elérnie, ezért defineExpose
 defineExpose({ scrollToSlot });
-
 </script>
 
 <template>

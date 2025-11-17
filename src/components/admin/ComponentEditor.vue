@@ -19,32 +19,24 @@ const isAdvancedVisible = ref(false);
 
 watch(() => props.component, (newComponent) => {
   editableComponent.value = newComponent ? JSON.parse(JSON.stringify(newComponent)) : null;
+  // Biztosítjuk, hogy az attachmentPoints mindig egy tömb legyen, ha létezik
+  if (editableComponent.value && editableComponent.value.attachmentPoints && !Array.isArray(editableComponent.value.attachmentPoints)) {
+    editableComponent.value.attachmentPoints = [];
+  }
   isAdvancedVisible.value = false;
 }, { deep: true, immediate: true });
 
-// --- VISSZAÁLLÍTOTT ÉS JAVÍTOTT WATCH BLOKK ---
 watch(() => editableComponent.value?.name, (newName) => {
-  // A feltételek: legyen szerkeszthető komponens, új név,
-  // az ID még üres (tehát új komponens), ÉS a model mező is üres.
   if (editableComponent.value && newName && !editableComponent.value.id && !editableComponent.value.model) {
     const diacritics = new RegExp('[\\u0300-\\u036f]', 'g');
     const normalizedName = newName.toLowerCase().normalize("NFD").replace(diacritics, "").replace(/\s+/g, '_').replace(/[^\w-]+/g, '');
-    
     const newId = `${props.componentType}_${normalizedName}`;
-
-    const folderMap: Record<string, string> = {
-      corpuses: 'corpus',
-      fronts: 'front',
-      handles: 'handle',
-      legs: 'leg'
-    };
+    const folderMap: Record<string, string> = { corpuses: 'corpus', fronts: 'front', handles: 'handle', legs: 'leg' };
     const modelFolder = folderMap[props.componentType] || props.componentType;
-    
     editableComponent.value.id = newId;
     editableComponent.value.model = `/models/${modelFolder}/${newId}.glb`;
   }
 }, { deep: true });
-
 
 const fieldOrder: (keyof ComponentConfig)[] = ['name', 'id', 'model', 'price', 'materialTarget', 'height', 'materialSource', 'attachmentPoints'];
 const advancedFields: (keyof ComponentConfig)[] = ['height', 'materialSource', 'attachmentPoints'];
@@ -62,14 +54,25 @@ onMounted(async () => {
     const allComps: ComponentDatabase = await response.json();
     const points = new Set<string>();
     Object.values(allComps).flat().forEach(comp => {
-      if (comp.attachmentPoints) {
-        if ('self' in comp.attachmentPoints && comp.attachmentPoints.self) points.add(comp.attachmentPoints.self);
-        if ('multiple' in comp.attachmentPoints && comp.attachmentPoints.multiple) comp.attachmentPoints.multiple.forEach(p => points.add(p));
-      }
+      // JAVÍTOTT LOGIKA: Az új tömb struktúrán megyünk végig
+      comp.attachmentPoints?.forEach(p => points.add(p.id));
     });
     attachmentPointSuggestions.value = Array.from(points).sort();
   } catch (error) { console.error(error); }
 });
+
+// --- ÚJ FÜGGVÉNYEK AZ ATTACHMENTPOINTS TÖMB KEZELÉSÉHEZ ---
+function addAttachmentPoint() {
+  if (!editableComponent.value) return;
+  if (!editableComponent.value.attachmentPoints) {
+    editableComponent.value.attachmentPoints = [];
+  }
+  editableComponent.value.attachmentPoints.push({ id: '', allowedComponentTypes: [] });
+}
+
+function removeAttachmentPoint(index: number) {
+  editableComponent.value?.attachmentPoints?.splice(index, 1);
+}
 
 function saveChanges() {
   if (editableComponent.value) {
@@ -104,57 +107,14 @@ function deleteItem() {
             <div>
               <label :for="key" class="admin-label">{{ key }}</label>
               
-              <!-- === ÚJ, FELHASZNÁLÓBARÁT ATTACHMENTPOINTS SZERKESZTŐ === -->
-              <div v-if="key === 'attachmentPoints' && typeof editableComponent.attachmentPoints === 'object' && editableComponent.attachmentPoints !== null">
-                <div class="bg-gray-800 p-3 rounded space-y-3">
-                  
-                  <!-- Módválasztó: Egy pont (self) vs. Több pont (multiple) -->
-                  <div class="flex gap-2">
-                    <button 
-                      @click="editableComponent.attachmentPoints = { self: '' }"
-                      class="admin-btn-secondary text-sm flex-1"
-                      :class="{ '!bg-blue-600': 'self' in editableComponent.attachmentPoints }"
-                    >
-                      Egy Csatlakozási Pont
-                    </button>
-                    <button 
-                      @click="editableComponent.attachmentPoints = { multiple: [] }"
-                      class="admin-btn-secondary text-sm flex-1"
-                      :class="{ '!bg-blue-600': 'multiple' in editableComponent.attachmentPoints }"
-                    >
-                      Több Csatlakozási Pont
-                    </button>
-                  </div>
-
-                  <!-- 'self' mód: Legördülő menü a javaslatokkal -->
-                  <div v-if="'self' in editableComponent.attachmentPoints">
-                    <label class="admin-label text-xs">Válassz egy pontot</label>
-                    <input 
-                      type="text" 
-                      v-model="editableComponent.attachmentPoints.self" 
-                      placeholder="attach_pont_neve" 
-                      class="admin-input" 
-                      list="attachment-points-list"
-                    />
-                    <datalist id="attachment-points-list">
-                      <option v-for="point in attachmentPointSuggestions" :key="point" :value="point" />
-                    </datalist>
-                  </div>
-
-                  <!-- 'multiple' mód: Checkbox lista -->
-                  <div v-if="'multiple' in editableComponent.attachmentPoints" class="space-y-2 max-h-40 overflow-y-auto border border-gray-700 p-2 rounded">
-                    <label v-for="point in attachmentPointSuggestions" :key="point" class="flex items-center gap-2 p-1 rounded hover:bg-gray-700 cursor-pointer">
-                      <input 
-                        type="checkbox" 
-                        :value="point" 
-                        v-model="editableComponent.attachmentPoints.multiple" 
-                        class="bg-gray-900 border-gray-600 text-blue-500 focus:ring-blue-600"
-                      />
-                      <span class="text-sm">{{ point }}</span>
-                    </label>
-                  </div>
-
+              <div v-if="key === 'attachmentPoints'" class="space-y-2">
+                <label class="admin-label">Csatlakozási Pontok (amit ez a komponens kínál)</label>
+                <div v-for="(point, index) in editableComponent.attachmentPoints" :key="index" class="flex items-center gap-2 p-2 bg-gray-700 rounded">
+                  <input type="text" v-model="point.id" placeholder="pont_neve (pl. attach_handle)" class="admin-input flex-grow">
+                  <input type="text" v-model="point.allowedComponentTypes" placeholder="típus (pl. handles)" class="admin-input flex-grow">
+                  <button @click="removeAttachmentPoint(index)" class="admin-button-danger text-xs p-1">X</button>
                 </div>
+                <button @click="addAttachmentPoint" class="admin-button-secondary w-full">+ Új csatlakozási pont</button>
               </div>
               
               <!-- A többi haladó mező (pl. height) -->

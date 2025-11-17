@@ -13,7 +13,7 @@ const { style } = useDraggable(panelRef, {
   initialValue: { x: window.innerWidth - 320, y: 40 },
 })
 
-// EGYSZERŰSÍTÉS: Nincs többé szükség bonyolult, rekurzív slot keresésre.
+// EGYSZERŰSÍTÉS: Nincs többé szükség bonyolult, rekurzív slot keresésre. 
 // A bútor configja közvetlenül tartalmazza az összes releváns slotot.
 const componentSlots = computed(() => {
   return selectionStore.selectedObjectConfig?.componentSlots ?? []

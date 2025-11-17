@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, onMounted, watch } from 'vue';
 import { storeToRefs } from 'pinia';
-import { useConfigStore } from '@/stores/config'; // <-- ÚJ IMPORT
+import { useConfigStore } from '@/stores/config';
 import type { FurnitureConfig, ComponentConfig, ComponentDatabase } from '@/config/furniture';
 import ComponentEditor from '@/components/admin/ComponentEditor.vue';
 import FurnitureEditor from '@/components/admin/FurnitureEditor.vue';
@@ -10,19 +10,12 @@ import ComponentSidePanel from '@/components/admin/ComponentSidePanel.vue';
 
 const activeTab = ref('furniture');
 
-// --- KÖZPONTI ADATTÁROLÓK ---
-const configStore = useConfigStore(); // Store inicializálása
+const configStore = useConfigStore();
 const { furnitureList: allFurniture, components: allComponents } = storeToRefs(configStore);
-const adminSidePanelRef = ref<{ forcePreviewUpdate: () => void } | null>(null); // <-- ÚJ REF
 
-// --- ÚJ "RESET GOMB" A PREVIEW-HOZ ---
-const previewUpdateCounter = ref(0);
-
-// Adatok betöltése a komponens indulásakor
 onMounted(() => {
   if (Object.keys(allComponents.value).length === 0) {
-    // A függvényeket közvetlenül a 'configStore' példányon hívjuk!
-    configStore.loadAllData(); // A függvény neve loadAllData
+    configStore.loadAllData();
   }
 });
 
@@ -36,30 +29,44 @@ const selectedComponent = ref<Partial<ComponentConfig> | null>(null);
 const isNewComponent = ref(false);
 const selectedComponentType = ref('');
 
-// ... a componentPreviewConfig computed property változatlan ...
-const componentPreviewConfig = computed<Partial<FurnitureConfig> | null>(() => {
-  if (selectedComponent.value?.id && selectedComponent.value.model) {
-    return {
-      id: 'component_preview', name: selectedComponent.value.name || 'Preview', category: 'preview',
+// --- JAVÍTOTT PREVIEW LOGIKA ---
+// A 'computed' helyett egy sima 'ref'-et használunk
+const componentPreviewConfig = ref<Partial<FurnitureConfig> | null>(null);
+
+// Egy 'watch' figyeli a 'selectedComponent' változását, és frissíti a previewConfig-et.
+// Ez a megközelítés direktebb és megbízhatóbb a reaktivitás szempontjából.
+watch(selectedComponent, (newComp) => {
+  console.log('👀 PREVIEW WATCH: selectedComponent változott, preview frissítése...');
+  if (newComp?.id && newComp.model) {
+    componentPreviewConfig.value = {
+      id: 'component_preview',
+      name: newComp.name || 'Preview',
+      category: 'preview',
       componentSlots: [{
-        slotId: 'preview_slot', name: 'Preview', componentType: 'preview',
-        allowedComponents: [selectedComponent.value.id], defaultComponent: selectedComponent.value.id,
+        slotId: 'preview_slot',
+        name: 'Preview',
+        componentType: 'preview',
+        allowedComponents: [newComp.id],
+        defaultComponent: newComp.id,
       }]
     };
+    console.log('   -> Új preview config beállítva.');
+  } else {
+    componentPreviewConfig.value = null;
+    console.log('   -> Preview config nullázva.');
   }
-  return null;
-});
+}, { deep: true });
+// --- JAVÍTOTT PREVIEW LOGIKA VÉGE ---
 
-function handlePreviewUpdateRequest(updatedFurniture: Partial<FurnitureConfig>) {
-  console.log('%c[AdminView] 2. Frissítési kérés megérkezett a bútorral.', 'color: #00BFFF;', JSON.parse(JSON.stringify(updatedFurniture)));
-  
-  // FELÜLÍRJUK a központi állapotot a kapott friss adatokkal
-  selectedFurniture.value = updatedFurniture;
-  
-  console.log('%c[AdminView] 3. Központi "selectedFurniture" frissítve. Számláló növelése...', 'color: #00BFFF;');
-  previewUpdateCounter.value++;
-}
-// --- MENTÉSI LOGIKA ---
+// --- ÚJ DETEKTÍV A BÚTOROKHOZ ---
+watch(selectedFurniture, (newValue, oldValue) => {
+  console.log('📥 LOG B: [AdminView] A "selectedFurniture" állapot megváltozott!');
+  // A JSON.stringify itt nem kell, mert a konzol szépen kiírja az objektumot
+  console.log('   Előző érték:', oldValue);
+  console.log('   Új érték:', newValue);
+}, { deep: true });
+// --- ÚJ DETEKTÍV VÉGE ---
+
 async function saveDatabase(filename: 'furniture.json' | 'components.json', data: FurnitureConfig[] | ComponentDatabase) {
   try {
     const response = await fetch('/api/save-database', {
@@ -81,7 +88,6 @@ function handleSelectFurniture(furniture: FurnitureConfig | null) {
     selectedFurniture.value = JSON.parse(JSON.stringify(furniture));
     isNewFurniture.value = false;
   } else {
-    // Ha null-t kapunk, akkor töröljük a kiválasztást.
     selectedFurniture.value = null;
     isNewFurniture.value = false;
   }
@@ -102,7 +108,7 @@ function handleSaveFurniture(furniture: FurnitureConfig) {
   } else {
     configStore.updateFurniture(furniture);
   }
-  handleCancelFurniture(); // Ez marad
+  handleCancelFurniture();
 }
 
 function handleSaveFurnitureToServer() {
@@ -113,13 +119,15 @@ function handleSlotClicked(slotId: string) {
 }
 
 // --- KOMPONENS KEZELŐ FÜGGVÉNYEK ---
-function handleSelectComponent(component: ComponentConfig) {
+function handleSelectComponent(component: ComponentConfig, type: string) {
+  selectedComponentType.value = type;
   selectedComponent.value = JSON.parse(JSON.stringify(component));
   isNewComponent.value = false;
 }
+
 function handleCreateNewComponent(type: string) {
   selectedComponentType.value = type;
-  selectedComponent.value = { name: '', id: '', model: '', price: undefined, materialTarget: '', height: undefined, materialSource: undefined, attachmentPoints: { self: '' } };
+  selectedComponent.value = { name: '', id: '', model: '', price: undefined, materialTarget: '', height: undefined, materialSource: undefined, attachmentPoints: [] };
   isNewComponent.value = true;
 }
 function handleCancelComponent() {
@@ -146,8 +154,6 @@ function handleDeleteComponent(component: ComponentConfig) {
   handleCancelComponent();
 }
 function handleSaveComponentsToServer() {
-  // A komponensek mentése előtt "megtisztítjuk" az üres mezőktől
-  // Ezt a logikát a régi ComponentEditor-ból átemelhetjük ide, ha szükséges.
   saveDatabase('components.json', allComponents.value);
 }
 </script>
@@ -181,9 +187,8 @@ function handleSaveComponentsToServer() {
           <!-- BAL OLDALI OSZLOP -->
           <div class="col-span-4 self-start sticky top-8">
             <AdminSidePanel 
-              ref="adminSidePanelRef"
+              :furniture-config="selectedFurniture"
               v-if="activeTab === 'furniture'"
-              :update-trigger="previewUpdateCounter"
               :furniture-list="allFurniture"
               :selected-furniture="selectedFurniture"
               @update:selected-furniture="handleSelectFurniture"
@@ -193,7 +198,7 @@ function handleSaveComponentsToServer() {
             />
             <ComponentSidePanel
               v-if="activeTab === 'components'"
-              :update-trigger="previewUpdateCounter"
+              :key="selectedComponent ? selectedComponent.id : 'no-component-selected'"
               :component-database="allComponents"
               :selected-component="selectedComponent"
               :preview-config="componentPreviewConfig"
@@ -205,25 +210,39 @@ function handleSaveComponentsToServer() {
 
           <!-- JOBB OLDALI OSZLOP -->
           <div class="col-span-8">
-            <FurnitureEditor 
-              v-if="activeTab === 'furniture'"
-              ref="furnitureEditorRef"
-              :furniture="selectedFurniture"
-              :is-new="isNewFurniture"
-              @save="handleSaveFurniture"
-              @cancel="handleCancelFurniture"
-              @request-preview-update="handlePreviewUpdateRequest"
-              @preview-updated="handlePreviewUpdateRequest"
-            />
-            <ComponentEditor
-              v-if="activeTab === 'components'"
-              :component="selectedComponent"
-              :is-new="isNewComponent"
-              :component-type="selectedComponentType"
-              @save="handleSaveComponent"
-              @cancel="handleCancelComponent"
-              @delete="handleDeleteComponent"
-            />
+            <!-- JAVÍTÁS: A v-if visszakerült az activeTab-ra -->
+            <div v-if="activeTab === 'furniture'">
+              <FurnitureEditor 
+                v-if="selectedFurniture"
+                :key="selectedFurniture.id || 'new-furniture'"
+                v-model:furniture="selectedFurniture"
+                :is-new="isNewFurniture"
+                @save="handleSaveFurniture"
+                @cancel="handleCancelFurniture"
+              />
+              <!-- JAVÍTÁS: Hozzáadunk egy üzenetet, ha nincs kiválasztva bútor -->
+              <div v-else class="text-center text-gray-500 p-8">
+                <p>Válassz ki egy bútort a szerkesztéshez, vagy hozz létre egy újat.</p>
+              </div>
+            </div>
+
+            <!-- JAVÍTÁS: A v-if visszakerült az activeTab-ra -->
+            <div v-if="activeTab === 'components'">
+              <ComponentEditor
+                v-if="selectedComponent"
+                :key="selectedComponent.id || 'new-component'"
+                :component="selectedComponent"
+                :is-new="isNewComponent"
+                :component-type="selectedComponentType"
+                @save="handleSaveComponent"
+                @cancel="handleCancelComponent"
+                @delete="handleDeleteComponent"
+              />
+              <!-- JAVÍTÁS: Hozzáadunk egy üzenetet, ha nincs kiválasztva komponens -->
+              <div v-else class="text-center text-gray-500 p-8">
+                <p>Válassz ki egy komponenst a szerkesztéshez.</p>
+              </div>
+            </div>
           </div>
         </div>
       </div>

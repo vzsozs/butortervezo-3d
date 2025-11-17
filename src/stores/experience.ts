@@ -38,32 +38,35 @@ export const useExperienceStore = defineStore('experience', () => {
   }
   
   function calculateTotalPrice() {
-  const configStore = useConfigStore();
-  let newTotal = 0;
+    const configStore = useConfigStore();
+    let newTotal = 0;
 
-  // 1. Végigmegyünk az összes lehelyezett bútoron
-  for (const furniture of placedObjects.value) {
-    if (!furniture.userData.componentState) continue;
+    for (const furniture of placedObjects.value) {
+      if (!furniture.userData.componentState) continue;
+      const componentState = furniture.userData.componentState;
 
-    const componentState = furniture.userData.componentState;
-    // 2. Végigmegyünk a bútorhoz kiválasztott komponenseken
-    for (const slotId in componentState) {
-      const componentId = componentState[slotId];
-      if (componentId) {
+      for (const slotId in componentState) {
+        const componentId = componentState[slotId];
+        if (!componentId) continue;
+        
         const componentConfig = configStore.getComponentById(componentId);
-        if (componentConfig?.price) {
-          // 3. Meghatározzuk a darabszámot
-          // A mennyiséget a komponens configjából vesszük!
-          const quantity = componentConfig.attachmentPoints?.multiple?.length || 1;
-          newTotal += componentConfig.price * quantity;
+        if (!componentConfig?.price) continue;
+
+        let quantity = 1;
+        // JAVÍTOTT LOGIKA: Speciális eset a lábakra
+        if (slotId === 'leg') {
+          const corpusId = componentState['corpus']; // Megkeressük a korpuszt
+          if (corpusId) {
+            const corpusConfig = configStore.getComponentById(corpusId);
+            // Megszámoljuk, hány 'legs' típusú pontot kínál fel a korpusz
+            quantity = corpusConfig?.attachmentPoints?.filter(p => p.allowedComponentTypes.includes('legs')).length || 1;
+          }
         }
+        newTotal += componentConfig.price * quantity;
       }
     }
+    totalPrice.value = newTotal; // Feltételezve, hogy a totalPrice egy ref
   }
-  
-  totalPrice.value = newTotal;
-  console.log(`Ár újraszámolva: ${newTotal} Ft`);
-}
 
   return { 
     instance, 

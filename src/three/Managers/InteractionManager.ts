@@ -502,7 +502,7 @@ export default class InteractionManager {
         controls.showZ = false;
       }
     }
-  }
+  } 
 
   private setupWatchers() {
     watch(() => this.experience.settingsStore.isRulerModeActive, (isActive) => {

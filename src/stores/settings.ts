@@ -83,7 +83,7 @@ export const useSettingsStore = defineStore('settings', () => {
       if (originalIndex !== -1 && newObjects[originalIndex]) {
         const newSelectedObject = newObjects[originalIndex];
         experience.selectionStore.selectObject(newSelectedObject);
-        experience.transformControls.attach(toRaw(newSelectedObject));
+        experience.camera.transformControls.attach(toRaw(newSelectedObject));
       }
     }
     experience.historyStore.addState();

@@ -1,20 +1,29 @@
 <!-- src/App.vue -->
 <script setup lang="ts">
-import { RouterView, useRoute } from 'vue-router' // <-- 1. useRoute importálása
-import { computed } from 'vue' // <-- 2. computed importálása
+// --- MEGLÉVŐ IMPORT-OK ---
+import { RouterView, useRoute } from 'vue-router'
+import { computed, onMounted } from 'vue' // <-- onMounted hozzáadva
 import InspectorPanel from './components/InspectorPanel.vue'
-import SidePanel from './components/SidePanel.vue' 
-import TopMenu from '@/components/TopMenu.vue' 
+import SidePanel from './components/SidePanel.vue'
+import TopMenu from '@/components/TopMenu.vue'
 import ElementListPanel from '@/components/ElementListPanel.vue'
 
-// 3. Hozzunk létre egy reaktív hivatkozást az aktuális útvonalra
+// --- ÚJ IMPORT ---
+import { useConfigStore } from '@/stores/config'; // <-- A Pinia store importálása
+
+// --- MEGLÉVŐ LOGIKA ---
 const route = useRoute();
 
-// 4. Hozzunk létre egy computed property-t, ami megmondja, hogy a fő tervező UI-t kell-e mutatni
 const isDesignerUIVisible = computed(() => {
-  // A meta property-t a router beállításainál fogjuk használni, ez a legtisztább megoldás.
-  // Ha egy útvonalnak van 'hideDesignerUI' meta flag-je, akkor nem mutatjuk a paneleket.
   return !route.meta.hideDesignerUI;
+});
+
+// --- ÚJ LOGIKA ---
+// Amikor az alkalmazás betöltődik (a komponens csatolva van),
+// elindítjuk az adatok letöltését a központi store-ba.
+onMounted(() => {
+  const configStore = useConfigStore();
+  configStore.loadAllData();
 });
 </script>
 
@@ -23,7 +32,7 @@ const isDesignerUIVisible = computed(() => {
     <!-- A 3D vászon vagy az admin felület -->
     <RouterView />
     
-    <!-- 5. A FELHASZNÁLÓI FELÜLET RÉTEGEI - FELTÉTELES MEGJELENÍTÉSSEL -->
+    <!-- FELHASZNÁLÓI FELÜLET RÉTEGEI - FELTÉTELES MEGJELENÍTÉSSEL -->
     <template v-if="isDesignerUIVisible">
       <SidePanel />
       <InspectorPanel /> 

@@ -1,5 +1,7 @@
+<!-- src/components/admin/AdminSidePanel.vue -->
+
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue'; // onMounted visszakerül
+import { computed, ref, watch } from 'vue'; // onMounted már nem kell
 import type { FurnitureConfig } from '@/config/furniture';
 import AdminPreviewCanvas from './AdminPreviewCanvas.vue';
 import CollapsibleCategory from './CollapsibleCategory.vue';
@@ -7,7 +9,7 @@ import CollapsibleCategory from './CollapsibleCategory.vue';
 const props = defineProps<{
   furnitureList: FurnitureConfig[];
   selectedFurniture: Partial<FurnitureConfig> | null;
-  updateTrigger: number; // <-- ÚJ PROP
+  // updateTrigger már nem szükséges a reaktív működéshez, de a prop definíció maradhat, ha máshol kell
 }>();
 
 const emit = defineEmits<{
@@ -18,15 +20,13 @@ const emit = defineEmits<{
 }>();
 
 const searchQuery = ref('');
-const previewCanvasRef = ref<{ updateCanvas: (config: any) => void } | null>(null);
 
-function forcePreviewUpdate() {
-  previewCanvasRef.value?.updateCanvas(props.selectedFurniture);
-}
+// --- ÚJ DETEKTÍV A PROP-RA ---
+watch(() => props.selectedFurniture, (newValue) => {
+    console.log('➡️ LOG C: [AdminSidePanel] A "selectedFurniture" PROP megváltozott, ezt adom tovább a canvasnak:', JSON.parse(JSON.stringify(newValue)));
+}, { deep: true });
+// --- ÚJ DETEKTÍV VÉGE ---
 
-onMounted(() => {
-  previewCanvasRef.value?.updateCanvas(props.selectedFurniture);
-});
 
 const categorizedFurniture = computed(() => {
   const list = props.furnitureList || [];
@@ -49,6 +49,8 @@ const categorizedFurniture = computed(() => {
 });
 
 function selectFurniture(furniture: FurnitureConfig) {
+  // --- DIAGNOSZTIKAI LOG HOZZÁADVA ---
+  console.log('➡️ LOG 1: [AdminSidePanel] Bútorra kattintás történt, ezt küldöm fel:', JSON.parse(JSON.stringify(furniture)));
   emit('update:selectedFurniture', furniture);
 }
 </script>
@@ -59,18 +61,17 @@ function selectFurniture(furniture: FurnitureConfig) {
     <!-- FELSŐ SZEKCIÓ (nem görgetődik) -->
     <div class="flex-shrink-0">
       <div class="grid grid-cols-2 gap-2">
-        <button @click="emit('createNew')" class="admin-btn">Új Bútor</button>
-        <button @click="emit('saveToServer')" class="admin-btn bg-red-600 hover:bg-red-700">Mentés</button>
+        <button @click="$emit('createNew')" class="admin-btn">Új Bútor</button>
+        <button @click="$emit('saveToServer')" class="admin-btn bg-red-600 hover:bg-red-700">Mentés</button>
       </div>
       <div class="mt-4">
         <h2 class="section-header">3D Preview</h2>
         <div class="bg-gray-900 p-1 rounded-lg h-64">
+          <!-- JAVÍTÁS: A ref és a key már nem szükséges a reaktív prop miatt -->
           <AdminPreviewCanvas 
-            ref="previewCanvasRef"
             v-if="props.selectedFurniture"
-            :key="props.updateTrigger" 
             :furniture-config="props.selectedFurniture"
-            @slot-clicked="emit('slot-clicked', $event)"
+            @slot-clicked="$emit('slot-clicked', $event)"
           />
           <div v-else class="w-full h-full flex items-center justify-center text-gray-500 text-sm">
             <p>Válassz ki egy bútort.</p>

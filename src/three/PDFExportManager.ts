@@ -45,9 +45,16 @@ export class PDFExportManager {
       for (const slotId in componentState) {
         const componentId = componentState[slotId];
         const componentConfig = configStore.getComponentById(componentId);
-        // Itt már a componentConfig típusa helyes, így a Map-be is helyesen kerül be
         if (componentConfig?.price) {
-          const quantity = componentConfig.attachmentPoints?.multiple?.length || 1;
+          let quantity = 1;
+          // JAVÍTOTT LOGIKA: Ugyanaz, mint a store-ban
+          if (slotId === 'leg') {
+            const corpusId = componentState['corpus'];
+            if (corpusId) {
+              const corpusConfig = configStore.getComponentById(corpusId);
+              quantity = corpusConfig?.attachmentPoints?.filter(p => p.allowedComponentTypes.includes('legs')).length || 1;
+            }
+          }
           
           if (itemSummary.has(componentId)) {
             itemSummary.get(componentId)!.quantity += quantity;

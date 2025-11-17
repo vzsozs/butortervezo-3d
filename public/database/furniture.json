@@ -11,6 +11,62 @@
         "defaultComponent": "corpus_bottom_60",
         "allowedComponents": [
           "corpus_bottom_60"
+        ],
+        "children": [
+          {
+            "slotId": "front",
+            "name": "Front",
+            "componentType": "fronts",
+            "defaultComponent": "front_bottom_sima_60",
+            "allowedComponents": [
+              "front_bottom_sima_60",
+              "front_bottom_keretes_60"
+            ],
+            "attachToSlot": "corpus",
+            "useAttachmentPoint": "attach_front",
+            "rotation": {
+              "x": 3.141592653589793,
+              "y": 4.71238898038469,
+              "z": 1.5707963267948966
+            },
+            "children": [
+              {
+                "slotId": "handle",
+                "name": "Fogantyú",
+                "componentType": "handles",
+                "defaultComponent": "handle_standard",
+                "allowedComponents": [
+                  "handle_standard",
+                  "handle_design"
+                ],
+                "attachToSlot": "front",
+                "useAttachmentPoint": "attach_handle_vertical",
+                "rotation": {
+                  "x": 1.571,
+                  "y": 1.571,
+                  "z": -1.571
+                },
+                "children": []
+              }
+            ]
+          },
+          {
+            "slotId": "leg",
+            "name": "Lábak",
+            "componentType": "legs",
+            "defaultComponent": "leg_standard",
+            "allowedComponents": [
+              "leg_standard",
+              "leg_design"
+            ],
+            "attachToSlot": "corpus",
+            "rotation": {
+              "x": 0,
+              "y": 4.71238898038469,
+              "z": -1.571
+            },
+            "children": []
+          }
         ]
       },
       {
@@ -23,14 +79,32 @@
           "front_bottom_keretes_60"
         ],
         "attachToSlot": "corpus",
-        "attachmentPoints": {
-          "self": "attach_front"
-        },
+        "useAttachmentPoint": "attach_front",
         "rotation": {
-          "x": 1.571,
-          "y": 0,
-          "z": -1.571
-        }
+          "x": 3.141592653589793,
+          "y": 4.71238898038469,
+          "z": 1.5707963267948966
+        },
+        "children": [
+          {
+            "slotId": "handle",
+            "name": "Fogantyú",
+            "componentType": "handles",
+            "defaultComponent": "handle_standard",
+            "allowedComponents": [
+              "handle_standard",
+              "handle_design"
+            ],
+            "attachToSlot": "front",
+            "useAttachmentPoint": "attach_handle_vertical",
+            "rotation": {
+              "x": 1.571,
+              "y": 1.571,
+              "z": -1.571
+            },
+            "children": []
+          }
+        ]
       },
       {
         "slotId": "handle",
@@ -42,14 +116,13 @@
           "handle_design"
         ],
         "attachToSlot": "front",
-        "attachmentPoints": {
-          "self": "attach_handle_vertical"
-        },
+        "useAttachmentPoint": "attach_handle_vertical",
         "rotation": {
           "x": 1.571,
           "y": 1.571,
           "z": -1.571
-        }
+        },
+        "children": []
       },
       {
         "slotId": "leg",
@@ -62,10 +135,11 @@
         ],
         "attachToSlot": "corpus",
         "rotation": {
-          "x": 1.571,
-          "y": 0,
+          "x": 0,
+          "y": 4.71238898038469,
           "z": -1.571
-        }
+        },
+        "children": []
       }
     ]
   }

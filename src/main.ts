@@ -7,13 +7,13 @@ import { createPinia } from 'pinia'
 
 import App from './App.vue'
 import router from './router'
-import ConfigManager from '@/three/Managers/ConfigManager';
+//import ConfigManager from '@/three/Managers/ConfigManager';
 
 const app = createApp(App);
 
 app.use(createPinia());
 
-ConfigManager.loadData();
+//ConfigManager.loadData();
 
 app.use(router);
 
