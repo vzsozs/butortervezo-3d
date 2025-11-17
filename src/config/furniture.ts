@@ -39,6 +39,7 @@ export interface ComponentSlotConfig {
   allowedComponents: string[];
   attachToSlot?: string;
   useAttachmentPoint?: string;
+  attachmentMapping?: Record<string, string[]>;
   rotation?: {
     x: number;
     y: number;

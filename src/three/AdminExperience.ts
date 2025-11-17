@@ -23,20 +23,22 @@ export default class AdminExperience extends EventTarget {
   private highlightMaterial: MeshStandardMaterial;
   private highlightedObject: Mesh | null = null;
   private originalMaterial: Material | null = null;
+  private currentObjectId: string | null = null; // <<< ÚJ: Eltároljuk az aktuális bútor ID-ját
 
   constructor(canvas: HTMLDivElement) {
     super();
     this.canvas = canvas;
     this.scene = new Scene();
     const sizes = { width: canvas.clientWidth, height: canvas.clientHeight };
-    this.camera = new PerspectiveCamera(60, sizes.width / sizes.height, 0.1, 1000);
-    this.camera.position.set(1.5, 1.5, 1.5);
+    this.camera = new PerspectiveCamera(50, sizes.width / sizes.height, 0.1, 1000);
+    this.camera.position.set(1.1, 0.6, 0.5); 
     this.renderer = new WebGLRenderer({ antialias: true, alpha: true });
     this.renderer.setSize(sizes.width, sizes.height);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.canvas.appendChild(this.renderer.domElement);
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
+    this.controls.target.set(0, 0.05, 0);
     const ambientLight = new AmbientLight(0xffffff, 0.8);
     this.scene.add(ambientLight);
     const directionalLight = new DirectionalLight(0xffffff, 1);
@@ -50,7 +52,7 @@ export default class AdminExperience extends EventTarget {
     this.animate();
   }
 
-  public async updateObject(config: FurnitureConfig) {
+  public async updateObject(config: FurnitureConfig, resetCamera: boolean) {
     if (this.currentObject) {
       this.scene.remove(this.currentObject);
     }
@@ -75,7 +77,16 @@ export default class AdminExperience extends EventTarget {
 
     this.currentObject = newObject;
     this.scene.add(this.currentObject);
-    this.frameObject(this.currentObject);
+    // JAVÍTÁS: Csak akkor állítjuk be a kamerát, ha a flag igaz
+    if (resetCamera) {
+      console.log('%c[Experience] Új bútor, kamera reset.', 'color: cyan');
+      this.frameObject(this.currentObject);
+    } else {
+      console.log('%c[Experience] Meglévő bútor frissítve, kamera pozíció megmarad.', 'color: cyan');
+    }
+
+    // ÚJ: Frissítjük az eltárolt ID-t
+    this.currentObjectId = config.id;
   }
 
   private frameObject(object: Group) {
@@ -162,6 +173,8 @@ export default class AdminExperience extends EventTarget {
       this.currentObject = null;
     }
     this.clearHighlight();
+    // ÚJ: A vászon törlésekor az ID-t is töröljük
+    this.currentObjectId = null;
   }
 
   public destroy() {

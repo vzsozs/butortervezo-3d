@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, type ComponentPublicInstance } from 'vue';
+import { computed, ref, type ComponentPublicInstance, provide } from 'vue'; 
 import { storeToRefs } from 'pinia';
 import type { FurnitureConfig, ComponentSlotConfig } from '@/config/furniture';
 import { useConfigStore } from '@/stores/config';
@@ -28,6 +28,8 @@ const editableFurniture = computed({
     emit('update:furniture', newValue);
   }
 });
+
+provide('editableFurniture', editableFurniture);
 
 const configStore = useConfigStore();
 const { components: storeComponents } = storeToRefs(configStore);

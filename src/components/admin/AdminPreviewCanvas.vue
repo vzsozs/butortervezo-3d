@@ -13,24 +13,28 @@ let experience: AdminExperience | null = null;
 
 // --- KÖZPONTI FRISSÍTŐ FÜGGVÉNY ---
 // Kiemeltük a logikát, hogy ne kelljen ismételni
-function updateCanvas(config: Partial<FurnitureConfig> | null) {
+function updateCanvas(config: Partial<FurnitureConfig> | null, resetCamera: boolean) {
   if (!experience) return;
 
   const hasDrawableRoot = config?.componentSlots?.some(slot => !slot.attachToSlot && slot.defaultComponent);
     
   if (config && hasDrawableRoot) {
-    console.log('   -> Új config valid, 3D objektum frissítése...');
-    experience.updateObject(config as FurnitureConfig);
+    console.log(`   -> 3D objektum frissítése... (resetCamera: ${resetCamera})`);
+    experience.updateObject(config as FurnitureConfig, resetCamera);
   } else {
-    console.log('   -> Új config invalid, vászon törlése.');
+    console.log('   -> Config invalid, vászon törlése.');
     experience.clearCanvas();
   }
 }
 
-// --- A HIÁNYZÓ WATCH BLOKK ---
-watch(() => props.furnitureConfig, (newConfig) => {
-  console.log('📥 LOG D: [AdminPreviewCanvas] A "furnitureConfig" PROP megváltozott, frissítés indul...');
-  updateCanvas(newConfig);
+watch(() => props.furnitureConfig, (newConfig, oldConfig) => {
+  console.log('📥 [AdminPreviewCanvas] A "furnitureConfig" PROP megváltozott...');
+  
+  // Kiszámoljuk, hogy kell-e a kamerát resetelni
+  const shouldResetCamera = !oldConfig || oldConfig.id !== newConfig?.id;
+  
+  // Átadjuk a második argumentumot is!
+  updateCanvas(newConfig, shouldResetCamera);
 }, { deep: true });
 
 
@@ -42,7 +46,7 @@ onMounted(() => {
     experience.addEventListener('slotClicked', handleSlotClickFrom3D);
 
     // Az induláskor is a központi frissítő függvényt hívjuk
-    updateCanvas(props.furnitureConfig);
+    updateCanvas(props.furnitureConfig, false);
   }
 });
 

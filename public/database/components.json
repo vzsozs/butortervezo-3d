@@ -7,11 +7,36 @@
       "materialTarget": "MAT_Korpusz",
       "price": 45000,
       "attachmentPoints": [
-        { "id": "attach_front", "allowedComponentTypes": ["fronts"] },
-        { "id": "attach_leg_frontLeft", "allowedComponentTypes": ["legs"] },
-        { "id": "attach_leg_frontRight", "allowedComponentTypes": ["legs"] },
-        { "id": "attach_leg_backLeft", "allowedComponentTypes": ["legs"] },
-        { "id": "attach_leg_backRight", "allowedComponentTypes": ["legs"] }
+        {
+          "id": "attach_front",
+          "allowedComponentTypes": [
+            "fronts"
+          ]
+        },
+        {
+          "id": "attach_leg_frontLeft",
+          "allowedComponentTypes": [
+            "legs"
+          ]
+        },
+        {
+          "id": "attach_leg_frontRight",
+          "allowedComponentTypes": [
+            "legs"
+          ]
+        },
+        {
+          "id": "attach_leg_backLeft",
+          "allowedComponentTypes": [
+            "legs"
+          ]
+        },
+        {
+          "id": "attach_leg_backRight",
+          "allowedComponentTypes": [
+            "legs"
+          ]
+        }
       ]
     }
   ],
@@ -23,7 +48,12 @@
       "materialTarget": "MAT_Frontok",
       "price": 20000,
       "attachmentPoints": [
-        { "id": "attach_handle_vertical", "allowedComponentTypes": ["handles"] }
+        {
+          "id": "attach_handle_vertical",
+          "allowedComponentTypes": [
+            "handles"
+          ]
+        }
       ]
     },
     {
@@ -33,7 +63,12 @@
       "materialTarget": "MAT_Frontok",
       "price": 30000,
       "attachmentPoints": [
-        { "id": "attach_handle_vertical", "allowedComponentTypes": ["handles"] }
+        {
+          "id": "attach_handle_vertical",
+          "allowedComponentTypes": [
+            "handles"
+          ]
+        }
       ]
     }
   ],
@@ -60,7 +95,13 @@
       "model": "/models/legs/leg_standard.glb",
       "height": 0.1,
       "materialSource": "corpus",
-      "price": 15000
+      "price": 15000,
+      "attachmentPoints": [
+        {
+          "id": "attach_leg_frontLeft",
+          "allowedComponentTypes": "legs"
+        }
+      ]
     },
     {
       "id": "leg_design",
@@ -68,7 +109,25 @@
       "model": "/models/legs/leg_design.glb",
       "height": 0.1,
       "materialTarget": "MAT_Lab_Fem",
-      "price": 555
+      "price": 555,
+      "attachmentPoints": [
+        {
+          "id": "attach_leg_frontLeft",
+          "allowedComponentTypes": "legs"
+        },
+        {
+          "id": "attach_leg_frontRight",
+          "allowedComponentTypes": "legs"
+        },
+        {
+          "id": "attach_leg_backLeft",
+          "allowedComponentTypes": "legs"
+        },
+        {
+          "id": "attach_leg_backRight",
+          "allowedComponentTypes": "legs"
+        }
+      ]
     }
   ]
 }

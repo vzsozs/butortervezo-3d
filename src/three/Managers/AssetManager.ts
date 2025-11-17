@@ -90,23 +90,16 @@ export default class AssetManager {
         continue;
       }
       
-      const { config: parentConfig } = parentData;
-
-      // --- A STABIL, LOKÁLIS TÉREN MŰKÖDŐ LOGIKA ---
       const applyAttachment = (modelInstance: Group, attachmentPointName: string) => {
         const attachmentDummy = parentModel.getObjectByName(attachmentPointName);
         if (!attachmentDummy) {
-          console.error(`[AssetManager] HIBA: A(z) '${attachmentPointName}' csat. pont nem található!`);
+          console.error(`[AssetManager] HIBA: A(z) '${attachmentPointName}' csat. pont nem található a(z) '${parentModel.name}' szülőn!`);
           return;
         }
         
-        // A gyerek pozíciója legyen a dummy LOKÁLIS pozíciója a szülőn belül.
         modelInstance.position.copy(attachmentDummy.position);
-        
-        // A gyerek forgatása legyen a dummy LOKÁLIS forgatása...
         modelInstance.quaternion.copy(attachmentDummy.quaternion);
 
-        // ...megszorozva a slot extra forgatásával.
         if (slot.rotation) {
           const slotEuler = new Euler(slot.rotation.x, slot.rotation.y, slot.rotation.z);
           const slotQuaternion = new Quaternion().setFromEuler(slotEuler);
@@ -116,18 +109,31 @@ export default class AssetManager {
         parentModel.add(modelInstance);
       };
 
-      if (slot.componentType === 'legs') {
-        const legAttachmentPoints = parentConfig.attachmentPoints?.filter(p => p.allowedComponentTypes.includes('legs')) || [];
-        legAttachmentPoints.forEach((pointInfo, index) => {
-          const instance = index === 0 ? model : model.clone();
-          applyAttachment(instance, pointInfo.id);
+      // Először megnézzük, van-e az új, részletes 'attachmentMapping' szabály.
+      const componentId = componentState[slot.slotId];
+      const attachmentPointsFromMapping = componentId ? slot.attachmentMapping?.[componentId] : undefined;
+
+      if (attachmentPointsFromMapping && Array.isArray(attachmentPointsFromMapping)) {
+        // 1. eset: Az új, adatvezérelt logika.
+        // Ha a mapping üres tömböt ad vissza, az azt jelenti: "ne csatolj semmit".
+        console.log(`%c[AssetManager] AttachmentMapping használata a(z) '${slot.slotId}' slothoz. Pontok: [${attachmentPointsFromMapping.join(', ')}]`, 'color: green');
+        
+        attachmentPointsFromMapping.forEach((pointName, index) => {
+          // Az első példány az eredeti, a többi klón.
+          const instance = index === 0 ? model : model.clone(true);
+          applyAttachment(instance, pointName);
         });
+
+      } else if (slot.useAttachmentPoint) {
+        // 2. eset: Fallback a régi, egypontos csatlakozásra.
+        console.log(`%c[AssetManager] Fallback: useAttachmentPoint használata a(z) '${slot.slotId}' slothoz. Pont: ${slot.useAttachmentPoint}`, 'color: orange');
+        applyAttachment(model, slot.useAttachmentPoint);
+      
       } else {
-        const targetPointName = slot.useAttachmentPoint;
-        if (targetPointName) {
-          applyAttachment(model, targetPointName);
-        }
+        // 3. eset: Nincs csatlakozási szabály megadva a gyereknek.
+        console.warn(`[AssetManager] FIGYELEM: A(z) '${slot.slotId}' gyerek slotnak nincs csatlakozási szabálya (attachmentMapping vagy useAttachmentPoint). Nem lesz csatlakoztatva.`);
       }
+
       assembledObjects.set(slot.slotId, model);
     }
 
