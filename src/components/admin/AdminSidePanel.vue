@@ -15,7 +15,6 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'update:selectedFurniture', value: FurnitureConfig | null): void;
   (e: 'createNew'): void;
-  (e: 'saveChanges'): void; 
   (e: 'slot-clicked', slotId: string): void;
 }>();
 
@@ -60,10 +59,6 @@ function selectFurniture(furniture: FurnitureConfig) {
     
     <!-- FELSŐ SZEKCIÓ (nem görgetődik) -->
     <div class="flex-shrink-0">
-      <div class="grid grid-cols-2 gap-2">
-        <button @click="$emit('createNew')" class="admin-btn">Új Bútor</button>
-        <button @click="$emit('saveChanges')" class="admin-btn bg-red-600 hover:bg-red-700">Mentés</button>
-      </div>
       <div class="mt-4">
         <h2 class="section-header">3D Preview</h2>
         <div class="bg-gray-900 p-1 rounded-lg h-64">
@@ -85,6 +80,9 @@ function selectFurniture(furniture: FurnitureConfig) {
         placeholder="Keresés..." 
         class="admin-input w-full mb-2 flex-shrink-0"
       />
+      <div class="my-4">
+        <button @click="$emit('createNew')" class="admin-btn w-full">Új Bútor</button>
+      </div>
       <div class="overflow-y-auto space-y-2">
         <CollapsibleCategory 
           v-for="(items, categoryName) in categorizedFurniture" 

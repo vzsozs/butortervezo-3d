@@ -36,12 +36,6 @@ function selectComponent(component: ComponentConfig, type: string) {
     
     <!-- FELSŐ SZEKCIÓ (nem görgetődik) -->
     <div class="flex-shrink-0">
-      <div class="grid grid-cols-2 gap-2">
-        <div class="flex items-center justify-start">
-          <h2 class="section-header mb-0">Komponens Lista</h2>
-        </div>
-        <button @click="emit('save-to-server')" class="admin-btn bg-red-600 hover:bg-red-700">Mentés</button>
-      </div>
       <div class="mt-4">
         <h2 class="section-header">3D Preview</h2>
         <div class="bg-gray-900 p-1 rounded-lg h-64">

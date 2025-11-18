@@ -1,27 +1,14 @@
-// vite.config.ts
 import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
 import svgLoader from 'vite-svg-loader'
 import path from 'path'
-import fs from 'fs'
-import bodyParser from 'body-parser'
-// JAVÍTÁS: A Vite/Connect és a Node típusait importáljuk a pontos típusdefiníciókhoz
-import type { Connect } from 'vite'
-import type { ServerResponse } from 'http'
-
-// JAVÍTÁS: A 'data' típusát pontosítjuk, hogy ne 'any' legyen.
-// Ez egy általános típus, ami lefedi a JSON fájljaink tartalmát.
-type JsonData = Record<string, unknown> | Record<string, unknown>[];
-
-// A body-parser által kiegészített request típus definiálása
-interface RequestWithBody extends Connect.IncomingMessage {
-  body: {
-    filename?: string;
-    data?: JsonData; // Pontosabb típus használata
-  }
-}
+import fs from 'fs/promises' // fs/promises a modern, async/await használathoz
+import os from 'os'
+import express from 'express' // express-t használunk a kényelmesebb routingért
+import multer from 'multer'
+import type { ComponentConfig, ComponentDatabase } from './src/config/furniture'
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -30,54 +17,75 @@ export default defineConfig({
     vueDevTools(),
     svgLoader(),
     {
-      name: 'save-database-endpoint',
+      name: 'api-endpoints',
       configureServer(server) {
-        server.middlewares.use(bodyParser.json({ limit: '10mb' }));
+        const app = express()
 
-        // JAVÍTÁS: A middleware függvényt egy változóba tesszük a helyes típusozásért
-        const saveDatabaseMiddleware: Connect.NextHandleFunction = (
-          req: Connect.IncomingMessage, 
-          res: ServerResponse, 
-          next: Connect.NextFunction
-        ) => {
-          // A 'req' objektumot átalakítjuk a mi 'RequestWithBody' típusunkká
-          const request = req as RequestWithBody;
-
-          if (request.method !== 'POST') {
-            return next();
-          }
-
-          const { filename, data } = request.body;
-
-          if (!filename || !data) {
-            res.statusCode = 400;
-            res.end('Hiányzó "filename" vagy "data" a kérésben.');
-            return;
-          }
-
-          if (filename !== 'components.json' && filename !== 'furniture.json') {
-            res.statusCode = 403;
-            res.end('Nem engedélyezett fájlnév.');
-            return;
-          }
-
-          const projectRoot = path.dirname(fileURLToPath(import.meta.url));
-          const filePath = path.resolve(projectRoot, 'public/database', filename);
-          
+        // --- 1. VÉGPONT: KOMPONENS MENTÉSE FÁJLLAL ---
+        const upload = multer({ dest: os.tmpdir() })
+        app.post('/api/save-component', upload.single('modelFile'), async (req, res) => {
           try {
-            fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
-            console.log(`✅ Fájl sikeresen mentve: ${filePath}`);
-            res.statusCode = 200;
-            res.end('Fájl sikeresen mentve.');
+            const componentData: ComponentConfig = JSON.parse(req.body.componentData);
+            const componentType: string = req.body.componentType;
+            const file = req.file;
+
+            const projectRoot = path.dirname(fileURLToPath(import.meta.url));
+
+            if (file) {
+              const targetDir = path.join(projectRoot, 'public/models', componentType);
+              const finalPath = path.join(targetDir, `${componentData.id}.glb`);
+              await fs.mkdir(targetDir, { recursive: true });
+              await fs.rename(file.path, finalPath);
+              componentData.model = `/models/${componentType}/${componentData.id}.glb`;
+            }
+
+            const dbPath = path.join(projectRoot, 'public/database/components.json');
+            const dbContent = await fs.readFile(dbPath, 'utf-8');
+            const componentsDb: ComponentDatabase = JSON.parse(dbContent);
+
+            if (!componentsDb[componentType]) {
+              componentsDb[componentType] = [];
+            }
+            const componentIndex = componentsDb[componentType].findIndex(c => c.id === componentData.id);
+            if (componentIndex > -1) {
+              componentsDb[componentType][componentIndex] = componentData;
+            } else {
+              componentsDb[componentType].push(componentData);
+            }
+
+            await fs.writeFile(dbPath, JSON.stringify(componentsDb, null, 2));
+
+            res.status(200).json({ 
+              message: 'Komponens sikeresen mentve!',
+              updatedComponent: componentData 
+            });
           } catch (error) {
-            console.error(`❌ Hiba a fájl mentésekor (${filePath}):`, error);
-            res.statusCode = 500;
-            res.end('Szerver oldali hiba a fájl mentésekor.');
+            console.error('API hiba a /api/save-component végponton:', error);
+            res.status(500).json({ message: 'Szerveroldali hiba történt.' });
           }
-        };
-        
-        // A middleware-t a '/api/save-database' útvonalhoz kötjük
-        server.middlewares.use('/api/save-database', saveDatabaseMiddleware);
+        });
+
+        // --- 2. VÉGPONT: SIMA JSON ADATBÁZIS MENTÉSE ---
+        app.use(express.json({ limit: '10mb' })); // JSON parser
+        app.post('/api/save-database', async (req, res) => {
+          try {
+            const { filename, data } = req.body;
+            if (!filename || !data || (filename !== 'furniture.json' && filename !== 'components.json')) {
+              return res.status(400).json({ message: 'Érvénytelen kérés.' });
+            }
+            const projectRoot = path.dirname(fileURLToPath(import.meta.url));
+            const filePath = path.join(projectRoot, 'public/database', filename);
+            await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8');
+            console.log(`✅ Fájl sikeresen mentve: ${filePath}`);
+            res.status(200).json({ message: `${filename} sikeresen mentve.` });
+          } catch (error) {
+            console.error(`❌ Hiba a /api/save-database végponton:`, error);
+            res.status(500).json({ message: 'Szerver oldali hiba a fájl mentésekor.' });
+          }
+        });
+
+        // Az express app-ot használjuk middleware-ként
+        server.middlewares.use(app);
       }
     }
   ],

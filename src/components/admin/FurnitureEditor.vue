@@ -13,7 +13,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'update:furniture', value: Partial<FurnitureConfig> | null): void;
-  (e: 'save', value: FurnitureConfig): void;
+  (e: 'save', value: FurnitureConfig): void; // EZT HASZNÁLJUK A MENTÉSHEZ
   (e: 'cancel'): void;
   (e: 'delete'): void; 
 }>();
@@ -60,6 +60,12 @@ const suggestions = computed(() => ({
   componentTypes: Object.keys(storeComponents.value),
   attachmentPoints: [],
 }));
+
+function saveChanges() {
+  if (editableFurniture.value) {
+    emit('save', editableFurniture.value as FurnitureConfig);
+  }
+}
 
 function addSlotFromTemplate(template: Partial<ComponentSlotConfig>) {
   if (!editableFurniture.value?.componentSlots) return;
@@ -169,9 +175,13 @@ defineExpose({ scrollToSlot });
       />
     </div>
     
-    <div class="flex justify-end gap-4 mt-8 pt-6 border-t border-gray-700">
-      <button @click="emit('cancel')" class="admin-btn-secondary">Mégse</button>
+    <!-- ÚJ GOMB ELRENDEZÉS -->
+    <div class="flex justify-between items-center mt-8 pt-6 border-t border-gray-700">
       <button @click="emit('delete')" class="admin-btn-danger">Bútor Törlése</button>
+      <div class="flex gap-4">
+        <button @click="emit('cancel')" class="admin-btn-secondary">Mégse</button>
+        <button @click="saveChanges" class="admin-btn">Bútor Mentése</button>
+      </div>
     </div>
   </div>
   
