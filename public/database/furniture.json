@@ -1,6 +1,6 @@
 [
   {
-    "id": "also_szekreny_60",
+    "id": "als_szekrny_60cm",
     "name": "Alsó szekrény 60cm",
     "category": "bottom_cabinets",
     "componentSlots": [
@@ -8,138 +8,86 @@
         "slotId": "corpus",
         "name": "Korpusz",
         "componentType": "corpuses",
-        "defaultComponent": "corpus_bottom_60",
+        "attachToSlot": "",
         "allowedComponents": [
           "corpus_bottom_60"
         ],
-        "children": [
-          {
-            "slotId": "front",
-            "name": "Front",
-            "componentType": "fronts",
-            "defaultComponent": "front_bottom_sima_60",
-            "allowedComponents": [
-              "front_bottom_sima_60",
-              "front_bottom_keretes_60"
-            ],
-            "attachToSlot": "corpus",
-            "useAttachmentPoint": "attach_front",
-            "rotation": {
-              "x": 3.141592653589793,
-              "y": 4.71238898038469,
-              "z": 1.5707963267948966
-            },
-            "children": [
-              {
-                "slotId": "handle",
-                "name": "Fogantyú",
-                "componentType": "handles",
-                "defaultComponent": "handle_standard",
-                "allowedComponents": [
-                  "handle_standard",
-                  "handle_design"
-                ],
-                "attachToSlot": "front",
-                "useAttachmentPoint": "attach_handle_vertical",
-                "rotation": {
-                  "x": 1.571,
-                  "y": 1.571,
-                  "z": -1.571
-                },
-                "children": []
-              }
-            ]
-          },
-          {
-            "slotId": "leg",
-            "name": "Lábak",
-            "componentType": "legs",
-            "defaultComponent": "leg_standard",
-            "allowedComponents": [
-              "leg_standard",
-              "leg_design"
-            ],
-            "attachToSlot": "corpus",
-            "rotation": {
-              "x": 0,
-              "y": 4.71238898038469,
-              "z": -1.571
-            },
-            "children": []
-          }
-        ]
+        "defaultComponent": "corpus_bottom_60"
       },
       {
         "slotId": "front",
         "name": "Front",
         "componentType": "fronts",
-        "defaultComponent": "front_bottom_sima_60",
-        "allowedComponents": [
-          "front_bottom_sima_60",
-          "front_bottom_keretes_60"
-        ],
         "attachToSlot": "corpus",
-        "useAttachmentPoint": "attach_front",
-        "rotation": {
-          "x": 3.141592653589793,
-          "y": 4.71238898038469,
-          "z": 1.5707963267948966
+        "allowedComponents": [
+          "front_bottom_keretes_60",
+          "front_bottom_sima_60"
+        ],
+        "defaultComponent": "front_bottom_sima_60",
+        "attachmentMapping": {
+          "front_bottom_keretes_60": [
+            "attach_front"
+          ],
+          "front_bottom_sima_60": [
+            "attach_front"
+          ]
         },
-        "children": [
-          {
-            "slotId": "handle",
-            "name": "Fogantyú",
-            "componentType": "handles",
-            "defaultComponent": "handle_standard",
-            "allowedComponents": [
-              "handle_standard",
-              "handle_design"
-            ],
-            "attachToSlot": "front",
-            "useAttachmentPoint": "attach_handle_vertical",
-            "rotation": {
-              "x": 1.571,
-              "y": 1.571,
-              "z": -1.571
-            },
-            "children": []
-          }
-        ]
+        "rotation": {
+          "x": 1.5707963267948966,
+          "y": 4.71238898038469,
+          "z": 0
+        }
       },
       {
         "slotId": "handle",
         "name": "Fogantyú",
         "componentType": "handles",
-        "defaultComponent": "handle_standard",
-        "allowedComponents": [
-          "handle_standard",
-          "handle_design"
-        ],
         "attachToSlot": "front",
-        "useAttachmentPoint": "attach_handle_vertical",
-        "rotation": {
-          "x": 1.571,
-          "y": 1.571,
-          "z": -1.571
+        "allowedComponents": [
+          "handle_design",
+          "handle_standard"
+        ],
+        "defaultComponent": "handle_standard",
+        "attachmentMapping": {
+          "handle_design": [
+            "attach_handle_vertical"
+          ],
+          "handle_standard": [
+            "attach_handle_vertical"
+          ]
         },
-        "children": []
+        "rotation": {
+          "x": 0,
+          "y": 1.5707963267948966,
+          "z": 0
+        }
       },
       {
         "slotId": "leg",
-        "name": "Lábak",
+        "name": "Láb",
         "componentType": "legs",
-        "defaultComponent": "leg_standard",
+        "attachToSlot": "corpus",
         "allowedComponents": [
           "leg_standard",
           "leg_design"
         ],
-        "attachToSlot": "corpus",
-        "rotation": {
-          "x": 0,
-          "y": 4.71238898038469,
-          "z": -1.571
+        "defaultComponent": "leg_standard",
+        "attachmentMapping": {
+          "leg_standard": [
+            "attach_leg_frontLeft"
+          ],
+          "leg_design": [
+            "attach_leg_frontLeft",
+            "attach_leg_frontRight",
+            "attach_leg_backLeft",
+            "attach_leg_backRight"
+          ]
         },
-        "children": []
+        "rotation": {
+          "x": 1.5707963267948966,
+          "y": 4.71238898038469,
+          "z": 0
+        }
       }
     ]
   }

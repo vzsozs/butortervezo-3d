@@ -15,7 +15,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'update:selectedFurniture', value: FurnitureConfig | null): void;
   (e: 'createNew'): void;
-  (e: 'saveToServer'): void;
+  (e: 'saveChanges'): void; 
   (e: 'slot-clicked', slotId: string): void;
 }>();
 
@@ -62,20 +62,16 @@ function selectFurniture(furniture: FurnitureConfig) {
     <div class="flex-shrink-0">
       <div class="grid grid-cols-2 gap-2">
         <button @click="$emit('createNew')" class="admin-btn">Új Bútor</button>
-        <button @click="$emit('saveToServer')" class="admin-btn bg-red-600 hover:bg-red-700">Mentés</button>
+        <button @click="$emit('saveChanges')" class="admin-btn bg-red-600 hover:bg-red-700">Mentés</button>
       </div>
       <div class="mt-4">
         <h2 class="section-header">3D Preview</h2>
         <div class="bg-gray-900 p-1 rounded-lg h-64">
           <!-- JAVÍTÁS: A ref és a key már nem szükséges a reaktív prop miatt -->
           <AdminPreviewCanvas 
-            v-if="props.selectedFurniture"
             :furniture-config="props.selectedFurniture"
             @slot-clicked="$emit('slot-clicked', $event)"
           />
-          <div v-else class="w-full h-full flex items-center justify-center text-gray-500 text-sm">
-            <p>Válassz ki egy bútort.</p>
-          </div>
         </div>
       </div>
     </div>

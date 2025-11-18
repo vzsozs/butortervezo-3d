@@ -15,6 +15,7 @@ const emit = defineEmits<{
   (e: 'update:furniture', value: Partial<FurnitureConfig> | null): void;
   (e: 'save', value: FurnitureConfig): void;
   (e: 'cancel'): void;
+  (e: 'delete'): void; 
 }>();
 
 // JAVÍTÁS: A belső másolat helyett egy 'computed' property-t használunk
@@ -52,32 +53,7 @@ const slotTemplates: Record<string, Partial<ComponentSlotConfig>> = {
 };
 
 const hierarchicalSlots = computed(() => {
-  if (!editableFurniture.value?.componentSlots) return [];
-  
-  // JAVÍTÁS: Nincs többé mély másolás, közvetlenül a reaktív adatokkal dolgozunk
-  type SlotWithChildren = ComponentSlotConfig & { children: SlotWithChildren[] };
-  const slots = editableFurniture.value.componentSlots as SlotWithChildren[];
-  
-  const slotMap = new Map(slots.map(s => [s.slotId, s]));
-  const tree: SlotWithChildren[] = [];
-
-  // Biztosítjuk, hogy minden slotnak legyen 'children' tömbje
-  slots.forEach(s => {
-    if (!s.children) {
-      s.children = [];
-    } else {
-      s.children.length = 0; // Kiürítjük a régit, hogy ne duplikálódjon
-    }
-  });
-
-  slots.forEach(s => {
-    if (s.attachToSlot && slotMap.has(s.attachToSlot)) {
-      slotMap.get(s.attachToSlot)!.children.push(s);
-    } else {
-      tree.push(s);
-    }
-  });
-  return tree;
+  return editableFurniture.value?.componentSlots || [];
 });
 
 const suggestions = computed(() => ({
@@ -129,12 +105,6 @@ function handleSlotRemove(slotId: string) {
   }
 }
 
-function saveChanges() {
-  if (editableFurniture.value) {
-    emit('save', editableFurniture.value as FurnitureConfig);
-  }
-}
-
 function scrollToSlot(slotId: string) {
   highlightedSlotId.value = slotId;
   const targetRef = slotNodeRefs.value[slotId];
@@ -161,7 +131,14 @@ defineExpose({ scrollToSlot });
       </div>
       <div>
         <label class="admin-label">id</label>
-        <input type="text" v-model="editableFurniture.id" placeholder="Automatikus..." class="admin-input" :disabled="!isNew" />
+        <!-- JAVÍTÁS: A mező most már mindig readonly, de a stílusa jelzi, hogy ez egy input -->
+        <input 
+          type="text" 
+          v-model="editableFurniture.id" 
+          placeholder="Automatikus..." 
+          class="admin-input bg-gray-700/50 text-gray-400 select-all" 
+          readonly 
+        />
       </div>
       <div>
         <label class="admin-label">category</label>
@@ -194,7 +171,7 @@ defineExpose({ scrollToSlot });
     
     <div class="flex justify-end gap-4 mt-8 pt-6 border-t border-gray-700">
       <button @click="emit('cancel')" class="admin-btn-secondary">Mégse</button>
-      <button @click="saveChanges" class="admin-btn">Változások Alkalmazása</button>
+      <button @click="emit('delete')" class="admin-btn-danger">Bútor Törlése</button>
     </div>
   </div>
   

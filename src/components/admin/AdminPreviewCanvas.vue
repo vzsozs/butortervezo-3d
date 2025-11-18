@@ -30,23 +30,27 @@ function updateCanvas(config: Partial<FurnitureConfig> | null, resetCamera: bool
 watch(() => props.furnitureConfig, (newConfig, oldConfig) => {
   console.log('📥 [AdminPreviewCanvas] A "furnitureConfig" PROP megváltozott...');
   
-  // Kiszámoljuk, hogy kell-e a kamerát resetelni
-  const shouldResetCamera = !oldConfig || oldConfig.id !== newConfig?.id;
+  // JAVÍTÁS: Védőháló a kezdeti, érvénytelen futások ellen.
+  // Ha nincs új config, vagy nincs ID-ja, ne csináljunk semmit.
+  if (!newConfig || !newConfig.id) {
+    experience?.clearCanvas();
+    return;
+  }
+
+  const shouldResetCamera = !oldConfig || oldConfig.id !== newConfig.id;
   
-  // Átadjuk a második argumentumot is!
   updateCanvas(newConfig, shouldResetCamera);
 }, { deep: true });
 
 
 onMounted(() => {
-  console.log('%c[Canvas] 4. onMounted lefutott. A kapott config:', 'color: #32CD32;', JSON.parse(JSON.stringify(props.furnitureConfig)));
-  
   if (canvas.value) {
     experience = new AdminExperience(canvas.value);
     experience.addEventListener('slotClicked', handleSlotClickFrom3D);
 
-    // Az induláskor is a központi frissítő függvényt hívjuk
-    updateCanvas(props.furnitureConfig, false);
+    if (props.furnitureConfig && props.furnitureConfig.id) {
+      updateCanvas(props.furnitureConfig, false);
+    }
   }
 });
 

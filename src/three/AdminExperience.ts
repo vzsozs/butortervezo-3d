@@ -93,12 +93,26 @@ export default class AdminExperience extends EventTarget {
     const box = new Box3().setFromObject(object);
     const center = box.getCenter(new Vector3());
     const size = box.getSize(new Vector3());
+
+    // 1. Kiszámoljuk a szükséges távolságot, hogy minden beleférjen
     const maxDim = Math.max(size.x, size.y, size.z);
     const fov = this.camera.fov * (Math.PI / 180);
-    let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2));
-    cameraZ *= 2.2; 
-    this.camera.position.set(center.x, center.y, center.z + cameraZ);
+    // A szorzó (1.5) finomhangolja a zoom-ot, ízlés szerint állítható
+    const distance = Math.abs(maxDim / Math.tan(fov / 2)) * 0.8; 
+
+    // 2. Meghatározzuk a kívánt nézési irányt (egy vektor, ami jobb-felülről mutat)
+    // Az (1, 0.8, 1) egy kellemes, enyhén felülnézeti, isometrikus szöget ad
+    const direction = new Vector3(1.3, 0.8, 0.6).normalize();
+
+    // 3. Kiszámoljuk az új kamera pozíciót:
+    // A bútor közepétől indulunk, és a nézési irány mentén hátrafelé mozgunk a kiszámolt távolságra.
+    const newPosition = new Vector3().copy(center).add(direction.multiplyScalar(distance));
+
+    // 4. Beállítjuk a kamerát és a célpontot
+    this.camera.position.copy(newPosition);
     this.controls.target.copy(center);
+
+    // Fontos: Frissítjük a vezérlőket a változások után
     this.controls.update();
   }
 
