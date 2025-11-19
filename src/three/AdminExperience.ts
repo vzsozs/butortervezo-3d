@@ -31,14 +31,14 @@ export default class AdminExperience extends EventTarget {
     this.scene = new Scene();
     const sizes = { width: canvas.clientWidth, height: canvas.clientHeight };
     this.camera = new PerspectiveCamera(50, sizes.width / sizes.height, 0.1, 1000);
-    this.camera.position.set(1.1, 0.6, 0.5); 
+    this.camera.position.set(1.1, 0.8, 0.5); 
     this.renderer = new WebGLRenderer({ antialias: true, alpha: true });
     this.renderer.setSize(sizes.width, sizes.height);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.canvas.appendChild(this.renderer.domElement);
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
-    this.controls.target.set(0, 0.05, 0);
+    this.controls.target.set(0, 0.35, 0);
     const ambientLight = new AmbientLight(0xffffff, 0.8);
     this.scene.add(ambientLight);
     const directionalLight = new DirectionalLight(0xffffff, 1);

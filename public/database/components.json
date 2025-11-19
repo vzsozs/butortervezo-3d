@@ -52,15 +52,15 @@
       ],
       "attachmentPoints": [
         {
-          "id": "attach_front",
-          "allowedComponentTypes": [
-            "fronts"
-          ]
-        },
-        {
           "id": "attach_leg_backLeft",
           "allowedComponentTypes": [
             "legs"
+          ]
+        },
+        {
+          "id": "attach_front",
+          "allowedComponentTypes": [
+            "fronts"
           ]
         },
         {
@@ -70,7 +70,7 @@
           ]
         }
       ],
-      "price": 35000
+      "price": 31000
     }
   ],
   "fronts": [

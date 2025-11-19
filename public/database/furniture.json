@@ -68,13 +68,13 @@
         "componentType": "legs",
         "attachToSlot": "corpus",
         "allowedComponents": [
-          "lb_btorlaplb_60cm-10cm",
-          "lb_cs"
+          "lb_cs",
+          "lb_btorlaplb_60cm-10cm"
         ],
         "defaultComponent": "lb_btorlaplb_60cm-10cm",
         "attachmentMapping": {
           "lb_btorlaplb_60cm-10cm": [
-            "attach_leg_frontRight"
+            "attach_leg_frontLeft"
           ],
           "lb_cs": [
             "attach_leg_frontRight",
@@ -84,8 +84,94 @@
           ]
         },
         "rotation": {
+          "x": 1.5707963267948966,
+          "y": 4.71238898038469,
+          "z": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "als_szekrny_15cm",
+    "name": "Alsó szekrény (15cm)",
+    "category": "bottom_cabinets",
+    "componentSlots": [
+      {
+        "slotId": "corpus",
+        "name": "Korpusz",
+        "componentType": "corpuses",
+        "attachToSlot": "",
+        "allowedComponents": [
+          "als_korpusz_15cm"
+        ],
+        "defaultComponent": "als_korpusz_15cm"
+      },
+      {
+        "slotId": "front",
+        "name": "Front",
+        "componentType": "fronts",
+        "attachToSlot": "corpus",
+        "allowedComponents": [
+          "als_front_sima_l_15cm"
+        ],
+        "defaultComponent": "als_front_sima_l_15cm",
+        "attachmentMapping": {
+          "als_front_sima_l_15cm": [
+            "attach_front"
+          ]
+        },
+        "rotation": {
+          "x": 1.5707963267948966,
+          "y": 0,
+          "z": 0
+        }
+      },
+      {
+        "slotId": "handle",
+        "name": "Fogantyú",
+        "componentType": "handles",
+        "attachToSlot": "front",
+        "allowedComponents": [
+          "foganty_hosszks",
+          "foganty_design"
+        ],
+        "defaultComponent": "foganty_hosszks",
+        "attachmentMapping": {
+          "foganty_hosszks": [
+            "attach_handle_vertical"
+          ],
+          "foganty_design": [
+            "attach_handle_vertical"
+          ]
+        },
+        "rotation": {
           "x": 4.71238898038469,
-          "y": 1.5707963267948966,
+          "y": 0,
+          "z": 1.5707963267948966
+        }
+      },
+      {
+        "slotId": "leg",
+        "name": "Láb",
+        "componentType": "legs",
+        "attachToSlot": "corpus",
+        "allowedComponents": [
+          "lb_btorlaplb_15cm-10cm",
+          "lb_cs"
+        ],
+        "defaultComponent": "lb_btorlaplb_15cm-10cm",
+        "attachmentMapping": {
+          "lb_btorlaplb_15cm-10cm": [
+            "attach_leg_frontLeft"
+          ],
+          "lb_cs": [
+            "attach_leg_frontLeft",
+            "attach_leg_backLeft"
+          ]
+        },
+        "rotation": {
+          "x": 1.5707963267948966,
+          "y": 0,
           "z": 0
         }
       }

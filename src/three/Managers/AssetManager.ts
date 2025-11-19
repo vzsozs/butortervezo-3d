@@ -45,6 +45,7 @@ export default class AssetManager {
     
     const loadedComponents: Map<string, { model: Group, config: ComponentConfig, slot: ComponentSlotConfig }> = new Map();
     
+    // A betöltési logika változatlan
     const loadPromises = config.componentSlots.map(async (slot) => {
       const componentId = componentState[slot.slotId];
       if (!componentId) return;
@@ -61,6 +62,7 @@ export default class AssetManager {
 
     await Promise.all(loadPromises);
 
+    // A hierarchia-építés és sorbarendezés logikája változatlan
     const assembledObjects: Map<string, Group> = new Map();
     const slots = Array.from(loadedComponents.values());
     const slotMap = new Map(slots.map(s => [s.slot.slotId, s.slot]));
@@ -80,6 +82,7 @@ export default class AssetManager {
 
     slots.sort((a, b) => getDepth(a.slot.slotId) - getDepth(b.slot.slotId));
 
+    // Az összeszerelési ciklus változatlan
     for (const data of slots) {
       const { model, slot } = data;
       const parentSlotId = slot.attachToSlot;
@@ -117,46 +120,49 @@ export default class AssetManager {
         parentModel.add(modelInstance);
       };
 
-      // Először megnézzük, van-e az új, részletes 'attachmentMapping' szabály.
       const componentId = componentState[slot.slotId];
       const attachmentPointsFromMapping = componentId ? slot.attachmentMapping?.[componentId] : undefined;
 
       if (attachmentPointsFromMapping && Array.isArray(attachmentPointsFromMapping)) {
-        // 1. eset: Az új, adatvezérelt logika.
-        // Ha a mapping üres tömböt ad vissza, az azt jelenti: "ne csatolj semmit".
-        console.log(`%c[AssetManager] AttachmentMapping használata a(z) '${slot.slotId}' slothoz. Pontok: [${attachmentPointsFromMapping.join(', ')}]`, 'color: green');
-        
         attachmentPointsFromMapping.forEach((pointName, index) => {
-          // Az első példány az eredeti, a többi klón.
           const instance = index === 0 ? model : model.clone(true);
           applyAttachment(instance, pointName);
         });
-
       } else if (slot.useAttachmentPoint) {
-        // 2. eset: Fallback a régi, egypontos csatlakozásra.
-        console.log(`%c[AssetManager] Fallback: useAttachmentPoint használata a(z) '${slot.slotId}' slothoz. Pont: ${slot.useAttachmentPoint}`, 'color: orange');
         applyAttachment(model, slot.useAttachmentPoint);
-      
       } else {
-        // 3. eset: Nincs csatlakozási szabály megadva a gyereknek.
-        console.warn(`[AssetManager] FIGYELEM: A(z) '${slot.slotId}' gyerek slotnak nincs csatlakozási szabálya (attachmentMapping vagy useAttachmentPoint). Nem lesz csatlakoztatva.`);
+        console.warn(`[AssetManager] FIGYELEM: A(z) '${slot.slotId}' gyerek slotnak nincs csatlakozási szabálya...`);
       }
 
       assembledObjects.set(slot.slotId, model);
     }
 
-    // ... a kód többi része (középre igazítás, stb.) változatlan ...
+    // --- EZ A RÉSZ VÁLTOZIK ---
+
+    // 1. Kiszámoljuk a teljes bútor befoglaló dobozát
     const box = new Box3().setFromObject(furnitureProxy);
     const center = new Vector3();
     box.getCenter(center);
-    furnitureProxy.position.sub(center);
+
+    // 2. Kiszámoljuk a láb magasságát
     let legHeight = 0;
     const legComponentId = componentState['leg'];
     if (legComponentId) {
       const legConfig = ConfigManager.getComponentById(legComponentId);
-      legHeight = legConfig?.height || 0;
+      if (legConfig && legConfig.height) {
+        legHeight = legConfig.height;
+      }
     }
-    furnitureProxy.position.y += legHeight;
+
+    // 3. Beállítjuk a végleges pozíciót
+    furnitureProxy.position.set(
+      -center.x,
+      -box.min.y + legHeight,
+      -center.z
+    );
+    
+    // --- VÁLTOZÁS VÉGE ---
+
     furnitureProxy.userData = {
       config: config,
       componentState: JSON.parse(JSON.stringify(componentState)),
