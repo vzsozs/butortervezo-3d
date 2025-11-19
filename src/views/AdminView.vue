@@ -7,6 +7,7 @@ import ComponentEditor from '@/components/admin/ComponentEditor.vue';
 import FurnitureEditor from '@/components/admin/FurnitureEditor.vue';
 import AdminSidePanel from '@/components/admin/AdminSidePanel.vue';
 import ComponentSidePanel from '@/components/admin/ComponentSidePanel.vue';
+import AssetManager from '@/three/Managers/AssetManager';
 
 const activeTab = ref('furniture');
 
@@ -101,6 +102,10 @@ async function saveComponent(component: ComponentConfig, file: File | null): Pro
     if (!response.ok) throw new Error(result.message || 'Ismeretlen hiba');
     
     alert(`Komponens sikeresen mentve!`);
+    if (file) {
+      const assetManager = AssetManager.getInstance();
+      assetManager.invalidateModelCache(result.updatedComponent.model);
+    }
     return result.updatedComponent; // Visszaadjuk a szerver által véglegesített adatot
   } catch (error) {
     console.error(error);
@@ -223,11 +228,17 @@ async function handleSaveComponent(component: ComponentConfig, file: File | null
 }
 
 function handleDeleteComponent(component: ComponentConfig) {
-  if (confirm(`Biztosan törlöd a(z) "${component.name}" komponenst?`)) {
+  // 1. Lépés: Kérjünk megerősítést a felhasználótól
+  if (confirm(`Biztosan törölni szeretnéd a(z) "${component.name}" komponenst?`)) {
+    
+    // 2. Lépés: Hívjuk meg a Pinia store megfelelő action-jét
+    // Ez reaktívan frissíteni fogja a bal oldali listát.
     configStore.deleteComponent(selectedComponentType.value, component.id);
-    // A komponensek teljes listáját a `saveDatabase` helyett egy külön végponttal kellene menteni,
-    // de egyelőre a `handleSaveComponentsToServer` gombot használjuk erre.
-    alert('Komponens törölve a listából. A végleges törléshez kattints a "Mentés" gombra a komponens listánál.');
+    
+    // 3. Lépés: Mentsük el a frissített, teljes components.json-t a szerverre
+    saveDatabase('components.json', allComponents.value);
+    
+    // 4. Lépés: Zárjuk be a szerkesztő nézetet
     handleCancelComponent();
   }
 }

@@ -26,6 +26,14 @@ export default class AssetManager {
     return instance;
   }
 
+  public invalidateModelCache(url: string): void {
+    if (this.modelCache.has(url)) {
+      this.modelCache.delete(url);
+      console.log(`%c[AssetManager] Cache érvénytelenítve a következő modellhez: ${url}`, 'color: orange');
+    }
+  }
+
+
   public async buildFurnitureFromConfig(
     config: FurnitureConfig,
     componentState: Record<string, string>,

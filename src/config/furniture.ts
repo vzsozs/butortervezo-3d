@@ -16,7 +16,7 @@ export interface ComponentConfig {
   materialSource?: string;
   price: number;
   height?: number;
-  // A RÉGI TÍPUS HELYETT EZ KELL: egy tömb, ami AttachmentPoint objektumokat tartalmaz
+  materialOptions?: string[]; 
   attachmentPoints?: AttachmentPoint[];
 }
 

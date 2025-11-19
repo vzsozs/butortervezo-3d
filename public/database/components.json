@@ -5,6 +5,9 @@
       "id": "als_korpusz_60cm",
       "model": "/models/corpuses/als_korpusz_60cm.glb",
       "materialTarget": "MAT_Korpusz",
+      "materialOptions": [
+        "MAT_Korpusz"
+      ],
       "attachmentPoints": [
         {
           "id": "attach_front",
@@ -44,6 +47,9 @@
       "id": "als_korpusz_15cm",
       "model": "/models/corpuses/als_korpusz_15cm.glb",
       "materialTarget": "MAT_Korpusz",
+      "materialOptions": [
+        "MAT_Korpusz"
+      ],
       "attachmentPoints": [
         {
           "id": "attach_front",
@@ -69,10 +75,13 @@
   ],
   "fronts": [
     {
-      "name": "Alsó Front L Sima (60cm)",
-      "id": "als_front_l_sima_60cm",
-      "model": "/models/fronts/als_front_l_sima_60cm.glb",
+      "name": "Alsó front keretes L (60cm)",
+      "id": "als_front_keretes_l_60cm",
+      "model": "/models/fronts/als_front_keretes_l_60cm.glb",
       "materialTarget": "MAT_Frontok",
+      "materialOptions": [
+        "MAT_Frontok"
+      ],
       "attachmentPoints": [
         {
           "id": "attach_handle_vertical",
@@ -81,13 +90,16 @@
           ]
         }
       ],
-      "price": 12000
+      "price": 38000
     },
     {
-      "name": "Alsó Front L Keretes (60cm)",
-      "id": "als_front_l_keretes_60cm",
-      "model": "/models/fronts/als_front_l_keretes_60cm.glb",
+      "name": "Alsó front sima L (60cm)",
+      "id": "als_front_sima_l_60cm",
+      "model": "/models/fronts/als_front_sima_l_60cm.glb",
       "materialTarget": "MAT_Frontok",
+      "materialOptions": [
+        "MAT_Frontok"
+      ],
       "attachmentPoints": [
         {
           "id": "attach_handle_vertical",
@@ -96,13 +108,16 @@
           ]
         }
       ],
-      "price": 15000
+      "price": 30000
     },
     {
-      "name": "Alsó Front L Sima (15cm)",
-      "id": "als_front_l_sima_15cm",
-      "model": "/models/fronts/als_front_l_sima_15cm.glb",
+      "name": "Alsó front sima L (15cm)",
+      "id": "als_front_sima_l_15cm",
+      "model": "/models/fronts/als_front_sima_l_15cm.glb",
       "materialTarget": "MAT_Frontok",
+      "materialOptions": [
+        "MAT_Frontok"
+      ],
       "attachmentPoints": [
         {
           "id": "attach_handle_vertical",
@@ -111,55 +126,70 @@
           ]
         }
       ],
-      "price": 14000
+      "price": 11000
     }
   ],
   "handles": [
     {
-      "name": "Hosszúkás fogantyú",
-      "id": "hosszks_foganty",
-      "model": "/models/handles/hosszks_foganty.glb",
+      "name": "Fogantyú (Design)",
+      "id": "foganty_design",
+      "model": "/models/handles/foganty_design.glb",
       "materialTarget": "MAT_Fem_Kiegeszitok",
+      "materialOptions": [
+        "MAT_Fem_Kiegeszitok"
+      ],
       "attachmentPoints": [],
-      "price": 4500
+      "price": 7200
     },
     {
-      "name": "Gomb fogantyú",
-      "id": "gomb_foganty",
-      "model": "/models/handles/gomb_foganty.glb",
+      "name": "Fogantyú (Hosszúkás)",
+      "id": "foganty_hosszks",
+      "model": "/models/handles/foganty_hosszks.glb",
       "materialTarget": "MAT_Fem_Kiegeszitok",
+      "materialOptions": [
+        "MAT_Fem_Kiegeszitok"
+      ],
       "attachmentPoints": [],
-      "price": 2000
+      "price": 4800
     }
   ],
   "legs": [
     {
-      "name": "Bútorlapláb (60cm)",
-      "id": "btorlaplb_60cm",
-      "model": "/models/legs/btorlaplb_60cm.glb",
+      "name": "Láb (Cső)",
+      "id": "lb_cs",
+      "model": "/models/legs/lb_cs.glb",
+      "height": 0.1,
+      "materialTarget": "MAT_Lab_Fem",
+      "materialOptions": [
+        "MAT_Lab_Fem"
+      ],
+      "attachmentPoints": [],
+      "price": 3800
+    },
+    {
+      "name": "Láb (Bútorlapláb 60cm-10cm)",
+      "id": "lb_btorlaplb_60cm-10cm",
+      "model": "/models/legs/lb_btorlaplb_60cm-10cm.glb",
       "height": 0.1,
       "materialTarget": "MAT_Korpusz",
+      "materialOptions": [
+        "MAT_Korpusz"
+      ],
       "attachmentPoints": [],
-      "price": 12500,
+      "price": 2200,
       "materialSource": "corpus"
     },
     {
-      "name": "Cső láb",
-      "id": "cs_lb",
-      "model": "/models/legs/cs_lb.glb",
-      "height": 0.1,
-      "materialTarget": "MAT_Lab_Fem",
-      "attachmentPoints": [],
-      "price": 1250
-    },
-    {
-      "name": "Bútorlapláb (15cm)",
-      "id": "btorlaplb_15cm",
-      "model": "/models/legs/btorlaplb_15cm.glb",
+      "name": "Láb (Bútorlapláb 15cm-10cm)",
+      "id": "lb_btorlaplb_15cm-10cm",
+      "model": "/models/legs/lb_btorlaplb_15cm-10cm.glb",
       "height": 0.1,
       "materialTarget": "MAT_Korpusz",
+      "materialOptions": [
+        "MAT_Korpusz"
+      ],
       "attachmentPoints": [],
-      "price": 4500,
+      "price": 1100,
       "materialSource": "corpus"
     }
   ]

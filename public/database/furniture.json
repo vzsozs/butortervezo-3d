@@ -20,15 +20,15 @@
         "componentType": "fronts",
         "attachToSlot": "corpus",
         "allowedComponents": [
-          "als_front_l_keretes_60cm",
-          "als_front_l_sima_60cm"
+          "als_front_keretes_l_60cm",
+          "als_front_sima_l_60cm"
         ],
-        "defaultComponent": "als_front_l_sima_60cm",
+        "defaultComponent": "als_front_sima_l_60cm",
         "attachmentMapping": {
-          "als_front_l_keretes_60cm": [
+          "als_front_keretes_l_60cm": [
             "attach_front"
           ],
-          "als_front_l_sima_60cm": [
+          "als_front_sima_l_60cm": [
             "attach_front"
           ]
         },
@@ -44,15 +44,15 @@
         "componentType": "handles",
         "attachToSlot": "front",
         "allowedComponents": [
-          "gomb_foganty",
-          "hosszks_foganty"
+          "foganty_design",
+          "foganty_hosszks"
         ],
-        "defaultComponent": "hosszks_foganty",
+        "defaultComponent": "foganty_hosszks",
         "attachmentMapping": {
-          "gomb_foganty": [
+          "foganty_design": [
             "attach_handle_vertical"
           ],
-          "hosszks_foganty": [
+          "foganty_hosszks": [
             "attach_handle_vertical"
           ]
         },
@@ -68,15 +68,15 @@
         "componentType": "legs",
         "attachToSlot": "corpus",
         "allowedComponents": [
-          "btorlaplb_60cm",
-          "cs_lb"
+          "lb_btorlaplb_60cm-10cm",
+          "lb_cs"
         ],
-        "defaultComponent": "btorlaplb_60cm",
+        "defaultComponent": "lb_btorlaplb_60cm-10cm",
         "attachmentMapping": {
-          "btorlaplb_60cm": [
-            "attach_leg_frontLeft"
+          "lb_btorlaplb_60cm-10cm": [
+            "attach_leg_frontRight"
           ],
-          "cs_lb": [
+          "lb_cs": [
             "attach_leg_frontRight",
             "attach_leg_backLeft",
             "attach_leg_frontLeft",
@@ -84,8 +84,8 @@
           ]
         },
         "rotation": {
-          "x": 1.5707963267948966,
-          "y": 4.71238898038469,
+          "x": 4.71238898038469,
+          "y": 1.5707963267948966,
           "z": 0
         }
       }

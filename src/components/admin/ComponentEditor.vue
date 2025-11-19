@@ -31,8 +31,8 @@ const componentTypeOptions = ['corpuses', 'fronts', 'handles', 'legs', 'accessor
 watch(() => props.component, (newComponent) => {
   const comp = newComponent ? JSON.parse(JSON.stringify(newComponent)) : {};
   editableComponent.value = comp;
+  modelMaterialOptions.value = comp.materialOptions || [];
   selectedFile.value = null;
-  modelMaterialOptions.value = [];
   
   // JAVÍTÁS: A 'comp' változót használjuk, amit a sor elején definiáltunk
   useHeight.value = comp.height !== undefined && comp.height !== null;
@@ -69,6 +69,7 @@ async function handleFileChange(event: Event) {
       model: `/models/${props.componentType}/${file.name}`, // Előre kitöltjük a várható útvonallal
       height: analysis.height,
       materialTarget: analysis.materialNames[0] || '',
+      materialOptions: analysis.materialNames, 
       attachmentPoints: analysis.attachmentPointNames.map(name => ({
         id: name,
         allowedComponentTypes: [],
@@ -102,7 +103,8 @@ function saveChanges() {
 }
 
 function deleteItem() {
-  if (editableComponent.value && confirm(`Biztosan törlöd a(z) "${editableComponent.value.name}" komponenst?`)) {
+  if (editableComponent.value) {
+    // A confirm ablakot kivesszük, csak kibocsátjuk az eseményt.
     emit('delete', editableComponent.value as ComponentConfig);
   }
 }
@@ -125,27 +127,30 @@ function deleteItem() {
 
     <!-- SZERKESZTŐ ŰRLAP (akkor jelenik meg, ha van mit szerkeszteni) -->
     <div v-if="editableComponent.id">
-      <div class="space-y-4">
-        <div class="grid grid-cols-2 gap-4">
-          <div>
-            <label class="admin-label">Név (name)</label>
-            <input type="text" v-model="editableComponent.name" class="admin-input"/>
-          </div>
-          <div>
-            <label class="admin-label">Azonosító (id)</label>
-            <input type="text" v-model="editableComponent.id" class="admin-input bg-gray-700/50" readonly/>
-          </div>
-          <div>
-            <label class="admin-label">Ár (price)</label>
-            <input type="number" v-model="editableComponent.price" placeholder="pl. 45000" class="admin-input"/>
-          </div>
-          <div>
-            <label class="admin-label">Cél Anyag (materialTarget)</label>
-            <select v-model="editableComponent.materialTarget" class="admin-select">
-              <option v-if="modelMaterialOptions.length === 0" value="">-- Nincs anyag a modellben --</option>
-              <option v-for="mat in modelMaterialOptions" :key="mat" :value="mat">{{ mat }}</option>
-            </select>
-          </div>
+      <!-- A grid elrendezés marad -->
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <!-- JAVÍTÁS: A label megkapja a 'block' class-t -->
+          <label class="admin-label block">Név (name)</label>
+          <input type="text" v-model="editableComponent.name" class="admin-input"/>
+        </div>
+        <div>
+          <!-- JAVÍTÁS: A label megkapja a 'block' class-t -->
+          <label class="admin-label block">Azonosító (id)</label>
+          <input type="text" v-model="editableComponent.id" class="admin-input bg-gray-700/50" readonly/>
+        </div>
+        <div>
+          <!-- JAVÍTÁS: A label megkapja a 'block' class-t -->
+          <label class="admin-label block">Ár (price)</label>
+          <input type="number" v-model="editableComponent.price" placeholder="pl. 45000" class="admin-input"/>
+        </div>
+        <div>
+          <!-- JAVÍTÁS: A label megkapja a 'block' class-t -->
+          <label class="admin-label block">Cél Anyag (materialTarget)</label>
+          <select v-model="editableComponent.materialTarget" class="admin-select">
+            <option v-if="modelMaterialOptions.length === 0" value="">-- Nincs anyag a modellben --</option>
+            <option v-for="mat in modelMaterialOptions" :key="mat" :value="mat">{{ mat }}</option>
+          </select>
         </div>
       </div>
 
