@@ -1,122 +1,31 @@
 [
   {
-    "id": "als_szekrny_60cm",
-    "name": "Alsó szekrény (60cm)",
+    "id": "als_szekrny_teszt",
+    "name": "Alsó szekrény teszt",
     "category": "bottom_cabinets",
     "componentSlots": [
       {
-        "slotId": "corpus",
+        "slotId": "corpus_1763537782103",
         "name": "Korpusz",
         "componentType": "corpuses",
-        "attachToSlot": "",
-        "allowedComponents": [
-          "als_korpusz_60cm"
-        ],
-        "defaultComponent": "als_korpusz_60cm"
-      },
-      {
-        "slotId": "front",
-        "name": "Front",
-        "componentType": "fronts",
-        "attachToSlot": "corpus",
-        "allowedComponents": [
-          "als_front_keretes_l_60cm",
-          "als_front_sima_l_60cm"
-        ],
-        "defaultComponent": "als_front_sima_l_60cm",
-        "attachmentMapping": {
-          "als_front_keretes_l_60cm": [
-            "attach_front"
-          ],
-          "als_front_sima_l_60cm": [
-            "attach_front"
-          ]
-        },
-        "rotation": {
-          "x": 1.5707963267948966,
-          "y": 4.71238898038469,
-          "z": 0
-        }
-      },
-      {
-        "slotId": "handle",
-        "name": "Fogantyú",
-        "componentType": "handles",
-        "attachToSlot": "front",
-        "allowedComponents": [
-          "foganty_design",
-          "foganty_hosszks"
-        ],
-        "defaultComponent": "foganty_hosszks",
-        "attachmentMapping": {
-          "foganty_design": [
-            "attach_handle_vertical"
-          ],
-          "foganty_hosszks": [
-            "attach_handle_vertical"
-          ]
-        },
-        "rotation": {
-          "x": 0,
-          "y": 1.5707963267948966,
-          "z": 0
-        }
-      },
-      {
-        "slotId": "leg",
-        "name": "Láb",
-        "componentType": "legs",
-        "attachToSlot": "corpus",
-        "allowedComponents": [
-          "lb_cs",
-          "lb_btorlaplb_60cm-10cm"
-        ],
-        "defaultComponent": "lb_btorlaplb_60cm-10cm",
-        "attachmentMapping": {
-          "lb_btorlaplb_60cm-10cm": [
-            "attach_leg_frontLeft"
-          ],
-          "lb_cs": [
-            "attach_leg_frontRight",
-            "attach_leg_backLeft",
-            "attach_leg_frontLeft",
-            "attach_leg_backRight"
-          ]
-        },
-        "rotation": {
-          "x": 1.5707963267948966,
-          "y": 4.71238898038469,
-          "z": 0
-        }
-      }
-    ]
-  },
-  {
-    "id": "als_szekrny_15cm",
-    "name": "Alsó szekrény (15cm)",
-    "category": "bottom_cabinets",
-    "componentSlots": [
-      {
-        "slotId": "corpus",
-        "name": "Korpusz",
-        "componentType": "corpuses",
-        "attachToSlot": "",
+        "children": [],
         "allowedComponents": [
           "als_korpusz_15cm"
         ],
         "defaultComponent": "als_korpusz_15cm"
       },
       {
-        "slotId": "front",
+        "slotId": "front_1763537784897",
         "name": "Front",
         "componentType": "fronts",
-        "attachToSlot": "corpus",
+        "attachToSlot": "corpus_1763537782103",
+        "children": [],
         "allowedComponents": [
-          "als_front_sima_l_15cm"
+          "front_bottom_sima_15_l"
         ],
-        "defaultComponent": "als_front_sima_l_15cm",
+        "defaultComponent": "front_bottom_sima_15_l",
         "attachmentMapping": {
-          "als_front_sima_l_15cm": [
+          "front_bottom_sima_15_l": [
             "attach_front"
           ]
         },
@@ -124,56 +33,79 @@
           "x": 1.5707963267948966,
           "y": 0,
           "z": 0
-        }
+        },
+        "useAttachmentPoint": "attach_front"
       },
       {
-        "slotId": "handle",
-        "name": "Fogantyú",
-        "componentType": "handles",
-        "attachToSlot": "front",
+        "slotId": "shelf_1763567247599",
+        "name": "shelf_1",
+        "componentType": "shelves",
+        "attachToSlot": "corpus_1763537782103",
+        "children": [],
         "allowedComponents": [
-          "foganty_hosszks",
-          "foganty_design"
+          "polc-1_als_sima_15cm"
         ],
-        "defaultComponent": "foganty_hosszks",
-        "attachmentMapping": {
-          "foganty_hosszks": [
-            "attach_handle_vertical"
-          ],
-          "foganty_design": [
-            "attach_handle_vertical"
-          ]
-        },
-        "rotation": {
-          "x": 4.71238898038469,
-          "y": 0,
-          "z": 1.5707963267948966
-        }
-      },
-      {
-        "slotId": "leg",
-        "name": "Láb",
-        "componentType": "legs",
-        "attachToSlot": "corpus",
-        "allowedComponents": [
-          "lb_btorlaplb_15cm-10cm",
-          "lb_cs"
-        ],
-        "defaultComponent": "lb_btorlaplb_15cm-10cm",
-        "attachmentMapping": {
-          "lb_btorlaplb_15cm-10cm": [
-            "attach_leg_frontLeft"
-          ],
-          "lb_cs": [
-            "attach_leg_frontLeft",
-            "attach_leg_backLeft"
-          ]
-        },
+        "defaultComponent": "polc-1_als_sima_15cm",
+        "useAttachmentPoint": "attach_shelf_1",
         "rotation": {
           "x": 1.5707963267948966,
           "y": 0,
           "z": 0
         }
+      },
+      {
+        "slotId": "shelf_1763567249361",
+        "name": "shelf_2",
+        "componentType": "shelves",
+        "attachToSlot": "corpus_1763537782103",
+        "children": [],
+        "allowedComponents": [
+          "polc-2_als_sima_15cm"
+        ],
+        "defaultComponent": "polc-2_als_sima_15cm",
+        "useAttachmentPoint": "attach_shelf_2",
+        "rotation": {
+          "x": 1.5707963267948966,
+          "y": 0,
+          "z": 0
+        }
+      }
+    ],
+    "slotGroups": [
+      {
+        "groupId": "group_1763568527620",
+        "name": "Polcok",
+        "controlType": "schema_select",
+        "controlledSlots": [
+          "shelf_1763567247599",
+          "shelf_1763567249361"
+        ],
+        "schemas": [
+          {
+            "id": "schema_1763568562255",
+            "name": "Nincs Polc",
+            "apply": {
+              "shelf_1763567247599": null,
+              "shelf_1763567249361": null
+            }
+          },
+          {
+            "id": "schema_1763568577280",
+            "name": "1 Polc",
+            "apply": {
+              "shelf_1763567247599": "polc-1_als_sima_15cm",
+              "shelf_1763567249361": null
+            }
+          },
+          {
+            "id": "schema_1763568600584",
+            "name": "2 Polc",
+            "apply": {
+              "shelf_1763567247599": null,
+              "shelf_1763567249361": "polc-2_als_sima_15cm"
+            }
+          }
+        ]
       }
     ]
   }

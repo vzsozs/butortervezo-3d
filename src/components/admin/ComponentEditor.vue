@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref, watch, computed } from 'vue';
+import { storeToRefs } from 'pinia'; // <<< ÚJ IMPORT
+import { useConfigStore } from '@/stores/config'; // <<< ÚJ IMPORT
 import type { ComponentConfig } from '@/config/furniture';
 import { analyzeModel } from '@/three/Utils/ModelAnalyzer';
 
@@ -15,6 +17,8 @@ const emit = defineEmits<{
   (e: 'delete', component: ComponentConfig): void;
 }>();
 
+const configStore = useConfigStore();
+const { components: storeComponents } = storeToRefs(configStore);
 const editableComponent = ref<Partial<ComponentConfig>>({});
 const selectedFile = ref<File | null>(null);
 const isProcessing = ref(false);
@@ -26,7 +30,31 @@ const useHeight = ref(false);
 const useMaterialSource = ref(false);
 
 // Ez a lista a jövőben a globalSettings.json-ből jöhet
-const componentTypeOptions = ['corpuses', 'fronts', 'handles', 'legs', 'accessories'];
+const componentTypeOptions = computed(() => Object.keys(storeComponents.value));
+
+watch(() => props.component, (newComponent) => {
+  const comp = newComponent ? JSON.parse(JSON.stringify(newComponent)) : {};
+  editableComponent.value = comp;
+  selectedFile.value = null;
+  
+  // Opciók betöltése
+  modelMaterialOptions.value = comp.materialOptions || [];
+  
+  // Checkboxok állapota
+  useHeight.value = comp.height !== undefined && comp.height !== null;
+  useMaterialSource.value = !!comp.materialSource;
+
+  if (!props.isNew) {
+    isAdvancedVisible.value = false;
+  }
+}, { immediate: true, deep: true });
+
+// Automatikus ID generálás a névből
+watch(() => editableComponent.value.name, (newName) => {
+  if (props.isNew && newName) {
+    editableComponent.value.id = newName.toLowerCase().replace(/\s+/g, '_').replace(/[^\w-]+/g, '');
+  }
+});
 
 watch(() => props.component, (newComponent) => {
   const comp = newComponent ? JSON.parse(JSON.stringify(newComponent)) : {};

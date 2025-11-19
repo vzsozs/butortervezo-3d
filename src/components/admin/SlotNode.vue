@@ -23,12 +23,11 @@ const { getComponentById } = configStore; // A gettert is behúzzuk
 const { components: storeComponents } = storeToRefs(configStore);
 
 // --- TÍPUSOK ÉS EMIT DEFINÍCIÓ ---
-type SlotUpdatePayload = { key: keyof ComponentSlotConfig; value: ComponentSlotConfig[keyof ComponentSlotConfig] };
+type SimpleUpdate = { key: keyof ComponentSlotConfig; value: any };
+type NestedUpdate = { slotId: string; update: SimpleUpdate };
 
 const emit = defineEmits<{
-  (e: 'update:slot', payload: SlotUpdatePayload): void;
-  (e: 'remove:slot'): void;
-  (e: 'update:slot', payload: { slotId: string; update: SlotUpdatePayload }): void;
+  (e: 'update:slot', payload: SimpleUpdate | NestedUpdate): void;
   (e: 'remove:slot', slotId: string): void;
 }>();
 
@@ -172,7 +171,7 @@ function updateSlot<K extends keyof ComponentSlotConfig>(key: K, value: Componen
 }
 
 function removeSlot() {
-  emit('remove:slot');
+  emit('remove:slot', props.node.slotId);
 }
 
 // --- FORGATÁSI LOGIKA (VÁLTOZATLAN) ---
@@ -255,6 +254,24 @@ function rotate(axis: 'x' | 'y' | 'z', degrees: number) {
 
     <!-- Haladó beállítások (NAGY ÁTALAKÍTÁS) -->
     <div class="space-y-4 mt-4 border-t border-gray-700 pt-4">
+
+      <!-- ÚJ SZEKCIÓ: CSATLAKOZÁSI PONT VÁLASZTÓ -->
+      <div v-if="node.attachToSlot">
+        <label class="admin-label block">Használt csatlakozási pont (useAttachmentPoint)</label>
+        <select 
+          :value="node.useAttachmentPoint" 
+          @change="updateSlot('useAttachmentPoint', ($event.target as HTMLSelectElement).value)" 
+          class="admin-select"
+        >
+          <option value="">-- Válassz csatlakozási pontot --</option>
+          <option v-for="point in parentAttachmentPoints" :key="point" :value="point">
+            {{ point }}
+          </option>
+        </select>
+        <p v-if="parentAttachmentPoints.length === 0" class="text-xs text-yellow-400 mt-1">
+          A szülő komponens nem kínál megfelelő csatlakozási pontot ehhez a slottípushoz.
+        </p>
+      </div>
       
       <!-- Forgatási Szabályok: Nagyobb, kerekített gombok és SVG ikonok -->
       <div v-if="node.attachToSlot">
@@ -319,8 +336,8 @@ function rotate(axis: 'x' | 'y' | 'z', degrees: number) {
         :node="childNode"
         :suggestions="suggestions"
         :highlighted-slot-id="highlightedSlotId" 
-        @update:slot="payload => emit('update:slot', { slotId: childNode.slotId, update: payload as SlotUpdatePayload })"
-        @remove:slot="$emit('remove:slot', childNode.slotId)"
+        @update:slot="payload => emit('update:slot', { slotId: childNode.slotId, update: payload as SimpleUpdate })"
+        @remove:slot="slotId => emit('remove:slot', slotId)"
       />
     </div>
   </div>

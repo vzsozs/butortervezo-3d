@@ -114,6 +114,27 @@ async function saveComponent(component: ComponentConfig, file: File | null): Pro
   }
 }
 
+// <<< EZ AZ ÚJ FÜGGVÉNY
+async function handleCreateCategory(categoryName: string) {
+  if (allComponents.value && !allComponents.value[categoryName]) {
+    // 1. Lépés: Módosítjuk a store memóriában lévő állapotát
+    allComponents.value[categoryName] = [];
+    console.log(`Új kategória létrehozva a store-ban: ${categoryName}`);
+
+    // 2. Lépés: Azonnal elmentjük a teljes, frissített components.json-t a szerverre
+    // A saveDatabase függvényt használjuk, mert itt nincs fájlfeltöltés.
+    try {
+      // A `saveDatabase` már a `allComponents.value`-t használja, ami a frissített állapotot tartalmazza.
+      await saveDatabase('components.json', allComponents.value);
+      console.log(`A(z) ${categoryName} kategóriával frissített components.json sikeresen mentve.`);
+    } catch (error) {
+      console.error('Hiba az új kategória mentésekor:', error);
+      // Hiba esetén visszacsináljuk a változtatást a memóriában, hogy a UI konzisztens maradjon
+      delete allComponents.value[categoryName];
+    }
+  }
+}
+
 // --- BÚTOR KEZELŐ FÜGGVÉNYEK (VÁLTOZATLAN) ---
 function handleSelectFurniture(furniture: FurnitureConfig | null) {
   if (furniture) {
@@ -263,7 +284,7 @@ function handleSaveComponentsToServer() {
         <div class="grid grid-cols-12 gap-6 h-full">
           <div class="col-span-4 self-start sticky top-8">
             <AdminSidePanel v-if="activeTab === 'furniture'" :furniture-list="allFurniture" :selected-furniture="editingFurniture" @update:selected-furniture="handleSelectFurniture" @create-new="handleCreateNewFurniture" @save-changes="handleSaveChanges" @slot-clicked="handleSlotClicked" />
-            <ComponentSidePanel v-if="activeTab === 'components'" :key="selectedComponent ? selectedComponent.id : 'no-component-selected'" :component-database="allComponents" :selected-component="selectedComponent" :preview-config="componentPreviewConfig" @select-component="handleSelectComponent" @create-new="handleCreateNewComponent" @save-to-server="handleSaveComponentsToServer" />
+            <ComponentSidePanel v-if="activeTab === 'components'" :key="selectedComponent ? selectedComponent.id : 'no-component-selected'" :component-database="allComponents" :selected-component="selectedComponent" :preview-config="componentPreviewConfig" @select-component="handleSelectComponent" @create-new="handleCreateNewComponent" @save-to-server="handleSaveComponentsToServer" @create-category="handleCreateCategory" />
           </div>
           <div class="col-span-8">
             <div v-if="activeTab === 'furniture'">

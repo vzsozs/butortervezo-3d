@@ -15,10 +15,12 @@ const emit = defineEmits<{
   (e: 'select-component', component: ComponentConfig, type: string): void;
   (e: 'create-new', type: string): void;
   (e: 'save-to-server'): void;
+  (e: 'create-category', categoryName: string): void;
 }>();
 
 const componentTypes = computed(() => Object.keys(props.componentDatabase));
 const selectedType = ref<string>('');
+const newCategoryName = ref('');
 
 watch(componentTypes, (newTypes) => {
   if (newTypes[0] && !selectedType.value) selectedType.value = newTypes[0];
@@ -29,6 +31,18 @@ function selectComponent(component: ComponentConfig, type: string) {
   console.log(`➡️ LOG 1: [ComponentSidePanel] Komponensre kattintás történt (típus: ${type}), ezt küldöm fel:`, JSON.parse(JSON.stringify(component)));
   emit('select-component', component, type);
 }
+
+// <<< ÚJ FÜGGVÉNY A KATEGÓRIA LÉTREHOZÁSÁHOZ
+function createCategory() {
+  // Egyszerű validáció: ne legyen üres, és ne létezzen már
+  if (newCategoryName.value && !props.componentDatabase[newCategoryName.value]) {
+    emit('create-category', newCategoryName.value);
+    newCategoryName.value = ''; // Ürítjük az inputot
+  } else {
+    alert('Érvénytelen vagy már létező kategórianév!');
+  }
+}
+
 </script>
 
 <template>
@@ -72,6 +86,19 @@ function selectComponent(component: ComponentConfig, type: string) {
             <p class="text-xs text-gray-400">{{ component.id }}</p>
           </div>
         </CollapsibleCategory>
+      </div>
+      <!-- ÚJ SZEKCIÓ: KATEGÓRIA LÉTREHOZÁSA -->
+      <div class="flex-shrink-0 mt-4 pt-4 border-t border-gray-700">
+        <h3 class="font-semibold text-sm text-gray-400 mb-2">Új kategória</h3>
+        <form @submit.prevent="createCategory" class="flex gap-2">
+          <input 
+            type="text" 
+            v-model="newCategoryName"
+            placeholder="pl. shelves"
+            class="admin-input flex-grow"
+          />
+          <button type="submit" class="admin-btn-secondary">Létrehoz</button>
+        </form>
       </div>
     </div>
   </div>

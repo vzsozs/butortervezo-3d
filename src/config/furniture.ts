@@ -35,7 +35,7 @@ export interface ComponentSlotConfig {
   slotId: string;
   name: string;
   componentType: string;
-  defaultComponent: string;
+  defaultComponent: string | null;
   allowedComponents: string[];
   attachToSlot?: string;
   useAttachmentPoint?: string;
@@ -45,17 +45,31 @@ export interface ComponentSlotConfig {
     y: number;
     z: number;
   };
-  // JAVÍTÁS: Az 'any' helyett egy konkrétabb típust használunk
   properties?: PropertyConfig[];
   isOptional?: boolean;
+  children?: ComponentSlotConfig[]; 
 }
 
-// --- A TÖBBI DEFINÍCIÓ VALÓSZÍNŰLEG VÁLTOZATLAN ---
+export interface Schema {
+  id: string;
+  name: string;
+  apply: Record<string, string | null>; 
+}
+
+export interface SlotGroup {
+  groupId: string;
+  name: string;
+  controlType: 'schema_select';
+  controlledSlots: string[];
+  schemas: Schema[];
+}
+
 export interface FurnitureConfig {
   id: string;
   name: string;
   category: string;
   componentSlots: ComponentSlotConfig[];
+  slotGroups?: SlotGroup[];
   price?: number;
 }
 
