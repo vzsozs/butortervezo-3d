@@ -6,11 +6,11 @@ import {
 } from 'three';
 import { OrbitControls } from 'three-stdlib';
 import AssetManager from './Managers/AssetManager';
-// Az importot is tisztítjuk, nincs szükség a ComponentSlotConfig-ra itt
 import type { FurnitureConfig } from '@/config/furniture';
 
 export default class AdminExperience extends EventTarget {
-  public canvas: HTMLDivElement;
+  // JAVÍTÁS: Átneveztem 'container'-re, hogy konzisztens legyen a resize() metódussal
+  public container: HTMLDivElement; 
   public scene: Scene;
   public camera: PerspectiveCamera;
   public renderer: WebGLRenderer;
@@ -23,33 +23,58 @@ export default class AdminExperience extends EventTarget {
   private highlightMaterial: MeshStandardMaterial;
   private highlightedObject: Mesh | null = null;
   private originalMaterial: Material | null = null;
-  private currentObjectId: string | null = null; // <<< ÚJ: Eltároljuk az aktuális bútor ID-ját
+  private currentObjectId: string | null = null;
 
-  constructor(canvas: HTMLDivElement) {
+  constructor(container: HTMLDivElement) { // JAVÍTÁS: Paraméter neve is container
     super();
-    this.canvas = canvas;
+    this.container = container; // JAVÍTÁS: Mentés container-ként
     this.scene = new Scene();
-    const sizes = { width: canvas.clientWidth, height: canvas.clientHeight };
+    
+    const sizes = { width: container.clientWidth, height: container.clientHeight };
+    
     this.camera = new PerspectiveCamera(50, sizes.width / sizes.height, 0.1, 1000);
     this.camera.position.set(1.1, 0.8, 0.5); 
+    
     this.renderer = new WebGLRenderer({ antialias: true, alpha: true });
     this.renderer.setSize(sizes.width, sizes.height);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    this.canvas.appendChild(this.renderer.domElement);
+    
+    this.container.appendChild(this.renderer.domElement); // JAVÍTÁS: container használata
+    
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
     this.controls.target.set(0, 0.35, 0);
+    
     const ambientLight = new AmbientLight(0xffffff, 0.8);
     this.scene.add(ambientLight);
+    
     const directionalLight = new DirectionalLight(0xffffff, 1);
     directionalLight.position.set(5, 5, 5);
     this.scene.add(directionalLight);
+    
     this.assetManager = AssetManager.getInstance();
     this.raycaster = new Raycaster();
     this.mouse = new Vector2();
+    
     this.renderer.domElement.addEventListener('click', this.onClick);
     this.highlightMaterial = new MeshStandardMaterial({ color: 0x00aaff, emissive: 0x33bbff });
+    
     this.animate();
+  }
+
+  // JAVÍTÁS: Most már működni fog, mert létezik a this.container
+  resize() {
+    if (!this.camera || !this.renderer || !this.container) return;
+
+    const width = this.container.clientWidth;
+    const height = this.container.clientHeight;
+    
+    // Csak akkor frissítünk, ha van értelmes méret (pl. nem 0x0)
+    if (width === 0 || height === 0) return;
+
+    this.camera.aspect = width / height;
+    this.camera.updateProjectionMatrix();
+    this.renderer.setSize(width, height);
   }
 
   public async updateObject(config: FurnitureConfig, resetCamera: boolean) {
@@ -59,9 +84,11 @@ export default class AdminExperience extends EventTarget {
     this.clearHighlight();
 
     const componentState: Record<string, string> = {};
-    config.componentSlots.forEach(slot => {
-      if (slot.defaultComponent) componentState[slot.slotId] = slot.defaultComponent;
-    });
+    if (config.componentSlots) { // JAVÍTÁS: Ellenőrzés, hogy létezik-e
+        config.componentSlots.forEach(slot => {
+        if (slot.defaultComponent) componentState[slot.slotId] = slot.defaultComponent;
+        });
+    }
 
     const newObject = await this.assetManager.buildFurnitureFromConfig(config, componentState);
     if (!newObject) return;
@@ -77,7 +104,7 @@ export default class AdminExperience extends EventTarget {
 
     this.currentObject = newObject;
     this.scene.add(this.currentObject);
-    // JAVÍTÁS: Csak akkor állítjuk be a kamerát, ha a flag igaz
+    
     if (resetCamera) {
       console.log('%c[Experience] Új bútor, kamera reset.', 'color: cyan');
       this.frameObject(this.currentObject);
@@ -85,34 +112,27 @@ export default class AdminExperience extends EventTarget {
       console.log('%c[Experience] Meglévő bútor frissítve, kamera pozíció megmarad.', 'color: cyan');
     }
 
-    // ÚJ: Frissítjük az eltárolt ID-t
     this.currentObjectId = config.id;
   }
 
   private frameObject(object: Group) {
     const box = new Box3().setFromObject(object);
+    
+    // Ha üres az objektum (pl. még nincs benne semmi), ne fagyjon le
+    if (box.isEmpty()) return;
+
     const center = box.getCenter(new Vector3());
     const size = box.getSize(new Vector3());
 
-    // 1. Kiszámoljuk a szükséges távolságot, hogy minden beleférjen
     const maxDim = Math.max(size.x, size.y, size.z);
     const fov = this.camera.fov * (Math.PI / 180);
-    // A szorzó (1.5) finomhangolja a zoom-ot, ízlés szerint állítható
     const distance = Math.abs(maxDim / Math.tan(fov / 2)) * 0.8; 
 
-    // 2. Meghatározzuk a kívánt nézési irányt (egy vektor, ami jobb-felülről mutat)
-    // Az (1, 0.8, 1) egy kellemes, enyhén felülnézeti, isometrikus szöget ad
     const direction = new Vector3(1.3, 0.8, 0.6).normalize();
-
-    // 3. Kiszámoljuk az új kamera pozíciót:
-    // A bútor közepétől indulunk, és a nézési irány mentén hátrafelé mozgunk a kiszámolt távolságra.
     const newPosition = new Vector3().copy(center).add(direction.multiplyScalar(distance));
 
-    // 4. Beállítjuk a kamerát és a célpontot
     this.camera.position.copy(newPosition);
     this.controls.target.copy(center);
-
-    // Fontos: Frissítjük a vezérlőket a változások után
     this.controls.update();
   }
 
@@ -138,6 +158,7 @@ export default class AdminExperience extends EventTarget {
     const intersects = this.raycaster.intersectObject(currentObject, true);
     if (intersects.length === 0) return;
 
+    // JAVÍTÁS: Típusellenőrzés a userData-ra
     const config = currentObject.userData.config as FurnitureConfig | undefined;
     if (!config || !config.componentSlots) return;
 
@@ -148,11 +169,6 @@ export default class AdminExperience extends EventTarget {
     );
 
     let foundSlotObject: Object3D | null = null;
-    
-    // --- AZ UTOLSÓ RÍTUS ---
-    // A ?. biztosítja, hogy a kód ne haljon el, ha az intersects[0] nem létezik.
-    // A ?? null pedig garantálja, hogy a currentParent típusa null lesz, ha nincs találat.
-    // Ezt a logikát a sérült elemző is megérti.
     let currentParent: Object3D | null = intersects[0]?.object ?? null;
 
     while (currentParent) {
@@ -180,14 +196,12 @@ export default class AdminExperience extends EventTarget {
     this.renderer.render(this.scene, this.camera);
   }
 
-  // ÚJ METÓDUS: Eltávolítja az aktuális objektumot a jelenetből.
   public clearCanvas() {
     if (this.currentObject) {
       this.scene.remove(this.currentObject);
       this.currentObject = null;
     }
     this.clearHighlight();
-    // ÚJ: A vászon törlésekor az ID-t is töröljük
     this.currentObjectId = null;
   }
 
@@ -196,8 +210,9 @@ export default class AdminExperience extends EventTarget {
     cancelAnimationFrame(this.animationFrameId);
     this.renderer.dispose();
     this.controls.dispose();
-    if (this.renderer.domElement.parentElement === this.canvas) {
-      this.canvas.removeChild(this.renderer.domElement);
+    // JAVÍTÁS: container használata
+    if (this.renderer.domElement.parentElement === this.container) {
+      this.container.removeChild(this.renderer.domElement);
     }
   }
 }

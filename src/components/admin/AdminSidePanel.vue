@@ -1,7 +1,5 @@
-<!-- src/components/admin/AdminSidePanel.vue -->
-
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'; // onMounted már nem kell
+import { computed, ref } from 'vue';
 import type { FurnitureConfig } from '@/config/furniture';
 import AdminPreviewCanvas from './AdminPreviewCanvas.vue';
 import CollapsibleCategory from './CollapsibleCategory.vue';
@@ -9,7 +7,6 @@ import CollapsibleCategory from './CollapsibleCategory.vue';
 const props = defineProps<{
   furnitureList: FurnitureConfig[];
   selectedFurniture: Partial<FurnitureConfig> | null;
-  // updateTrigger már nem szükséges a reaktív működéshez, de a prop definíció maradhat, ha máshol kell
 }>();
 
 const emit = defineEmits<{
@@ -19,13 +16,6 @@ const emit = defineEmits<{
 }>();
 
 const searchQuery = ref('');
-
-// --- ÚJ DETEKTÍV A PROP-RA ---
-watch(() => props.selectedFurniture, (newValue) => {
-    console.log('➡️ LOG C: [AdminSidePanel] A "selectedFurniture" PROP megváltozott, ezt adom tovább a canvasnak:', JSON.parse(JSON.stringify(newValue)));
-}, { deep: true });
-// --- ÚJ DETEKTÍV VÉGE ---
-
 
 const categorizedFurniture = computed(() => {
   const list = props.furnitureList || [];
@@ -48,8 +38,6 @@ const categorizedFurniture = computed(() => {
 });
 
 function selectFurniture(furniture: FurnitureConfig) {
-  // --- DIAGNOSZTIKAI LOG HOZZÁADVA ---
-  console.log('➡️ LOG 1: [AdminSidePanel] Bútorra kattintás történt, ezt küldöm fel:', JSON.parse(JSON.stringify(furniture)));
   emit('update:selectedFurniture', furniture);
 }
 </script>
@@ -57,33 +45,37 @@ function selectFurniture(furniture: FurnitureConfig) {
 <template>
   <div class="admin-panel flex flex-col p-4 max-h-[calc(100vh-4rem)]">
     
-    <!-- FELSŐ SZEKCIÓ (nem görgetődik) -->
-    <div class="flex-shrink-0">
-      <div class="mt-4">
-        <h2 class="section-header">3D Preview</h2>
-        <div class="bg-gray-900 p-1 rounded-lg h-64">
-          <!-- JAVÍTÁS: A ref és a key már nem szükséges a reaktív prop miatt -->
-          <AdminPreviewCanvas 
-            :furniture-config="props.selectedFurniture"
-            @slot-clicked="$emit('slot-clicked', $event)"
-          />
+    <!-- 1. FELSŐ SZEKCIÓ: PREVIEW (Fix) -->
+    <div class="flex-shrink-0 mb-4">
+      <h2 class="section-header">3D Előnézet</h2>
+      <div class="bg-gray-900 p-1 rounded-lg h-48 shadow-inner border border-gray-700">
+        <AdminPreviewCanvas 
+          v-if="props.selectedFurniture"
+          :furniture-config="props.selectedFurniture"
+          @slot-clicked="$emit('slot-clicked', $event)"
+        />
+        <div v-else class="w-full h-full flex flex-col items-center justify-center text-gray-500 text-sm">
+          <span class="text-2xl mb-2">🪑</span>
+          <p>Válassz bútort</p>
         </div>
       </div>
     </div>
 
-    <!-- ALSÓ SZEKCIÓ (görgetődik) -->
-    <div class="flex-1 min-h-0 flex flex-col mt-4">
+    <!-- 2. KÖZÉPSŐ SZEKCIÓ: LISTA (Görgethető) -->
+    <div class="flex-1 min-h-0 flex flex-col overflow-hidden">
       <h2 class="section-header flex-shrink-0">Bútorok</h2>
-      <input 
-        type="text" 
-        v-model="searchQuery" 
-        placeholder="Keresés..." 
-        class="admin-input w-full mb-2 flex-shrink-0"
-      />
-      <div class="my-4">
-        <button @click="$emit('createNew')" class="admin-btn w-full">Új Bútor</button>
+      
+      <!-- Keresőmező -->
+      <div class="mb-2 pr-2">
+        <input 
+          type="text" 
+          v-model="searchQuery" 
+          placeholder="Keresés név vagy ID alapján..." 
+          class="admin-input w-full text-sm"
+        />
       </div>
-      <div class="overflow-y-auto space-y-2">
+
+      <div class="overflow-y-auto space-y-2 pr-2 custom-scrollbar">
         <CollapsibleCategory 
           v-for="(items, categoryName) in categorizedFurniture" 
           :key="categoryName"
@@ -92,13 +84,52 @@ function selectFurniture(furniture: FurnitureConfig) {
         >
           <div v-for="furniture in items" :key="furniture.id"
             @click="selectFurniture(furniture)"
-            class="p-2 rounded cursor-pointer hover:bg-gray-700 border-2"
-            :class="[props.selectedFurniture?.id === furniture.id ? 'bg-blue-600/30 border-blue-500' : 'bg-gray-800 border-transparent']">
-            <p class="font-semibold text-sm">{{ furniture.name }}</p>
-            <p class="text-xs text-gray-400">{{ furniture.id }}</p>
+            class="p-2 rounded cursor-pointer border-l-4 transition-all mb-1"
+            :class="[
+              props.selectedFurniture?.id === furniture.id 
+                ? 'bg-gray-700 border-blue-500 shadow-md' 
+                : 'bg-gray-800 border-transparent hover:bg-gray-700 hover:border-gray-600'
+            ]">
+            <div class="flex justify-between items-center">
+              <p class="font-semibold text-sm text-gray-200">{{ furniture.name }}</p>
+              <!-- Ha van ár, kiírhatjuk, ha nincs, nem baj -->
+              <span v-if="furniture.price" class="text-xs text-gray-500 font-mono">{{ furniture.price }} Ft</span>
+            </div>
+            <p class="text-xs text-gray-500 truncate">{{ furniture.id }}</p>
           </div>
         </CollapsibleCategory>
+
+        <!-- Üres állapot -->
+        <div v-if="Object.keys(categorizedFurniture).length === 0" class="text-center text-gray-500 py-4 text-sm">
+          Nincs találat.
+        </div>
       </div>
     </div>
+
+    <!-- 3. ALSÓ SZEKCIÓ: MŰVELETEK (Fix) -->
+    <div class="flex-shrink-0 mt-4 pt-4 border-t border-gray-700">
+      <button @click="$emit('createNew')" class="w-full admin-btn flex justify-center items-center gap-2 py-3">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+        Új Bútor Létrehozása
+      </button>
+    </div>
+
   </div>
 </template>
+
+<style scoped>
+/* Ugyanaz a stílus, mint a komponens panelnél */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(31, 41, 55, 0.5);
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(75, 85, 99, 0.8);
+  border-radius: 3px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(107, 114, 128, 1);
+}
+</style>

@@ -87,6 +87,17 @@
       ],
       "attachmentPoints": [],
       "price": 2531
+    },
+    {
+      "name": "leg design",
+      "id": "leg_design",
+      "model": "/models/legs/leg_design.glb",
+      "materialTarget": "MAT_Lab_Fem",
+      "materialOptions": [
+        "MAT_Lab_Fem"
+      ],
+      "attachmentPoints": [],
+      "price": 6000
     }
   ],
   "shelves": [

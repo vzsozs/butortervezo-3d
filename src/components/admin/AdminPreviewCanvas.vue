@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue'; // watch importálása
+import { ref, onMounted, onUnmounted, watch } from 'vue';
 import type { FurnitureConfig } from '@/config/furniture';
 import AdminExperience from '@/three/AdminExperience';
 
@@ -7,66 +7,85 @@ const props = defineProps<{
   furnitureConfig: Partial<FurnitureConfig> | null;
 }>();
 
-const emit = defineEmits(['slot-clicked']);
-const canvas = ref<HTMLDivElement | null>(null);
-let experience: AdminExperience | null = null;
+const emit = defineEmits<{
+  (e: 'slot-clicked', slotId: string): void;
+}>();
 
-// --- KÖZPONTI FRISSÍTŐ FÜGGVÉNY ---
-// Kiemeltük a logikát, hogy ne kelljen ismételni
+const canvasContainer = ref<HTMLDivElement | null>(null);
+let experience: AdminExperience | null = null;
+let resizeObserver: ResizeObserver | null = null;
+
+// --- KÖZPONTI FRISSÍTŐ ---
 function updateCanvas(config: Partial<FurnitureConfig> | null, resetCamera: boolean) {
   if (!experience) return;
 
+  // Ellenőrizzük, hogy van-e értelme kirajzolni valamit (van-e gyökér elem)
   const hasDrawableRoot = config?.componentSlots?.some(slot => !slot.attachToSlot && slot.defaultComponent);
     
   if (config && hasDrawableRoot) {
-    console.log(`   -> 3D objektum frissítése... (resetCamera: ${resetCamera})`);
+    // Type casting: Itt már biztosak vagyunk benne, hogy ez egy valid config
     experience.updateObject(config as FurnitureConfig, resetCamera);
   } else {
-    console.log('   -> Config invalid, vászon törlése.');
     experience.clearCanvas();
   }
 }
 
+// --- WATCHER ---
 watch(() => props.furnitureConfig, (newConfig, oldConfig) => {
-  console.log('📥 [AdminPreviewCanvas] A "furnitureConfig" PROP megváltozott...');
-  
-  // JAVÍTÁS: Védőháló a kezdeti, érvénytelen futások ellen.
-  // Ha nincs új config, vagy nincs ID-ja, ne csináljunk semmit.
+  // Védőháló: Ha nincs config, vagy üres, takarítunk
   if (!newConfig || !newConfig.id) {
     experience?.clearCanvas();
     return;
   }
 
+  // Csak akkor resetelünk kamerát, ha teljesen új bútort töltöttünk be (más az ID).
+  // Ha csak a nevét írja át vagy slotot állít, a kamera maradjon ott, ahol volt!
   const shouldResetCamera = !oldConfig || oldConfig.id !== newConfig.id;
   
   updateCanvas(newConfig, shouldResetCamera);
 }, { deep: true });
 
-
+// --- LIFECYCLE ---
 onMounted(() => {
-  if (canvas.value) {
-    experience = new AdminExperience(canvas.value);
+  if (canvasContainer.value) {
+    // 1. Three.js indítása
+    experience = new AdminExperience(canvasContainer.value);
     experience.addEventListener('slotClicked', handleSlotClickFrom3D);
 
-    if (props.furnitureConfig && props.furnitureConfig.id) {
-      updateCanvas(props.furnitureConfig, false);
+    // 2. Kezdeti kirajzolás (ha van mit)
+    if (props.furnitureConfig?.id) {
+      updateCanvas(props.furnitureConfig, true);
     }
+
+    // 3. ÚJ: Átméretezés figyelése (Reszponzivitás)
+    resizeObserver = new ResizeObserver(() => {
+      experience?.resize(); // Feltételezem, hogy van resize() metódusod az AdminExperience-ben!
+    });
+    resizeObserver.observe(canvasContainer.value);
   }
 });
-
-function handleSlotClickFrom3D(event: Event) {
-  const customEvent = event as CustomEvent;
-  if (customEvent.detail.slotId) {
-    emit('slot-clicked', customEvent.detail.slotId);
-  }
-}
 
 onUnmounted(() => {
+  // Takarítás
+  resizeObserver?.disconnect();
   experience?.removeEventListener('slotClicked', handleSlotClickFrom3D);
   experience?.destroy();
+  experience = null;
 });
+
+// --- ESEMÉNYKEZELÉS ---
+function handleSlotClickFrom3D(event: Event) {
+  // Típusbiztosabb eseménykezelés
+  const detail = (event as CustomEvent).detail;
+  if (detail && typeof detail.slotId === 'string') {
+    emit('slot-clicked', detail.slotId);
+  }
+}
 </script>
 
 <template>
-  <div ref="canvas" class="w-full h-full rounded-lg bg-gray-800 cursor-pointer"></div>
+  <!-- A ref nevét átírtam canvasContainer-re, hogy egyértelműbb legyen -->
+  <div ref="canvasContainer" class="w-full h-full rounded-lg bg-gray-800 cursor-pointer overflow-hidden relative">
+    <!-- Ide jöhetne pl. egy loading spinner, ha épp töltődik a modell -->
+  </div>
 </template>

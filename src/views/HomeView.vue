@@ -19,13 +19,8 @@ const persistenceStore = usePersistenceStore();
 // Az 'async' kulcsszó már nem kell, mert az getInstance szinkron
 onMounted(() => {
   if (sceneContainer.value) {
-    // =================================================================
-    // === VÁLTOZTATÁS: .create() helyett .getInstance() ===============
-    // =================================================================
-    // Az getInstance() létrehozza az Experience példányt, ha még nem
-    // létezik, vagy visszaadja a meglévőt, ha már létezik.
+    
     experience = Experience.getInstance(sceneContainer.value);
-    // =================================================================
 
     experienceStore.setExperience(experience);
 
