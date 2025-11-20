@@ -2,13 +2,17 @@
 
 import { defineStore } from 'pinia'
 import type { Group } from 'three'
-import { ref, computed } from 'vue'
+import { ref, computed, shallowRef } from 'vue' // shallowRef fontos!
 import type { FurnitureConfig } from '@/config/furniture'
 import { useExperienceStore } from './experience'; 
+import Experience from '@/three/Experience'; // <<< EZT NE FELEJTSD KI!
 
 export const useSelectionStore = defineStore('selection', () => {
   const experienceStore = useExperienceStore();
-  const selectedObject = ref<Group | null>(null)
+  
+  // TELJESÍTMÉNY JAVÍTÁS: shallowRef a Three.js objektumhoz
+  const selectedObject = shallowRef<Group | null>(null)
+  
   const objectToDeleteUUID = ref<string | null>(null)
   const objectToDuplicateUUID = ref<string | null>(null)
 
@@ -24,14 +28,12 @@ export const useSelectionStore = defineStore('selection', () => {
     newStyleId: string;
   } | null>(null)
 
-  // --- ÚJ REAKTÍV VÁLTOZÓ ---
   const propertyChangeRequest = ref<{
     targetUUID: string;
     slotId: string;
     propertyId: string;
     newValue: string | boolean | number;
   } | null>(null)
-  // --- EDDIG TART AZ ÚJ VÁLTOZÓ ---
 
   const selectedObjectConfig = computed<FurnitureConfig | null>(() => {
     if (selectedObject.value && selectedObject.value.userData.config) {
@@ -41,20 +43,21 @@ export const useSelectionStore = defineStore('selection', () => {
   })
 
   function selectObject(object: Group | null) {
-    experienceStore.instance?.debugManager.logSeparator('KIVÁLASZTÁS');
-    selectedObject.value = object;
-    if (object) {
-      experienceStore.instance?.debugManager.logObjectState('Objektum kiválasztva', object);
-    } else {
-      console.log('Kiválasztás törölve.');
+    if (experienceStore.instance) {
+        experienceStore.instance.debugManager.logSeparator('KIVÁLASZTÁS');
+        if (object) {
+            experienceStore.instance.debugManager.logObjectState('Objektum kiválasztva', object);
+        } else {
+            console.log('Kiválasztás törölve.');
+        }
     }
+    selectedObject.value = object;
   }
 
   function clearSelection() {
     selectedObject.value = null
   }
 
-  // ... a delete és duplicate függvények változatlanok ...
   function deleteSelectedObject() {
     if (selectedObject.value) {
       objectToDeleteUUID.value = selectedObject.value.uuid
@@ -75,7 +78,6 @@ export const useSelectionStore = defineStore('selection', () => {
   function acknowledgeDuplication() {
     objectToDuplicateUUID.value = null;
   }
-
 
   function changeMaterial(slotId: string, materialId: string) {
     if (selectedObject.value) {
@@ -105,7 +107,6 @@ export const useSelectionStore = defineStore('selection', () => {
     styleChangeRequest.value = null
   }
 
-  // --- ÚJ FÜGGVÉNYEK ---
   function changeProperty(slotId: string, propertyId: string, newValue: string | boolean | number) {
     if (selectedObject.value) {
       propertyChangeRequest.value = {
@@ -120,7 +121,65 @@ export const useSelectionStore = defineStore('selection', () => {
   function acknowledgePropertyChange() {
     propertyChangeRequest.value = null
   }
-  // --- EDDIG TARTANAK AZ ÚJ FÜGGVÉNYEK ---
+
+  // --- A JAVÍTOTT FÜGGVÉNY ---
+  async function applySchema(groupIndex: number, schemaId: string) {
+    // Mivel Setup Store-ban vagyunk, a .value-t kell használni!
+    if (!selectedObject.value || !selectedObjectConfig.value) return;
+
+    const group = selectedObjectConfig.value.slotGroups?.[groupIndex];
+    if (!group) return;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const schema = group.schemas.find((s: any) => s.id === schemaId);
+    if (!schema) return;
+
+    console.log(`[SelectionStore] Séma alkalmazása: ${schema.name}`);
+
+    const currentComponentState = JSON.parse(JSON.stringify(selectedObject.value.userData.componentState || {}));
+    
+    Object.entries(schema.apply).forEach(([slotId, componentId]) => {
+      if (componentId) {
+        currentComponentState[slotId] = componentId;
+      } else {
+        delete currentComponentState[slotId];
+      }
+    });
+
+    const experience = Experience.getInstance();
+    
+    // --- 1. LÉPÉS: LECSATOLJUK A GIZMO-T (FONTOS!) ---
+    const controls = experience.camera.transformControls;
+    controls.detach();
+
+    const oldPosition = selectedObject.value.position.clone();
+    const oldRotation = selectedObject.value.rotation.clone();
+    const oldMaterialState = JSON.parse(JSON.stringify(selectedObject.value.userData.materialState || {}));
+    const parent = selectedObject.value.parent;
+
+    const newObject = await experience.assetManager.buildFurnitureFromConfig(
+      selectedObjectConfig.value,
+      currentComponentState
+    );
+
+    if (newObject && parent) {
+      newObject.position.copy(oldPosition);
+      newObject.rotation.copy(oldRotation);
+      newObject.userData.materialState = oldMaterialState;
+
+      await experience.stateManager.applyMaterialsToObject(newObject);
+
+      parent.remove(selectedObject.value);
+      parent.add(newObject);
+
+      // --- 2. LÉPÉS: ÚJRAKIJELÖLÉS ÉS VISSZACSATOLÁS ---
+      selectObject(newObject);
+      
+      controls.attach(newObject);
+      
+      experience.historyStore.addState();
+    }
+  }
 
   return { 
     selectedObject, 
@@ -129,7 +188,7 @@ export const useSelectionStore = defineStore('selection', () => {
     materialChangeRequest,
     styleChangeRequest,
     objectToDuplicateUUID,
-    propertyChangeRequest, // <-- Ezt is add hozzá a return-höz!
+    propertyChangeRequest,
     duplicateSelectedObject,
     acknowledgeDuplication,
     selectObject, 
@@ -140,7 +199,8 @@ export const useSelectionStore = defineStore('selection', () => {
     acknowledgeMaterialChange,
     changeStyle,
     acknowledgeStyleChange,
-    changeProperty, // <-- Ezt is add hozzá a return-höz!
-    acknowledgePropertyChange, // <-- Ezt is add hozzá a return-höz!
+    changeProperty,
+    acknowledgePropertyChange,
+    applySchema 
   }
 })

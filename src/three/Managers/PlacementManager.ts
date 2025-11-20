@@ -1,33 +1,29 @@
-// src/three/Managers/PlacementManager.ts
-
 import { Group, Vector3, Box3 } from 'three';
 import Experience from '../Experience';
 
 const SNAP_INCREMENT = 0.2;
+const MAX_SNAP_CHECK_DISTANCE = 1.0;
 
 type SnapCandidate = {
   priority: number;
   position: Vector3;
-  snapPoint: Vector3 | null; 
+  snapPoint: Vector3;
   distance: number;
   targetObject: Group;
 };
-
-// ÚJ, SZIGORÚBB TÍPUS A DEBUGGER SZÁMÁRA
-type SnapCandidateWithPoint = SnapCandidate & { snapPoint: Vector3 };
 
 export default class PlacementManager {
   constructor(private experience: Experience) {}
 
   private isPositionColliding(movingObject: Group, position: Vector3, objectsToCompare: Group[]): boolean {
-    const movingBoxWorld = this.getVirtualBox(movingObject, position);
-    const tolerance = new Vector3(0.01, 0.01, 0.01);
-    movingBoxWorld.expandByVector(tolerance.negate());
+    const movingBox = this.getBoxAtPosition(movingObject, position);
+    const tolerance = new Vector3(0.001, 0.001, 0.001); 
+    movingBox.expandByVector(tolerance.negate());
 
     for (const staticObject of objectsToCompare) {
       if (movingObject === staticObject) continue;
-      const staticBoxWorld = new Box3().setFromObject(staticObject);
-      if (movingBoxWorld.intersectsBox(staticBoxWorld)) {
+      const staticBox = new Box3().setFromObject(staticObject);
+      if (movingBox.intersectsBox(staticBox)) {
         return true;
       }
     }
@@ -39,114 +35,88 @@ export default class PlacementManager {
   }
 
   public calculateFinalPosition(movingObject: Group, proposedPosition: Vector3, objectsToCompare: Group[]): Vector3 {
-    const finalHeight = movingObject.position.y;
+    // A magasságot (Y) nem bántjuk, azt az InteractionManager már beállította
+    const currentY = proposedPosition.y;
+    
     const candidates: SnapCandidate[] = [];
     const otherObjects = objectsToCompare.filter(obj => obj.uuid !== movingObject.uuid);
 
-    const movingBox = new Box3().setFromObject(movingObject);
-    const movingBoxSize = new Vector3();
-    movingBox.getSize(movingBoxSize);
+    // --- RELATÍV ÉLEK KISZÁMÍTÁSA ---
+    const currentBox = new Box3().setFromObject(movingObject);
+    
+    const deltaLeft = currentBox.min.x - movingObject.position.x;
+    const deltaRight = currentBox.max.x - movingObject.position.x;
+    // A deltaBack és deltaFront törölve lett, mert nem használtuk
 
     for (const staticObject of otherObjects) {
       const staticBox = new Box3().setFromObject(staticObject);
-      const MAX_SNAP_CHECK_DISTANCE = 1.0;
 
-      const potentialSnapPosition = proposedPosition.clone();
-      let isSnappingOnX = false;
-      let isSnappingOnZ = false;
-
-      const distanceToBoxEdgeZ = Math.abs(proposedPosition.z - staticBox.max.z);
-      if (distanceToBoxEdgeZ <= MAX_SNAP_CHECK_DISTANCE) {
-        isSnappingOnZ = true;
-        potentialSnapPosition.z = staticBox.max.z - movingBoxSize.z / 2;
-      }
-
-      const distanceToLeftEdge = Math.abs(proposedPosition.x - staticBox.min.x);
-      const distanceToRightEdge = Math.abs(proposedPosition.x - staticBox.max.x);
+      // 1. ESET: Jobb oldalra illesztés
+      const snapPosRight = proposedPosition.clone();
+      snapPosRight.x = staticBox.max.x - deltaLeft;
       
-      if (Math.min(distanceToLeftEdge, distanceToRightEdge) <= MAX_SNAP_CHECK_DISTANCE) {
-        isSnappingOnX = true;
-        if (distanceToLeftEdge < distanceToRightEdge) {
-          potentialSnapPosition.x = staticBox.min.x - movingBoxSize.x / 2;
-        } else {
-          potentialSnapPosition.x = staticBox.max.x + movingBoxSize.x / 2;
-        }
+      if (Math.abs(proposedPosition.z - staticObject.position.z) < 0.5) {
+          snapPosRight.z = staticObject.position.z;
       }
 
-      if (isSnappingOnX || isSnappingOnZ) {
-        // ######################################################################
-        // ###                  JAVÍTOTT SNAP POINT LOGIKA                    ###
-        // ######################################################################
-        // A snap point a statikus objektum felületén van.
-        // A koordinátáit a VÉGLEGESEN igazított pozícióból vezetjük le.
-        let snapPointX, snapPointZ;
+      if (Math.abs(proposedPosition.x - snapPosRight.x) < MAX_SNAP_CHECK_DISTANCE) {
+          candidates.push({
+              priority: 1,
+              position: snapPosRight,
+              snapPoint: new Vector3(staticBox.max.x, currentY, snapPosRight.z),
+              distance: proposedPosition.distanceTo(snapPosRight),
+              targetObject: staticObject
+          });
+      }
 
-        if (isSnappingOnX) {
-          // Ha X-ben igazítunk, a snap pont X-koordinátája a statikus doboz éle.
-          snapPointX = (distanceToLeftEdge < distanceToRightEdge) ? staticBox.min.x : staticBox.max.x;
-        } else {
-          // Ha X-ben nem, akkor a vonal párhuzamos a Z-tengellyel, az X-koordináta a bútor végső X-pozíciója.
-          snapPointX = potentialSnapPosition.x;
-        }
+      // 2. ESET: Bal oldalra illesztés
+      const snapPosLeft = proposedPosition.clone();
+      snapPosLeft.x = staticBox.min.x - deltaRight;
+      
+      if (Math.abs(proposedPosition.z - staticObject.position.z) < 0.5) {
+          snapPosLeft.z = staticObject.position.z;
+      }
 
-        if (isSnappingOnZ) {
-          // Ha Z-ben igazítunk, a snap pont Z-koordinátája a statikus doboz éle.
-          snapPointZ = staticBox.max.z;
-        } else {
-          // Ha Z-ben nem, akkor a vonal párhuzamos az X-tengellyel, a Z-koordináta a bútor végső Z-pozíciója.
-          snapPointZ = potentialSnapPosition.z;
-        }
-        
-        const primarySnapPoint = new Vector3(snapPointX, finalHeight, snapPointZ);
-
-        candidates.push({
-          priority: isSnappingOnZ ? 1 : 2,
-          position: potentialSnapPosition,
-          distance: proposedPosition.distanceTo(potentialSnapPosition),
-          snapPoint: primarySnapPoint,
-          targetObject: staticObject,
-        });
+      if (Math.abs(proposedPosition.x - snapPosLeft.x) < MAX_SNAP_CHECK_DISTANCE) {
+          candidates.push({
+              priority: 1,
+              position: snapPosLeft,
+              snapPoint: new Vector3(staticBox.min.x, currentY, snapPosLeft.z),
+              distance: proposedPosition.distanceTo(snapPosLeft),
+              targetObject: staticObject
+          });
       }
     }
     
     this.experience.debug.hideAll();
 
     if (candidates.length > 0) {
-      candidates.sort((a, b) => a.priority - b.priority || a.distance - b.distance);
-      
+      candidates.sort((a, b) => a.distance - b.distance);
       const bestValidSnap = candidates.find(c => !this.isPositionColliding(movingObject, c.position, otherObjects));
       
       if (bestValidSnap) {
-        const virtualBox = this.getVirtualBox(movingObject, bestValidSnap.position);
-        
-        if (bestValidSnap.snapPoint) {
-          this.experience.debug.updateSnapHelpers(
-            virtualBox, 
-            bestValidSnap as SnapCandidateWithPoint
-          );
-        } else {
-          this.experience.debug.updateVirtualBox(virtualBox);
-        }
-        
+        this.experience.debug.updateSnapHelpers(new Box3(), bestValidSnap);
         return bestValidSnap.position;
       }
     }
 
-    const gridSnapPosition = new Vector3(this.snapToGrid(proposedPosition.x), finalHeight, this.snapToGrid(proposedPosition.z));
+    const gridSnapPosition = new Vector3(
+        this.snapToGrid(proposedPosition.x), 
+        currentY, 
+        this.snapToGrid(proposedPosition.z)
+    );
+    
     if (!this.isPositionColliding(movingObject, gridSnapPosition, otherObjects)) {
-      this.experience.debug.updateVirtualBox(this.getVirtualBox(movingObject, gridSnapPosition));
       return gridSnapPosition;
     }
 
-    this.experience.debug.updateVirtualBox(this.getVirtualBox(movingObject, proposedPosition));
     return proposedPosition; 
   }
 
-
-  public getVirtualBox(proxyObject: Group, centerPosition: Vector3): Box3 {
-    const box = new Box3().setFromObject(proxyObject);
-    const size = new Vector3();
-    box.getSize(size);
-    return new Box3().setFromCenterAndSize(centerPosition, size);
+  private getBoxAtPosition(object: Group, newPosition: Vector3): Box3 {
+    const offset = newPosition.clone().sub(object.position);
+    const box = new Box3().setFromObject(object);
+    box.translate(offset);
+    return box;
   }
 }

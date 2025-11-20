@@ -1,11 +1,9 @@
-// src/three/Managers/AssetManager.ts
 import { Group, TextureLoader, Texture, SRGBColorSpace, RepeatWrapping, Vector3, Box3, Object3D, Mesh, MeshStandardMaterial, Quaternion, Euler } from 'three';
 import { GLTFLoader } from 'three-stdlib';
 import type { ComponentConfig, FurnitureConfig, ComponentSlotConfig } from '@/config/furniture';
 import ConfigManager from './ConfigManager';
 import DebugManager from './DebugManager';
 
-// Singleton minta
 let instance: AssetManager | null = null;
 
 export default class AssetManager {
@@ -29,40 +27,60 @@ export default class AssetManager {
   public invalidateModelCache(url: string): void {
     if (this.modelCache.has(url)) {
       this.modelCache.delete(url);
-      console.log(`%c[AssetManager] Cache érvénytelenítve a következő modellhez: ${url}`, 'color: orange');
+      console.log(`%c[AssetManager] Cache érvénytelenítve: ${url}`, 'color: orange');
     }
   }
-
 
   public async buildFurnitureFromConfig(
     config: FurnitureConfig,
     componentState: Record<string, string>,
     propertyState: Record<string, Record<string, string | number | boolean>> = {}
     ): Promise<Group> {
-    console.log('%c[AssetManager] Bútor építése elkezdődött:', 'color: blue', { config, componentState });
+    
+    // console.log('%c[AssetManager] Bútor építése...', 'color: blue'); // Kikommenteltem a spammelés ellen
+    
     const furnitureProxy = new Group();
     furnitureProxy.name = `proxy_${config.id}`;
     
-    const loadedComponents: Map<string, { model: Group, config: ComponentConfig, slot: ComponentSlotConfig }> = new Map();
+    const loadedComponents: Map<string, { model: Group, config: ComponentConfig | null, slot: ComponentSlotConfig }> = new Map();
     
-    // A betöltési logika változatlan
+    // 1. Modellek betöltése
     const loadPromises = config.componentSlots.map(async (slot) => {
       const componentId = componentState[slot.slotId];
-      if (!componentId) return;
+      
+      // HA NINCS KOMPONENS (pl. "Nincs" opció vagy üres template):
+      if (!componentId) {
+        // Létrehozunk egy üres csoportot, hogy a hierarchia megmaradjon
+        const emptyGroup = new Group();
+        emptyGroup.name = slot.slotId;
+        // Fontos: config null, mert nincs valódi komponens
+        loadedComponents.set(slot.slotId, { model: emptyGroup, config: null, slot: slot });
+        return;
+      }
+
       const componentConfig = ConfigManager.getComponentById(componentId);
       if (!componentConfig) {
         this.debugManager.logConfigNotFound('Komponens', componentId);
+        // Itt is üres csoportot adunk vissza hiba esetén
+        const emptyGroup = new Group();
+        emptyGroup.name = slot.slotId;
+        loadedComponents.set(slot.slotId, { model: emptyGroup, config: null, slot: slot });
         return;
       }
+
       const modelUrl = componentConfig.model;
       const componentModel = await this.loadModel(modelUrl);
       componentModel.name = slot.slotId;
+      
+      // Slot ID mentése a userData-ba (későbbi kereséshez, pl. front visibility)
+      componentModel.userData.slotId = slot.slotId;
+
       loadedComponents.set(slot.slotId, { model: componentModel, config: componentConfig, slot: slot });
     });
 
     await Promise.all(loadPromises);
 
-    // A hierarchia-építés és sorbarendezés logikája változatlan
+    // 2. Hierarchia építése
     const assembledObjects: Map<string, Group> = new Map();
     const slots = Array.from(loadedComponents.values());
     const slotMap = new Map(slots.map(s => [s.slot.slotId, s.slot]));
@@ -82,7 +100,6 @@ export default class AssetManager {
 
     slots.sort((a, b) => getDepth(a.slot.slotId) - getDepth(b.slot.slotId));
 
-    // Az összeszerelési ciklus változatlan
     for (const data of slots) {
       const { model, slot } = data;
       const parentSlotId = slot.attachToSlot;
@@ -94,17 +111,20 @@ export default class AssetManager {
       }
 
       const parentModel = assembledObjects.get(parentSlotId);
-      const parentData = loadedComponents.get(parentSlotId);
-
-      if (!parentModel || !parentData) {
-        console.error(`[AssetManager] HIBA: A(z) '${parentSlotId}' szülő nem található!`);
+      
+      if (!parentModel) {
+        // Ha a szülő nincs a fában (mert pl. opcionális és ki van kapcsolva),
+        // akkor a gyereket sem tudjuk hova tenni.
+        // console.warn(`[AssetManager] Kihagyás: ${slot.slotId} szülője (${parentSlotId}) hiányzik.`);
         continue;
       }
       
+      // Csatolási logika
       const applyAttachment = (modelInstance: Group, attachmentPointName: string) => {
         const attachmentDummy = parentModel.getObjectByName(attachmentPointName);
         if (!attachmentDummy) {
-          console.error(`[AssetManager] HIBA: A(z) '${attachmentPointName}' csat. pont nem található a(z) '${parentModel.name}' szülőn!`);
+          // Ha nincs dummy pont, de a szülő létezik, akkor a 0,0,0-ra tesszük (vagy logolunk)
+          // console.warn(`[AssetManager] Csatlakozási pont (${attachmentPointName}) nem található a szülőn (${parentModel.name}).`);
           return;
         }
         
@@ -131,37 +151,17 @@ export default class AssetManager {
       } else if (slot.useAttachmentPoint) {
         applyAttachment(model, slot.useAttachmentPoint);
       } else {
-        console.warn(`[AssetManager] FIGYELEM: A(z) '${slot.slotId}' gyerek slotnak nincs csatlakozási szabálya...`);
+        // Ha nincs attachment point, csak simán hozzáadjuk (pl. relatív pozíció)
+        parentModel.add(model);
       }
 
       assembledObjects.set(slot.slotId, model);
     }
 
-    // --- EZ A RÉSZ VÁLTOZIK ---
-
-    // 1. Kiszámoljuk a teljes bútor befoglaló dobozát
+    // 3. Pozícionálás (Pivot korrekció)
     const box = new Box3().setFromObject(furnitureProxy);
     const center = new Vector3();
     box.getCenter(center);
-
-    // 2. Kiszámoljuk a láb magasságát
-    let legHeight = 0;
-    const legComponentId = componentState['leg'];
-    if (legComponentId) {
-      const legConfig = ConfigManager.getComponentById(legComponentId);
-      if (legConfig && legConfig.height) {
-        legHeight = legConfig.height;
-      }
-    }
-
-    // 3. Beállítjuk a végleges pozíciót
-    furnitureProxy.position.set(
-      -center.x,
-      -box.min.y + legHeight,
-      -center.z
-    );
-    
-    // --- VÁLTOZÁS VÉGE ---
 
     furnitureProxy.userData = {
       config: config,
@@ -200,12 +200,12 @@ export default class AssetManager {
 
     } catch (error) {
       this.debugManager.logModelLoadError(url, error);
-      throw new Error(`Modell betöltése sikertelen: ${url}`);
+      // Hiba esetén üres csoportot adunk vissza, hogy ne omoljon össze
+      return new Group();
     }
   }
   
   public async getTexture(url: string): Promise<Texture> {
-    // ... ez a függvény változatlan ...
     return new Promise((resolve, reject) => {
       if (this.textureCache.has(url)) {
         resolve(this.textureCache.get(url)!);

@@ -191,18 +191,6 @@
       "attachmentPoints": [],
       "price": 3200,
       "materialSource": "corpus"
-    },
-    {
-      "name": "Láb Csőláb",
-      "id": "lab_csolab",
-      "model": "/models/legs/lab_csolab.glb",
-      "height": 0.1,
-      "materialTarget": "MAT_Lab_Fem",
-      "materialOptions": [
-        "MAT_Lab_Fem"
-      ],
-      "attachmentPoints": [],
-      "price": 1800
     }
   ],
   "shelves": [

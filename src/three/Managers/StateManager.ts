@@ -1,7 +1,5 @@
-// src/three/Managers/StateManager.ts
-
 import { watch, toRaw } from 'vue';
-import { Group, Mesh, MeshStandardMaterial, Object3D, Vector3, Box3 } from 'three';
+import { Group, Mesh, MeshStandardMaterial, Object3D } from 'three';
 import Experience from '../Experience';
 import { availableMaterials } from '@/config/materials';
 
@@ -12,6 +10,10 @@ export default class StateManager {
 
   // --- PUBLIKUS METÓDUSOK ---
 
+  public updateFrontsVisibility(isVisible: boolean) {
+    this.experience.toggleFrontVisibility(isVisible);
+  }
+
   public async applyMaterialsToObject(targetObject: Group) {
     const componentState = targetObject.userData.componentState;
     const materialState = targetObject.userData.materialState;
@@ -20,7 +22,6 @@ export default class StateManager {
     for (const slotId in componentState) {
       const componentId = componentState[slotId];
       const materialId = materialState[slotId];
-
       if (componentId && materialId) {
         await this.applyMaterialToSlot(targetObject, slotId, materialId);
       }
@@ -33,37 +34,34 @@ export default class StateManager {
 
     const componentConfig = this.experience.configManager.getComponentById(componentId);
     const materialConfig = availableMaterials.find(m => m.id === materialId);
+    
     if (!componentConfig?.materialTarget || !materialConfig) return;
 
     const materialTargetName = componentConfig.materialTarget;
 
-    targetObject.traverse(async (object: Object3D) => {
-      // Csak azokat az objektumokat vizsgáljuk, amiknek a neve pontosan a slotId
-      if (object.name === slotId) {
-        // Most az adott komponens-példányon (pl. egy lábon) belül keressük a cél mesht
-        object.traverse(async (child: Object3D) => {
-          if (child instanceof Mesh && child.material instanceof MeshStandardMaterial && child.material.name === materialTargetName) {
-            const newMaterial = child.material.clone();
-            newMaterial.color.set(materialConfig.color);
-            newMaterial.map = materialConfig.textureUrl
-              ? await this.experience.assetManager.getTexture(materialConfig.textureUrl)
-              : null;
-            child.material = newMaterial;
+    targetObject.traverse(async (child: Object3D) => {
+      // Slot ID alapján keresünk (ez a legbiztosabb)
+      if (child.userData.slotId === slotId) {
+        child.traverse(async (mesh: Object3D) => {
+          if (mesh instanceof Mesh) {
+             const matName = Array.isArray(mesh.material) ? mesh.material[0].name : mesh.material.name;
+             // Fuzzy match a material névre (pl. MAT_Front.001 is jó)
+             if (matName.includes(materialTargetName)) {
+              const oldMat = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
+              const newMaterial = oldMat.clone();
+              newMaterial.color.set(materialConfig.color);
+              
+              if (materialConfig.textureUrl) {
+                newMaterial.map = await this.experience.assetManager.getTexture(materialConfig.textureUrl);
+              } else {
+                newMaterial.map = null;
+              }
+              mesh.material = newMaterial;
+            }
           }
         });
       }
     });
-  }
-
-public updateFrontsVisibility(isVisible: boolean) {
-    console.log(`[StateManager] updateFrontsVisibility metódus meghívva. Láthatóság: ${isVisible}`);
-    const experienceStore = this.experience.experienceStore;
-    for (const placedObject of experienceStore.placedObjects) {
-      const frontObject = placedObject.getObjectByName('front');
-      if (frontObject) {
-        frontObject.visible = isVisible;
-      }
-    }
   }
 
   // --- BELSŐ MŰKÖDÉS ---
@@ -71,59 +69,46 @@ public updateFrontsVisibility(isVisible: boolean) {
   private setupWatchers() {
     const selectionStore = this.experience.selectionStore;
     const experienceStore = this.experience.experienceStore;
-    // A settingsStore-ra itt már nincs szükség
 
-    // --- FIGYELŐK AZ INSPECTOR PANEL ESEMÉNYEIRE ---
+    console.log('[StateManager] Watcherek inicializálása...');
 
+    // 1. ANYAG CSERE
     watch(() => selectionStore.materialChangeRequest, async (request) => {
       if (!request) return;
+      console.log('[StateManager] Anyagcsere kérés:', request);
+      
       const { targetUUID, slotId, materialId } = request;
       const targetObject = experienceStore.getObjectByUUID(targetUUID);
-      if (!targetObject) return selectionStore.acknowledgeMaterialChange();
-
-      const newMaterialState = { ...targetObject.userData.materialState, [slotId]: materialId };
-      targetObject.userData.materialState = newMaterialState;
-
-      await this.applyMaterialToSlot(targetObject, slotId, materialId);
-      this.experience.historyStore.addState();
+      
+      if (targetObject) {
+        const newMaterialState = { ...targetObject.userData.materialState, [slotId]: materialId };
+        targetObject.userData.materialState = newMaterialState;
+        await this.applyMaterialToSlot(targetObject, slotId, materialId);
+        this.experience.historyStore.addState();
+      }
+      
       selectionStore.acknowledgeMaterialChange();
-    });
+    }, { deep: true }); // Deep watch a biztonság kedvéért
 
+    // 2. STÍLUS CSERE (Komponens csere)
     watch(() => selectionStore.styleChangeRequest, async (request) => {
       if (!request) return;
+      console.log('[StateManager] Stíluscsere kérés:', request);
+
       const { targetUUID, slotId, newStyleId } = request;
       const targetObject = experienceStore.getObjectByUUID(targetUUID);
-      if (!targetObject) return selectionStore.acknowledgeStyleChange();
-
-      const newComponentState = { ...targetObject.userData.componentState, [slotId]: newStyleId };
-      const wasSelected = selectionStore.selectedObject?.uuid === targetUUID;
-      const newObject = await this.experience.rebuildObject(targetObject, newComponentState);
-
-      if (newObject && wasSelected) {
-        this.experience.selectionStore.selectObject(newObject);
-        this.experience.camera.transformControls.attach(toRaw(newObject));
+      
+      if (targetObject) {
+        const newComponentState = { ...targetObject.userData.componentState, [slotId]: newStyleId };
+        // Rebuild
+        await this.experience.rebuildObject(targetObject, newComponentState);
+        this.experience.historyStore.addState();
       }
-      this.experience.historyStore.addState();
+      
       selectionStore.acknowledgeStyleChange();
-    });
+    }, { deep: true });
 
-    watch(() => selectionStore.propertyChangeRequest, async (request) => {
-      if (!request) return;
-      const { targetUUID, slotId, propertyId, newValue } = request;
-      const targetObject = experienceStore.getObjectByUUID(targetUUID);
-      if (!targetObject) return selectionStore.acknowledgePropertyChange();
-
-      if (!targetObject.userData.propertyState) targetObject.userData.propertyState = {};
-      if (!targetObject.userData.propertyState[slotId]) targetObject.userData.propertyState[slotId] = {};
-      targetObject.userData.propertyState[slotId][propertyId] = newValue;
-
-      await this.experience.rebuildObject(targetObject, targetObject.userData.componentState);
-      this.experience.historyStore.addState();
-      selectionStore.acknowledgePropertyChange();
-    });
-
-    // --- FIGYELŐK A TÖRÉSRE ÉS DUPLIKÁLÁSRA ---
-
+    // 3. TÖRLÉS
     watch(() => selectionStore.objectToDeleteUUID, (uuidToDelete) => {
       if (!uuidToDelete) return;
       const objectToRemove = experienceStore.getObjectByUUID(uuidToDelete);
@@ -132,38 +117,5 @@ public updateFrontsVisibility(isVisible: boolean) {
       }
       selectionStore.acknowledgeDeletion();
     });
-
-    watch(() => selectionStore.objectToDuplicateUUID, async (uuidToDuplicate) => {
-      if (!uuidToDuplicate) return;
-      this.experience.debugManager.logAction('Duplikálás', { uuid: uuidToDuplicate });
-      const originalObject = experienceStore.getObjectByUUID(uuidToDuplicate);
-      if (!originalObject) return;
-
-      this.experience.debugManager.logObjectState('Duplikálandó eredeti objektum állapota', originalObject);
-
-      const newObject = await this.experience.assetManager.buildFurnitureFromConfig(
-        originalObject.userData.config,
-        originalObject.userData.componentState,
-        originalObject.userData.propertyState
-      );
-
-      newObject.userData.materialState = JSON.parse(JSON.stringify(originalObject.userData.materialState));
-      await this.applyMaterialsToObject(newObject);
-
-      this.experience.debugManager.logObjectState('Új, duplikált objektum állapota', newObject);
-
-      const box = new Box3().setFromObject(originalObject);
-      const size = new Vector3();
-      box.getSize(size);
-      newObject.position.copy(originalObject.position).add(new Vector3(size.x + 0.2, 0, 0));
-      newObject.rotation.copy(originalObject.rotation);
-      
-      this.experience.addObjectToScene(newObject);
-      this.experience.interactionManager.startDraggingExistingObject(newObject);
-      selectionStore.acknowledgeDuplication();
-    });
-
-    // A globális figyelők (pl. frontok láthatósága) itt már nincsenek,
-    // mert a "direkt hívás" mintát használjuk a store-okból.
   }
 }

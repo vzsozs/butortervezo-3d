@@ -1,17 +1,23 @@
-// src/three/Managers/InteractionManager.ts
-
 import { watch, toRaw } from 'vue';
-import { Group, Mesh, MeshStandardMaterial, Object3D, Vector3, Vector2, Line, BufferGeometry, LineDashedMaterial, SphereGeometry, MeshBasicMaterial, Box3 } from 'three';
+import { Group, Mesh, Object3D, Vector3, Vector2, Box3, Line, BufferGeometry, LineDashedMaterial, SphereGeometry, MeshBasicMaterial } from 'three';
 import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import Experience from '../Experience';
+import { useConfigStore } from '@/stores/config'; // <--- EZT ADTUK HOZZÁ
 
 export default class InteractionManager {
+  private experience: Experience;
+  
+  // Dragging State
   private draggedObject: Group | null = null;
+  private isDraggingNewObject: boolean = false;
   private dragStartPosition: Vector3 | null = null;
+  private isTransforming: boolean = false; 
+  
+  // Mouse State
   private isMouseDown = false;
   private mouseDownPosition = new Vector2();
-  private isTransforming = false; 
 
+  // Ruler State
   private rulerStartPoint: Vector3 | null = null;
   private floatingDot: Mesh | null = null;
   private activeRulerLine: Line | null = null;
@@ -19,29 +25,60 @@ export default class InteractionManager {
   private activeRulerStartDot: Mesh | null = null;
   private activeRulerEndDot: Mesh | null = null;
 
-  constructor(private experience: Experience) {
+  constructor(experience: Experience) {
+    this.experience = experience;
     this.addEventListeners();
     this.setupWatchers();
   }
 
+  // --- SEGÉDFÜGGVÉNY A MAGASSÁGHOZ ---
+  private getLiftHeight(object: Group): number {
+    const configStore = useConfigStore();
+    let maxLift = 0;
+
+    // 1. Megnézzük a bútor saját configját (ha van)
+    const furnitureConfig = object.userData.config;
+    if (furnitureConfig && (furnitureConfig as any).height) {
+        maxLift = (furnitureConfig as any).height;
+    }
+
+    // 2. Megnézzük a komponenseket (pl. lábak)
+    // A userData.componentState tartalmazza: { "legs": "leg_standard_15", ... }
+    const componentState = object.userData.componentState;
+    if (componentState) {
+        for (const slotId in componentState) {
+            const componentId = componentState[slotId];
+            // Lekérjük a komponens adatait a store-ból
+            const componentDef = configStore.getComponentById(componentId);
+            
+            // Ha a komponensnek van 'height' paramétere (pl. 0.1), azt használjuk
+            if (componentDef && (componentDef as any).height) {
+                maxLift = Math.max(maxLift, (componentDef as any).height);
+            }
+        }
+    }
+
+    return maxLift;
+  }
+
+  // --- ESEMÉNYKEZELŐK ---
+
   private onMouseDown = (event: MouseEvent) => {
-    // JAVÍTÁS: A transformControls a camera property-be került
-    // @ts-expect-error - a
-    if (event.button !== 0 || this.experience.camera.transformControls.dragging) return;
+    if (event.button !== 0) return;
+    // @ts-expect-error - TransformControls
+    if (this.experience.camera.transformControls.dragging) return;
+
     this.isMouseDown = true;
     this.mouseDownPosition.set(event.clientX, event.clientY);
-    // JAVÍTÁS: A raycasternek a natív kamera instance kell
-    this.experience.raycaster.setFromCamera(this.experience.mouse, this.experience.camera.instance);
-
-    if (!this.experience.settingsStore.isRulerModeActive && this.experience.settingsStore.activeFurnitureId) {
-      const intersects = this.experience.raycaster.intersectObjects(this.experience.intersectableObjects);
-      if (intersects.length > 0) {
-        this.startDraggingNewObject(intersects[0]!.point);
-      }
-    }
   }
 
   private onMouseUp = (event: MouseEvent) => {
+    if (this.isDraggingNewObject && this.draggedObject) {
+        this.onFurnitureDragEnd(event);
+        this.isMouseDown = false;
+        return;
+    }
+
     if (!this.isMouseDown) return;
     this.isMouseDown = false;
 
@@ -50,192 +87,241 @@ export default class InteractionManager {
       return;
     }
 
-    const isClick = this.mouseDownPosition.distanceTo(new Vector2(event.clientX, event.clientY)) < 5;
-    if (!isClick) return;
-
-    // JAVÍTÁS: A raycasternek a natív kamera instance kell
-    this.experience.raycaster.setFromCamera(this.experience.mouse, this.experience.camera.instance);
-    if (this.experience.settingsStore.isRulerModeActive) {
-      this.handleRulerClick();
-    } else {
-      this.handleObjectSelection();
+    const dist = this.mouseDownPosition.distanceTo(new Vector2(event.clientX, event.clientY));
+    if (dist < 5) {
+      if (this.experience.settingsStore.isRulerModeActive) {
+        this.handleRulerClick();
+      } else {
+        this.handleClick(event);
+      }
     }
   }
 
-  private async startDraggingNewObject(point: Vector3) {
-    const newObject = await this.createDraggableObject(point);
-    if (newObject) {
-      this.beginDrag(newObject, newObject.position.clone());
+  private onMouseMove = (event: MouseEvent) => {
+    this.experience.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    this.experience.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+    if (this.experience.settingsStore.isRulerModeActive) {
+        this.onRulerHover();
+        if (this.rulerStartPoint) this.onRulerMouseMove();
     }
+
+    if (!this.draggedObject) return;
+
+    this.experience.raycaster.setFromCamera(this.experience.mouse, this.experience.camera.instance);
+    
+    const intersectables = [...this.experience.intersectableObjects];
+    const intersects = this.experience.raycaster.intersectObjects(intersectables);
+    
+    if (intersects.length > 0 && intersects[0]) {
+      const point = intersects[0].point;
+      
+      const config = this.draggedObject.userData.config;
+      const category = config?.category;
+      
+      // JAVÍTÁS: Itt hívjuk az új függvényt
+      const liftHeight = this.getLiftHeight(this.draggedObject);
+
+      // Ha alsó szekrény, akkor a láb magasságára emeljük
+      if (category === 'bottom_cabinets') {
+         point.y = liftHeight; 
+      }
+
+      const others = this.experience.experienceStore.placedObjects.filter(o => o.uuid !== this.draggedObject?.uuid);
+      const finalPosition = this.experience.placementManager.calculateFinalPosition(
+        this.draggedObject, 
+        point, 
+        others
+      );
+      
+      this.draggedObject.position.copy(finalPosition);
+      this.experience.debug.updateMovingObject(this.draggedObject);
+    }
+  }
+
+  private onKeyDown = (event: KeyboardEvent) => {
+    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
+
+    switch (event.key.toLowerCase()) {
+      case 'w': this.setTransformMode('translate'); break;
+      case 'e': this.setTransformMode('rotate'); break;
+      case 'delete': 
+      case 'backspace': this.handleDelete(); break;
+      case 'escape': this.handleEscape(); break;
+    }
+  }
+
+  // --- LOGIKA ---
+
+  private handleClick(_event: MouseEvent) {
+    this.experience.raycaster.setFromCamera(this.experience.mouse, this.experience.camera.instance);
+    const intersects = this.experience.raycaster.intersectObjects(this.experience.experienceStore.placedObjects, true);
+
+    if (intersects.length > 0 && intersects[0]) {
+      let targetObj: Object3D | null = intersects[0].object;
+      let parentGroup: Group | null = null;
+
+      while (targetObj) {
+        if (this.experience.experienceStore.placedObjects.some(po => po.uuid === targetObj?.uuid)) {
+          parentGroup = targetObj as Group;
+          break;
+        }
+        targetObj = targetObj.parent;
+      }
+
+      if (parentGroup) {
+        this.selectObject(parentGroup);
+      }
+    } else {
+      this.deselectObject();
+    }
+  }
+
+  public selectObject(object: Group) {
+    this.experience.selectionStore.selectObject(object);
+    this.experience.debug.selectionBoxHelper.setFromObject(object);
+    this.experience.debug.selectionBoxHelper.visible = true;
+    this.experience.camera.transformControls.attach(object);
+    this.setTransformMode('translate');
+  }
+
+  public deselectObject() {
+    this.experience.selectionStore.clearSelection();
+    this.experience.debug.selectionBoxHelper.visible = false;
+    this.experience.camera.transformControls.detach();
+  }
+
+  // --- DRAG & DROP INDÍTÁS ---
+
+  public async startPlacementMode() {
+    const activeId = this.experience.settingsStore.activeFurnitureId;
+    if (!activeId) return;
+
+    const config = this.experience.configManager.getFurnitureById(activeId);
+    if (!config) return;
+
+    // 1. Alapértelmezett komponensek
+    const defaultComponentState: Record<string, string> = {};
+    config.componentSlots.forEach(slot => {
+        if (slot.defaultComponent) defaultComponentState[slot.slotId] = slot.defaultComponent;
+    });
+
+    // --- ÚJ: GLOBÁLIS STÍLUSOK ALKALMAZÁSA ---
+    // Felülírjuk az alapértelmezettet, ha van globális beállítás
+    const globalStyles = this.experience.settingsStore.globalStyleSettings;
+    for (const [slotId, componentId] of Object.entries(globalStyles)) {
+        // Csak akkor írjuk felül, ha a bútor rendelkezik ilyen slottal
+        if (config.componentSlots.some(s => s.slotId === slotId)) {
+            defaultComponentState[slotId] = componentId;
+        }
+    }
+
+    const newObject = await this.experience.assetManager.buildFurnitureFromConfig(config, defaultComponentState);
+    if (!newObject) return;
+
+    if (!newObject.userData.componentState) {
+        newObject.userData.componentState = defaultComponentState;
+    }
+
+    // 2. Globális Anyagok
+    const globalMaterials = this.experience.settingsStore.globalMaterialSettings;
+    newObject.userData.materialState = { ...globalMaterials };
+    await this.experience.stateManager.applyMaterialsToObject(newObject);
+
+    const liftHeight = this.getLiftHeight(newObject);
+    
+    newObject.rotation.y = -Math.PI / 2; 
+    newObject.position.set(0, liftHeight, 0);   
+    
+    this.isDraggingNewObject = true;
+    this.beginDrag(newObject);
   }
 
   public startDraggingExistingObject(object: Group) {
-    object.traverse((child) => {
-      if (child instanceof Mesh && child.material instanceof MeshStandardMaterial) {
-        child.material = child.material.clone();
-        child.material.transparent = true;
-        child.material.opacity = 0.5;
-      }
-    });
-    this.beginDrag(object, object.position.clone());
+    this.isDraggingNewObject = true; 
+    this.beginDrag(object);
   }
 
-  private beginDrag(object: Group, startPosition: Vector3) {
+  private beginDrag(object: Group) {
     this.draggedObject = object;
-    this.dragStartPosition = startPosition;
+    this.setObjectOpacity(object, 0.5);
+
     if (!object.parent) {
-      this.experience.scene.add(this.draggedObject);
+      this.experience.scene.add(object);
     }
-    // JAVÍTÁS: A controls a camera property-be került
+
     this.experience.camera.controls.enabled = false;
     window.addEventListener('mousemove', this.onMouseMove);
-    window.addEventListener('contextmenu', this.onRightClickCancel);
   }
 
-  private onMouseMove = (_event: MouseEvent) => {
+  private onFurnitureDragEnd = (_event: MouseEvent) => {
     if (!this.draggedObject) return;
-    // JAVÍTÁS: A raycasternek a natív kamera instance kell
-    this.experience.raycaster.setFromCamera(this.experience.mouse, this.experience.camera.instance);
-    const intersects = this.experience.raycaster.intersectObjects(this.experience.intersectableObjects);
-    if (intersects.length > 0) {
-      const point = intersects[0]!.point;
-      point.y = this.draggedObject.position.y;
-      const finalPosition = this.experience.placementManager.calculateFinalPosition(
-        this.draggedObject, point, this.experience.experienceStore.placedObjects
-      );
-      this.draggedObject.position.copy(finalPosition);
-    }
-  }
 
-  private onFurnitureDragEnd = (event: MouseEvent) => {
-    if (event.button !== 0 || !this.draggedObject) return;
-    this.draggedObject.traverse((child) => {
-      if (child instanceof Mesh && child.material instanceof MeshStandardMaterial) {
-        child.material.transparent = false;
-        child.material.opacity = 1.0;
-      }
-    });
+    this.setObjectOpacity(this.draggedObject, 1.0);
+    this.experience.camera.controls.enabled = true;
 
-    const isNewObject = !this.experience.experienceStore.placedObjects.find(obj => obj.uuid === this.draggedObject?.uuid);
-    if (isNewObject) {
+    if (this.isDraggingNewObject) {
       this.experience.addObjectToScene(this.draggedObject);
-      this.experience.settingsStore.setActiveFurnitureId(null);
+      this.experience.settingsStore.setActiveFurnitureId(null); 
+      this.selectObject(this.draggedObject);
     } else {
       this.experience.historyStore.addState();
     }
-    
+
     this.experience.debug.hideAll();
-    this.endDrag();
-    this.experience.updateTotalPrice();
-  }
-
-  private endDrag = () => {
-    // JAVÍTÁS: A controls a camera property-be került
-    this.experience.camera.controls.enabled = true;
     this.draggedObject = null;
-    this.dragStartPosition = null;
+    this.isDraggingNewObject = false;
     window.removeEventListener('mousemove', this.onMouseMove);
-    window.removeEventListener('contextmenu', this.onRightClickCancel);
   }
 
-  private handleObjectSelection() {
-    const intersects = this.experience.raycaster.intersectObjects(this.experience.experienceStore.placedObjects, true);
-    if (intersects.length > 0) {
-      let parentGroup: Group | null = null;
-      let current: Object3D | null = intersects[0]!.object;
-      while (current !== null) {
-        if (this.experience.experienceStore.placedObjects.find(obj => obj.uuid === current?.uuid)) {
-          parentGroup = current as Group;
-          break;
-        }
-        current = current.parent;
-      }
-      if (parentGroup) {
-        if (parentGroup.parent) {
-          this.experience.selectionStore.selectObject(parentGroup);
-          this.experience.debug.selectionBoxHelper.setFromObject(parentGroup);
-          this.experience.debug.selectionBoxHelper.visible = true;
-          // JAVÍTÁS: A transformControls a camera property-be került
-          this.experience.camera.transformControls.attach(parentGroup);
-          this.setTransformMode('translate'); 
-        } else {
-          this.experience.selectionStore.clearSelection();
-        }
-      }
-    } else {
-      // JAVÍTÁS: A transformControls a camera property-be került
-      // @ts-expect-error - a
-      if (!this.experience.camera.transformControls.axis) {
-        this.experience.selectionStore.clearSelection();
-        this.experience.debug.selectionBoxHelper.visible = false;
-        // JAVÍTÁS: A transformControls a camera property-be került
-        this.experience.camera.transformControls.detach();
-      }
+  // --- TRANSFORM CONTROLS ---
+
+  public handleTransformStart() {
+    this.isTransforming = true;
+    // @ts-expect-error - TransformControls
+    const object = toRaw(this.experience.camera.transformControls.object);
+    if (object) {
+        this.dragStartPosition = object.position.clone();
     }
   }
 
-  private async createDraggableObject(point: Vector3): Promise<Group | null> {
-    // ... (ez a metódus változatlan maradt, mert nem használta a hibás property-ket)
-    const activeId = this.experience.settingsStore.activeFurnitureId;
-    if (!activeId) return null;
+  public handleTransformEnd() {
+    this.isTransforming = false;
+    this.experience.historyStore.addState();
+    this.dragStartPosition = null;
+  }
 
-    const config = this.experience.configManager.getFurnitureById(activeId);
-    if (!config) {
-      console.error(`Nem található bútor konfiguráció a(z) "${activeId}" ID-val.`);
-      return null;
-    }
-
-    const defaultComponentState: Record<string, string> = {};
-    for (const slot of config.componentSlots) {
-      if (!slot.isOptional || (slot.isOptional && slot.defaultComponent)) {
-        defaultComponentState[slot.slotId] = slot.defaultComponent;
-      }
-    }
-
-    const furnitureProxy = await this.experience.assetManager.buildFurnitureFromConfig(
-      config,
-      defaultComponentState
-    );
+  public setTransformMode(mode: 'translate' | 'rotate') {
+    const controls = this.experience.camera.transformControls;
+    controls.setMode(mode);
     
-    if (!furnitureProxy) return null;
+    // @ts-expect-error - showX
+    controls.showX = true; 
+    // @ts-expect-error - showY
+    controls.showY = false; 
+    // @ts-expect-error - showZ
+    controls.showZ = true;
 
-    const initialMaterialState: Record<string, string> = {};
-    const globalMaterials = this.experience.settingsStore.globalMaterialSettings;
-
-    for (const slotId in furnitureProxy.userData.componentState) {
-      if (globalMaterials[slotId]) {
-        initialMaterialState[slotId] = globalMaterials[slotId];
-      }
+    const selectedObject = this.experience.selectionStore.selectedObject;
+    if (selectedObject && mode === 'translate') {
+       const category = selectedObject.userData.config?.category;
+       if (category === 'bottom_cabinets') {
+           // @ts-expect-error - showY
+           controls.showY = false; 
+       }
     }
-    furnitureProxy.userData.materialState = initialMaterialState;
-    await this.experience.stateManager.applyMaterialsToObject(furnitureProxy);
-
-    this.experience.debugManager.logObjectState('Új bútor létrehozva, húzás előtt', furnitureProxy);
-
-    furnitureProxy.traverse((child: Object3D) => {
-      if (child instanceof Mesh && child.material instanceof MeshStandardMaterial) {
-        child.material = child.material.clone();
-        child.material.transparent = true;
-        child.material.opacity = 0.5;
-      }
-    });
-
-    furnitureProxy.rotation.y = -Math.PI / 2;
-    furnitureProxy.position.set(point.x, furnitureProxy.position.y, point.z);
-    
-    return furnitureProxy;
   }
+
+  // --- RULER LOGIKA ---
 
   private startRulerMode() {
     if (!this.floatingDot) {
       this.floatingDot = this.createRulerDot(0.025, 0x00ffff);
       this.experience.rulerElements.add(this.floatingDot);
     }
-    window.addEventListener('mousemove', this.onRulerHover);
   }
 
   private stopRulerMode() {
-    window.removeEventListener('mousemove', this.onRulerHover);
     if (this.floatingDot) {
       this.experience.rulerElements.remove(this.floatingDot);
       this.floatingDot = null;
@@ -244,51 +330,43 @@ export default class InteractionManager {
     this.rulerStartPoint = null;
   }
 
-  private onRulerHover = () => {
+  private onRulerHover() {
     if (!this.floatingDot) return;
     const intersectableForRuler = [...this.experience.intersectableObjects, ...this.experience.experienceStore.placedObjects];
-    // JAVÍTÁS: A raycasternek a natív kamera instance kell
     this.experience.raycaster.setFromCamera(this.experience.mouse, this.experience.camera.instance);
     const intersects = this.experience.raycaster.intersectObjects(intersectableForRuler, true);
-    if (intersects.length === 0) {
+    
+    if (intersects.length === 0 || !intersects[0]) {
         this.floatingDot.visible = false;
         return;
     }
 
-    let currentPoint = intersects[0]!.point.clone();
+    let currentPoint = intersects[0].point.clone();
     const snapPoint = this.findClosestSnapPoint(currentPoint);
-    if (snapPoint) {
-      currentPoint = snapPoint;
-    }
+    if (snapPoint) currentPoint = snapPoint;
+    
     this.floatingDot.position.copy(currentPoint);
     this.floatingDot.visible = true;
-
-    if (this.rulerStartPoint && this.activeRulerLine && this.activeRulerLabel && this.activeRulerEndDot) {
-      this.activeRulerEndDot.position.copy(currentPoint);
-      const geometry = this.activeRulerLine.geometry as BufferGeometry;
-      geometry.setFromPoints([this.rulerStartPoint, currentPoint]);
-      this.activeRulerLine.computeLineDistances();
-      const distance = this.rulerStartPoint.distanceTo(currentPoint);
-      this.activeRulerLabel.element.textContent = `${distance.toFixed(2)} m`;
-      this.activeRulerLabel.position.lerpVectors(this.rulerStartPoint, currentPoint, 0.5);
-    }
   }
 
-  private onRulerMouseMove = () => {
+  private onRulerMouseMove() {
     if (!this.rulerStartPoint || !this.activeRulerLine || !this.activeRulerLabel || !this.activeRulerEndDot) return;
-    // JAVÍTÁS: A raycasternek a natív kamera instance kell
+    
+    const intersectableForRuler = [...this.experience.intersectableObjects, ...this.experience.experienceStore.placedObjects];
     this.experience.raycaster.setFromCamera(this.experience.mouse, this.experience.camera.instance);
-    const intersects = this.experience.raycaster.intersectObjects([...this.experience.intersectableObjects, ...this.experience.experienceStore.placedObjects], true);
-    if (intersects.length === 0) return;
-    let currentPoint = intersects[0]!.point.clone();
+    const intersects = this.experience.raycaster.intersectObjects(intersectableForRuler, true);
+    
+    if (intersects.length === 0 || !intersects[0]) return;
+
+    let currentPoint = intersects[0].point.clone();
     const snapPoint = this.findClosestSnapPoint(currentPoint);
-    if (snapPoint) {
-      currentPoint = snapPoint;
-    }
+    if (snapPoint) currentPoint = snapPoint;
+
     this.activeRulerEndDot.position.copy(currentPoint);
     const geometry = this.activeRulerLine.geometry as BufferGeometry;
     geometry.setFromPoints([this.rulerStartPoint, currentPoint]);
     this.activeRulerLine.computeLineDistances();
+    
     const distance = this.rulerStartPoint.distanceTo(currentPoint);
     this.activeRulerLabel.element.textContent = `${distance.toFixed(2)} m`;
     this.activeRulerLabel.position.lerpVectors(this.rulerStartPoint, currentPoint, 0.5);
@@ -297,6 +375,7 @@ export default class InteractionManager {
   private handleRulerClick() {
     if (!this.floatingDot || !this.floatingDot.visible) return;
     const point = this.floatingDot.position.clone();
+    
     if (!this.rulerStartPoint) {
       this.rulerStartPoint = point;
       this.activeRulerStartDot = this.createRulerDot();
@@ -307,124 +386,13 @@ export default class InteractionManager {
       this.activeRulerLabel = this.createRulerLabel("0.00 m");
       this.activeRulerLabel.position.copy(this.rulerStartPoint);
       this.experience.rulerElements.add(this.activeRulerLine, this.activeRulerLabel, this.activeRulerStartDot, this.activeRulerEndDot);
-      window.addEventListener('mousemove', this.onRulerMouseMove);
     } else {
       this.rulerStartPoint = null;
-      window.removeEventListener('mousemove', this.onRulerMouseMove);
+      this.activeRulerLine = null;
+      this.activeRulerLabel = null;
+      this.activeRulerStartDot = null;
+      this.activeRulerEndDot = null;
     }
-  }
-
-  private cancelCurrentMeasurement() {
-    if (this.activeRulerLine) this.experience.rulerElements.remove(this.activeRulerLine);
-    if (this.activeRulerLabel) this.experience.rulerElements.remove(this.activeRulerLabel);
-    if (this.activeRulerStartDot) this.experience.rulerElements.remove(this.activeRulerStartDot);
-    if (this.activeRulerEndDot) this.experience.rulerElements.remove(this.activeRulerEndDot);
-    this.rulerStartPoint = null;
-    this.activeRulerLine = null;
-    this.activeRulerLabel = null;
-    this.activeRulerStartDot = null;
-    this.activeRulerEndDot = null;
-    window.removeEventListener('mousemove', this.onRulerMouseMove);
-  }
-
-  private onKeyDown = (event: KeyboardEvent) => {
-    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
-    if (!event.ctrlKey && !event.shiftKey && !event.altKey) {
-      switch (event.key.toLowerCase()) {
-        case 'w': this.setTransformMode('translate'); break;
-        case 'e': this.setTransformMode('rotate'); break;
-        case 'delete': case 'backspace': this.handleDelete(); break;
-        case 'escape': console.log(`[Key] ESCAPE lenyomva.`); this.handleEscape(); break;
-      }
-    }
-    if (event.ctrlKey && !event.shiftKey && !event.altKey) {
-      if (event.key.toLowerCase() === 'z') {
-        event.preventDefault();
-        this.experience.historyStore.undo();
-      }
-    }
-  }
-
-  private handleDelete() {
-    const selectedObject = this.experience.selectionStore.selectedObject;
-    if (selectedObject) {
-      this.experience.removeObject(selectedObject);
-    }
-  }
-
-  public handleTransformStart() {
-    // JAVÍTÁS: A transformControls a camera property-be került
-    // @ts-expect-error - .object is private
-    const attachedObject = toRaw(this.experience.camera.transformControls.object);
-    if (attachedObject) {
-      console.log("[Transform] Húzás elindult.");
-      this.isTransforming = true;
-      this.dragStartPosition = attachedObject.position.clone();
-    }
-  }
-
-  public handleTransformEnd() {
-    if (this.isTransforming) {
-      console.log("[Transform] Húzás befejeződött.");
-      this.isTransforming = false;
-      this.dragStartPosition = null;
-      this.experience.historyStore.addState();
-    }
-  }
-
-  private handleEscape() {
-    if (this.isTransforming) {
-      console.log("[Escape] TransformControls húzás megszakítása.");
-      // JAVÍTÁS: A transformControls a camera property-be került
-      // @ts-expect-error - .object is private
-      const attachedObject = toRaw(this.experience.camera.transformControls.object);
-      if (attachedObject && this.dragStartPosition) {
-        attachedObject.position.copy(this.dragStartPosition);
-        this.experience.debug.selectionBoxHelper.setFromObject(attachedObject);
-      }
-      this.isTransforming = false;
-      this.dragStartPosition = null;
-      // JAVÍTÁS: A transformControls a camera property-be került
-      // @ts-expect-error - .dragging is private
-      this.experience.camera.transformControls.dragging = false;
-      // JAVÍTÁS: A controls a camera property-be került
-      this.experience.camera.controls.enabled = true;
-      return;
-    }
-    if (this.rulerStartPoint) {
-      this.cancelCurrentMeasurement();
-    } 
-    else if (this.draggedObject && this.dragStartPosition) {
-      this.draggedObject.position.copy(this.dragStartPosition);
-      const isNewObject = !this.experience.experienceStore.placedObjects.find(obj => obj.uuid === this.draggedObject?.uuid);
-      if (isNewObject) {
-        this.experience.scene.remove(this.draggedObject);
-        this.experience.settingsStore.setActiveFurnitureId(null);
-        this.experience.debug.hideAll();
-        // JAVÍTÁS: A transformControls a camera property-be került
-        this.experience.camera.transformControls.detach();
-        this.experience.debug.selectionBoxHelper.visible = false;
-      } else {
-        this.draggedObject.traverse((child) => {
-          if (child instanceof Mesh && child.material instanceof MeshStandardMaterial) {
-            child.material.transparent = false;
-            child.material.opacity = 1.0;
-          }
-        });
-      }
-      this.endDrag();
-    } 
-    else if (this.experience.selectionStore.selectedObject) {
-      this.experience.selectionStore.clearSelection();
-      // JAVÍTÁS: A transformControls a camera property-be került
-      this.experience.camera.transformControls.detach();
-      this.experience.debug.selectionBoxHelper.visible = false;
-    }
-  }
-
-  private onRightClickCancel = (event: MouseEvent) => {
-    event.preventDefault();
-    this.handleEscape();
   }
 
   private findClosestSnapPoint(currentPoint: Vector3): Vector3 | null {
@@ -472,63 +440,77 @@ export default class InteractionManager {
     const div = document.createElement('div');
     div.className = 'ruler-label';
     div.textContent = text;
+    div.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
+    div.style.color = 'white';
+    div.style.padding = '2px 5px';
+    div.style.borderRadius = '3px';
+    div.style.fontSize = '12px';
     return new CSS2DObject(div);
   }
 
-  public setTransformMode(mode: 'translate' | 'rotate') {
-    const selectedObject = this.experience.selectionStore.selectedObject;
-    // JAVÍTÁS: A transformControls a camera property-be került
-    const controls = this.experience.camera.transformControls;
-    controls.setMode(mode);
-    
-    // @ts-expect-error - a
-    controls.showX = true;
-    // @ts-expect-error - a
-    controls.showY = true;
-    // @ts-expect-error - a
-    controls.showZ = true;
+  // --- EGYÉB ---
 
+  private handleDelete() {
+    const selectedObject = this.experience.selectionStore.selectedObject;
     if (selectedObject) {
-      const category = selectedObject.userData.config?.category;
-      if (mode === 'translate') {
-        if (category === 'bottom_cabinets') {
-          // @ts-expect-error - a
-          controls.showY = false;
-        }
-      } else if (mode === 'rotate') {
-        // @ts-expect-error - a
-        controls.showX = false;
-        // @ts-expect-error - a
-        controls.showZ = false;
-      }
+      this.experience.removeObject(selectedObject);
+      this.deselectObject();
     }
-  } 
+  }
+
+  private handleEscape() {
+    if (this.isDraggingNewObject && this.draggedObject) {
+        this.experience.scene.remove(this.draggedObject);
+        this.draggedObject = null;
+        this.isDraggingNewObject = false;
+        this.experience.settingsStore.setActiveFurnitureId(null);
+        this.experience.camera.controls.enabled = true;
+        window.removeEventListener('mousemove', this.onMouseMove);
+    } else if (this.experience.settingsStore.isRulerModeActive) {
+        this.stopRulerMode();
+        this.experience.settingsStore.toggleRulerMode(); 
+    } else if (this.experience.selectionStore.selectedObject) {
+        this.deselectObject();
+    }
+  }
+
+  private setObjectOpacity(object: Group, opacity: number) {
+    object.traverse((child) => {
+      if (child instanceof Mesh && child.material) {
+        const mat = Array.isArray(child.material) ? child.material[0] : child.material;
+        if (mat && 'opacity' in mat && 'transparent' in mat) {
+             if (!child.userData.originalMaterial) {
+                child.userData.originalMaterial = mat.clone();
+            }
+            const newMat = mat.clone();
+            newMat.transparent = opacity < 1.0;
+            newMat.opacity = opacity;
+            child.material = newMat;
+        }
+      }
+    });
+  }
 
   private setupWatchers() {
+    watch(() => this.experience.settingsStore.activeFurnitureId, (newId) => {
+      if (newId) this.startPlacementMode();
+    });
     watch(() => this.experience.settingsStore.isRulerModeActive, (isActive) => {
       if (isActive) this.startRulerMode();
       else this.stopRulerMode();
     });
-    watch(() => this.experience.settingsStore.activeFurnitureId, (activeId) => {
-      if (activeId) {
-        document.body.classList.add('placement-mode');
-      } else {
-        document.body.classList.remove('placement-mode');
-      }
-    }, { immediate: true });
   }
 
   public addEventListeners() {
-    this.experience.renderer.instance.domElement.addEventListener('mousedown', this.onMouseDown);
-    this.experience.renderer.instance.domElement.addEventListener('mouseup', this.onMouseUp);
+    this.experience.canvas.addEventListener('mousedown', this.onMouseDown);
+    this.experience.canvas.addEventListener('mouseup', this.onMouseUp);
     window.addEventListener('keydown', this.onKeyDown);
   }
 
   public removeEventListeners() {
-    if (this.experience.renderer.instance.domElement) {
-      this.experience.renderer.instance.domElement.removeEventListener('mousedown', this.onMouseDown);
-      this.experience.renderer.instance.domElement.removeEventListener('mouseup', this.onMouseUp);
-    }
+    this.experience.canvas.removeEventListener('mousedown', this.onMouseDown);
+    this.experience.canvas.removeEventListener('mouseup', this.onMouseUp);
+    window.removeEventListener('mousemove', this.onMouseMove);
     window.removeEventListener('keydown', this.onKeyDown);
   }
 }

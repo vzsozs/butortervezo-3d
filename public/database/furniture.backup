@@ -1,84 +1,320 @@
 [
   {
-    "id": "also_szekreny_60",
-    "name": "Alsó szekrény 60cm",
+    "id": "als_szekrny_60cm",
+    "name": "Alsó szekrény (60cm)",
     "category": "bottom_cabinets",
     "componentSlots": [
       {
-        "slotId": "corpus",
-        "name": "Korpusz",
+        "slotId": "corpus_1",
+        "name": "Korpusz 1",
         "componentType": "corpuses",
-        "defaultComponent": "corpus_bottom_60",
+        "children": [],
         "allowedComponents": [
-          "corpus_bottom_60"
+          "also_korpusz_60cm"
         ],
-        "children": [
+        "defaultComponent": "also_korpusz_60cm"
+      },
+      {
+        "slotId": "front_1",
+        "name": "Front 1",
+        "componentType": "fronts",
+        "attachToSlot": "corpus_1",
+        "children": [],
+        "allowedComponents": [
+          "ajto_also_sima_60cm",
+          "ajto_also_keretes_60cm"
+        ],
+        "defaultComponent": "ajto_also_sima_60cm",
+        "attachmentMapping": {
+          "ajto_also_keretes_60cm": [
+            "attach_front"
+          ],
+          "ajto_also_sima_60cm": [
+            "attach_front"
+          ]
+        },
+        "useAttachmentPoint": "attach_front",
+        "rotation": {
+          "x": 1.5707963267948966,
+          "y": 4.71238898038469,
+          "z": 0
+        }
+      },
+      {
+        "slotId": "leg_1",
+        "name": "Láb 1",
+        "componentType": "legs",
+        "attachToSlot": "corpus_1",
+        "children": [],
+        "allowedComponents": [
+          "lab_butorlaplab_60cm",
+          "lab_csolab"
+        ],
+        "defaultComponent": "lab_butorlaplab_60cm",
+        "attachmentMapping": {
+          "lab_butorlaplab_60cm": [
+            "attach_leg_frontLeft"
+          ],
+          "lab_csolab": [
+            "attach_leg_frontRight",
+            "attach_leg_backLeft",
+            "attach_leg_frontLeft",
+            "attach_leg_backRight"
+          ]
+        },
+        "useAttachmentPoint": "attach_leg_frontLeft",
+        "rotation": {
+          "x": 1.5707963267948966,
+          "y": 4.71238898038469,
+          "z": 0
+        }
+      },
+      {
+        "slotId": "handle_1",
+        "name": "Fogantyú 1",
+        "componentType": "handles",
+        "attachToSlot": "front_1",
+        "children": [],
+        "allowedComponents": [
+          "fogantyu_hosszukas",
+          "fogantyu_design"
+        ],
+        "defaultComponent": "fogantyu_hosszukas",
+        "attachmentMapping": {
+          "fogantyu_hosszukas": [
+            "attach_handle_vertical"
+          ],
+          "fogantyu_design": [
+            "attach_handle_vertical"
+          ]
+        },
+        "useAttachmentPoint": "attach_handle_vertical",
+        "rotation": {
+          "x": 0,
+          "y": 1.5707963267948966,
+          "z": 0
+        }
+      }
+    ],
+    "slotGroups": [
+      {
+        "groupId": "group_Front_auto",
+        "name": "Front",
+        "controlType": "schema_select",
+        "controlledSlots": [
+          "front_1"
+        ],
+        "schemas": [
           {
-            "slotId": "front",
-            "name": "Front",
-            "componentType": "fronts",
-            "defaultComponent": "front_bottom_sima_60",
-            "allowedComponents": [
-              "front_bottom_sima_60",
-              "front_bottom_keretes_60"
-            ],
-            "attachToSlot": "corpus",
-            "useAttachmentPoint": "attach_front",
-            "rotation": {
-              "x": 3.141592653589793,
-              "y": 4.71238898038469,
-              "z": 1.5707963267948966
-            },
-            "attachmentMapping": {
-              "front_bottom_keretes_60": ["attach_front"],
-              "front_bottom_sima_60": ["attach_front"]
-            },
-            "children": [
-              {
-                "slotId": "handle",
-                "name": "Fogantyú",
-                "componentType": "handles",
-                "defaultComponent": "handle_standard",
-                "allowedComponents": [
-                  "handle_standard",
-                  "handle_design"
-                ],
-                "attachToSlot": "front",
-                "useAttachmentPoint": "attach_handle_vertical",
-                "rotation": {
-                  "x": 1.571,
-                  "y": 1.571,
-                  "z": -1.571
-                },
-                "children": []
-              }
-            ]
+            "id": "schema_Front_none",
+            "name": "Nincs / Üres",
+            "apply": {
+              "front_1": null
+            }
           },
           {
-            "slotId": "leg",
-            "name": "Lábak",
-            "componentType": "legs",
-            "defaultComponent": "leg_standard",
-            "allowedComponents": [
-              "leg_standard",
-              "leg_design"
-            ],
-            "attachToSlot": "corpus",
-            "rotation": {
-              "x": 0,
-              "y": 4.71238898038469,
-              "z": -1.571
-            },
-            "attachmentMapping": {
-              "leg_standard": ["attach_leg_frontLeft"],
-              "leg_design": [
-                "attach_leg_frontLeft",
-                "attach_leg_frontRight",
-                "attach_leg_backLeft",
-                "attach_leg_backRight"
-              ]
-            },
-            "children": []
+            "id": "schema_Front_1",
+            "name": "1 db Front",
+            "apply": {
+              "front_1": "ajto_also_sima_60cm"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "als_szekrny_15cm",
+    "name": "Alsó szekrény (15cm)",
+    "category": "bottom_cabinets",
+    "componentSlots": [
+      {
+        "slotId": "corpus_1",
+        "name": "Korpusz 1",
+        "componentType": "corpuses",
+        "children": [],
+        "allowedComponents": [
+          "also_korpusz_15cm"
+        ],
+        "defaultComponent": "also_korpusz_15cm"
+      },
+      {
+        "slotId": "front_1",
+        "name": "Front 1",
+        "componentType": "fronts",
+        "attachToSlot": "corpus_1",
+        "children": [],
+        "allowedComponents": [
+          "ajto_also_sima_15cm"
+        ],
+        "defaultComponent": "ajto_also_sima_15cm",
+        "attachmentMapping": {
+          "ajto_also_sima_15cm": [
+            "attach_front"
+          ]
+        },
+        "useAttachmentPoint": "attach_front",
+        "rotation": {
+          "x": 1.5707963267948966,
+          "y": 0,
+          "z": 0
+        }
+      },
+      {
+        "slotId": "shelf_1",
+        "name": "Polc 1",
+        "componentType": "shelves",
+        "attachToSlot": "corpus_1",
+        "children": [],
+        "allowedComponents": [
+          "polc_also_-1_15cm"
+        ],
+        "defaultComponent": "polc_also_-1_15cm",
+        "attachmentMapping": {
+          "polc_also_-1_15cm": [
+            "attach_shelf_1"
+          ]
+        },
+        "useAttachmentPoint": "attach_shelf_1",
+        "rotation": {
+          "x": 1.5707963267948966,
+          "y": 0,
+          "z": 0
+        }
+      },
+      {
+        "slotId": "shelf_2",
+        "name": "Polc 2",
+        "componentType": "shelves",
+        "attachToSlot": "corpus_1",
+        "children": [],
+        "allowedComponents": [
+          "polc_also_-2_15cm"
+        ],
+        "defaultComponent": "polc_also_-2_15cm",
+        "attachmentMapping": {
+          "polc_also_-2_15cm": [
+            "attach_shelf_2"
+          ]
+        },
+        "useAttachmentPoint": "attach_shelf_2",
+        "rotation": {
+          "x": 1.5707963267948966,
+          "y": 0,
+          "z": 0
+        }
+      },
+      {
+        "slotId": "leg_1",
+        "name": "Láb 1",
+        "componentType": "legs",
+        "attachToSlot": "corpus_1",
+        "children": [],
+        "allowedComponents": [
+          "lab_butorlaplab_15cm",
+          "lab_csolab"
+        ],
+        "defaultComponent": "lab_butorlaplab_15cm",
+        "attachmentMapping": {
+          "lab_butorlaplab_15cm": [
+            "attach_leg_frontLeft"
+          ],
+          "lab_csolab": [
+            "attach_leg_backLeft",
+            "attach_leg_frontLeft"
+          ]
+        },
+        "useAttachmentPoint": "attach_leg_frontLeft",
+        "rotation": {
+          "x": 1.5707963267948966,
+          "y": 0,
+          "z": 0
+        }
+      },
+      {
+        "slotId": "handle_1",
+        "name": "Fogantyú 1",
+        "componentType": "handles",
+        "attachToSlot": "front_1",
+        "children": [],
+        "allowedComponents": [
+          "fogantyu_hosszukas",
+          "fogantyu_design"
+        ],
+        "defaultComponent": "fogantyu_hosszukas",
+        "attachmentMapping": {
+          "fogantyu_hosszukas": [
+            "attach_handle_vertical"
+          ],
+          "fogantyu_design": [
+            "attach_handle_vertical"
+          ]
+        },
+        "useAttachmentPoint": "attach_handle_vertical",
+        "rotation": {
+          "x": 4.71238898038469,
+          "y": 0,
+          "z": 1.5707963267948966
+        }
+      }
+    ],
+    "slotGroups": [
+      {
+        "groupId": "group_Front_auto",
+        "name": "Front",
+        "controlType": "schema_select",
+        "controlledSlots": [
+          "front_1"
+        ],
+        "schemas": [
+          {
+            "id": "schema_Front_none",
+            "name": "Nincs / Üres",
+            "apply": {
+              "front_1": null
+            }
+          },
+          {
+            "id": "schema_Front_1",
+            "name": "1 db Front",
+            "apply": {
+              "front_1": "ajto_also_sima_15cm"
+            }
+          }
+        ]
+      },
+      {
+        "groupId": "group_Polc_auto",
+        "name": "Polc",
+        "controlType": "schema_select",
+        "controlledSlots": [
+          "shelf_1",
+          "shelf_2"
+        ],
+        "schemas": [
+          {
+            "id": "schema_Polc_none",
+            "name": "Nincs / Üres",
+            "apply": {
+              "shelf_1": null,
+              "shelf_2": null
+            }
+          },
+          {
+            "id": "schema_Polc_1",
+            "name": "1 db Polc",
+            "apply": {
+              "shelf_1": "polc_also_-1_15cm",
+              "shelf_2": null
+            }
+          },
+          {
+            "id": "schema_Polc_2",
+            "name": "2 db Polc",
+            "apply": {
+              "shelf_1": "polc_also_-1_15cm",
+              "shelf_2": "polc_also_-1_15cm"
+            }
           }
         ]
       }

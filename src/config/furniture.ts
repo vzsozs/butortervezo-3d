@@ -71,6 +71,7 @@ export interface FurnitureConfig {
   componentSlots: ComponentSlotConfig[];
   slotGroups?: SlotGroup[];
   price?: number;
+  height?: number; 
 }
 
 export interface ComponentDatabase {
