@@ -1,17 +1,5 @@
 [
   {
-    "id": "global_front_material",
-    "name": "Frontok Anyaga",
-    "type": "material",
-    "targetSlotId": "front"
-  },
-  {
-    "id": "global_corpus_material",
-    "name": "Korpuszok Anyaga",
-    "type": "material",
-    "targetSlotId": "corpus"
-  },
-  {
     "id": "global_leg_style",
     "name": "Lábak Stílusa",
     "type": "style",
@@ -24,35 +12,56 @@
     ]
   },
   {
-    "id": "global_handle_style",
-    "name": "Fogantyúk Stílusa",
-    "type": "style",
-    "targetSlotId": "handle",
-    "options": [
-      "handle_standard",
-      "handle_design"
-    ]
-  },
-  {
-    "id": "global_leg_material",
-    "name": "Lábak Anyaga",
-    "type": "material",
-    "targetSlotId": "leg"
-  },
-  {
-    "id": "global_handle_material",
-    "name": "Fogantyúk Anyaga",
-    "type": "material",
-    "targetSlotId": "handle"
-  },
-  {
     "id": "setting_1763713457812",
-    "name": "Ajtók stílusa",
+    "name": "Ajtók Stílusa",
     "type": "select",
     "targetSlotId": "fronts",
     "options": [
       "keretes_ajtok",
       "ajtok_sima"
     ]
+  },
+  {
+    "id": "setting_1763812728260",
+    "name": "Lábak Anyaga",
+    "type": "select",
+    "targetSlotId": "legs",
+    "options": [],
+    "allowedMaterialCategories": []
+  },
+  {
+    "id": "setting_1763812774261",
+    "name": "Ajtók Anyaga",
+    "type": "select",
+    "targetSlotId": "fronts",
+    "options": [],
+    "allowedMaterialCategories": []
+  },
+  {
+    "id": "setting_1763819771188",
+    "name": "Új Beállítás",
+    "type": "select",
+    "targetSlotId": "legs",
+    "options": []
+  },
+  {
+    "id": "setting_1763819778946",
+    "name": "Korpusz anyaga",
+    "type": "select",
+    "targetSlotId": "corpuses",
+    "options": [
+      "korpusz"
+    ],
+    "allowedMaterialCategories": []
+  },
+  {
+    "id": "setting_1763819951923",
+    "name": "Fogantyú Stílusa",
+    "type": "select",
+    "targetSlotId": "handles",
+    "options": [
+      "fogantyu"
+    ],
+    "allowedMaterialCategories": []
   }
 ]

@@ -15,21 +15,22 @@ export default defineConfigWithVueTs(
   },
 
   globalIgnores(['**/dist/**', '**/dist-ssr/**', '**/coverage/**']),
-  
+
   vueTsConfigs.recommended,
   skipFormatting,
   pluginVue.configs['flat/essential'],
-   { 
+  {
     rules: {
-       "@typescript-eslint/no-unused-vars": [
-        "warn", // Vagy "error", ha szigorúbb akarsz lenni
+      '@typescript-eslint/no-unused-vars': [
+        'warn', // Vagy "error", ha szigorúbb akarsz lenni
         {
-          "argsIgnorePattern": "^_",
-          "varsIgnorePattern": "^_",
-          "caughtErrorsIgnorePattern": "^_"
-        }
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+        },
       ],
       // --------------------
-    }
-  }
+      '@typescript-eslint/no-explicit-any': 'off',
+    },
+  },
 )

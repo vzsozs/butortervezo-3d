@@ -1,7 +1,7 @@
 // src/three/Managers/ConfigManager.ts
 
-import { useConfigStore } from '@/stores/config';
-import type { FurnitureConfig, ComponentConfig } from '@/config/furniture';
+import { useConfigStore } from '@/stores/config'
+import type { FurnitureConfig, ComponentConfig } from '@/config/furniture'
 
 /**
  * A ConfigManager egy "híd" a Three.js világ és a Pinia store között.
@@ -14,7 +14,7 @@ import type { FurnitureConfig, ComponentConfig } from '@/config/furniture';
  * így mindig a legfrissebb adatokat adja vissza.
  */
 class ConfigManager {
-  private static instance: ConfigManager;
+  private static instance: ConfigManager
 
   private constructor() {
     // A konstruktor üres, mivel nincs mit inicializálni.
@@ -22,9 +22,9 @@ class ConfigManager {
 
   public static getInstance(): ConfigManager {
     if (!ConfigManager.instance) {
-      ConfigManager.instance = new ConfigManager();
+      ConfigManager.instance = new ConfigManager()
     }
-    return ConfigManager.instance;
+    return ConfigManager.instance
   }
 
   /**
@@ -34,7 +34,7 @@ class ConfigManager {
    */
   public getFurnitureById(id: string): FurnitureConfig | undefined {
     // Közvetlenül a store-ból kérjük le az adatot.
-    return useConfigStore().getFurnitureById(id);
+    return useConfigStore().getFurnitureById(id)
   }
 
   /**
@@ -44,9 +44,18 @@ class ConfigManager {
    */
   public getComponentById(id: string): ComponentConfig | undefined {
     // Közvetlenül a store-ból kérjük le az adatot.
-    return useConfigStore().getComponentById(id);
+    return useConfigStore().getComponentById(id)
+  }
+
+  /**
+   * Lekér egy anyagot ID alapján a Pinia store-ból.
+   * @param id Az anyag egyedi azonosítója.
+   * @returns A megtalált MaterialConfig vagy undefined.
+   */
+  public getMaterialById(id: string): import('@/config/furniture').MaterialConfig | undefined {
+    return useConfigStore().getMaterialById(id)
   }
 }
 
 // Exportáljuk a singleton példányt, hogy mindenhol ugyanazt használjuk.
-export default ConfigManager.getInstance();
+export default ConfigManager.getInstance()

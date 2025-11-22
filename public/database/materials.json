@@ -1,0 +1,87 @@
+[
+  {
+    "id": "mat_1763815413063",
+    "name": "Antracit szürke",
+    "category": "Bútorlap",
+    "type": "color",
+    "value": "#363c40",
+    "properties": {
+      "roughness": 0.35,
+      "metalness": 0
+    }
+  },
+  {
+    "id": "mat_1763815456624",
+    "name": "Tölgy natúr",
+    "category": [
+      "Munkapult",
+      "Bútorlap"
+    ],
+    "type": "texture",
+    "value": "/textures/uploaded/texture_1763815518898.jpg",
+    "properties": {
+      "roughness": 0,
+      "metalness": 0.5
+    }
+  },
+  {
+    "id": "mat_1763815951563",
+    "name": "Dió natúr",
+    "category": "Munkapult",
+    "type": "texture",
+    "value": "/textures/uploaded/texture_1763816002009.jpg",
+    "properties": {
+      "roughness": 0.5,
+      "metalness": 0
+    }
+  },
+  {
+    "id": "mat_1763816016879",
+    "name": "Piros",
+    "category": [
+      "Bútorlap"
+    ],
+    "type": "color",
+    "value": "#e30202",
+    "properties": {
+      "roughness": 0.1,
+      "metalness": 0.75
+    }
+  },
+  {
+    "id": "mat_1763819384253",
+    "name": "Fehér fényes",
+    "category": [
+      "general",
+      "Bútorlap",
+      "Munkapult",
+      "Hátfal",
+      "Fém",
+      "Egyéb"
+    ],
+    "type": "color",
+    "value": "#ededed",
+    "properties": {
+      "roughness": 1,
+      "metalness": 0.5
+    }
+  },
+  {
+    "id": "mat_1763819424903",
+    "name": "Fehér matt",
+    "category": [
+      "general",
+      "Bútorlap",
+      "Munkapult",
+      "Hátfal",
+      "Fém",
+      "Egyéb"
+    ],
+    "type": "color",
+    "value": "#ededed",
+    "properties": {
+      "roughness": 0,
+      "metalness": 0
+    }
+  }
+]

@@ -1,0 +1,22 @@
+# User Rules & Preferences
+
+## Communication Style
+
+- Language: Hungarian (Magyar)
+- Tone: Professional, helpful, concise
+- Mielőtt kódot írnál, vázold fel a tervet lépésről lépésre, de röviden!
+
+## Coding Standards
+
+- Framework: Vue 3 + TypeScript
+- Style: Composition API
+- 3D Engine: Three.js
+- Mindig magyarul kommentelj.
+- Használj TypeScript-et, de kerüld az 'any' típust.
+- Tailwind CSS-t használj stílusozáshoz.
+
+## Project Specifics
+
+-
+
+## Other Instructions

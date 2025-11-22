@@ -40,7 +40,9 @@
           ]
         }
       ],
-      "price": 35000
+      "price": 35000,
+      "allowedMaterialCategories": [],
+      "familyId": "korpusz"
     },
     {
       "name": "Alsó korpusz (60cm)",
@@ -82,7 +84,9 @@
           ]
         }
       ],
-      "price": 52000
+      "price": 52000,
+      "allowedMaterialCategories": [],
+      "familyId": "korpusz"
     }
   ],
   "fronts": [
@@ -154,7 +158,9 @@
         "MAT_Fem_Kiegeszitok"
       ],
       "attachmentPoints": [],
-      "price": 5200
+      "price": 5200,
+      "allowedMaterialCategories": [],
+      "familyId": "fogantyu"
     },
     {
       "name": "Fogantyú Design",
@@ -165,7 +171,9 @@
         "MAT_Fem_Kiegeszitok"
       ],
       "attachmentPoints": [],
-      "price": 4200
+      "price": 4200,
+      "allowedMaterialCategories": [],
+      "familyId": "fogantyu"
     }
   ],
   "legs": [
@@ -208,7 +216,8 @@
       ],
       "attachmentPoints": [],
       "price": 1800,
-      "familyId": "lab_csolab"
+      "familyId": "lab_csolab",
+      "allowedMaterialCategories": []
     }
   ],
   "shelves": [

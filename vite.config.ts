@@ -25,74 +25,113 @@ export default defineConfig({
         const upload = multer({ dest: os.tmpdir() })
         app.post('/api/save-component', upload.single('modelFile'), async (req, res) => {
           try {
-            const componentData: ComponentConfig = JSON.parse(req.body.componentData);
-            const componentType: string = req.body.componentType;
-            const file = req.file;
+            const componentData: ComponentConfig = JSON.parse(req.body.componentData)
+            const componentType: string = req.body.componentType
+            const file = req.file
 
-            const projectRoot = path.dirname(fileURLToPath(import.meta.url));
+            const projectRoot = path.dirname(fileURLToPath(import.meta.url))
 
             if (file) {
-              const targetDir = path.join(projectRoot, 'public/models', componentType);
-              const finalPath = path.join(targetDir, `${componentData.id}.glb`);
-              await fs.mkdir(targetDir, { recursive: true });
-              await fs.rename(file.path, finalPath);
-              componentData.model = `/models/${componentType}/${componentData.id}.glb`;
+              const targetDir = path.join(projectRoot, 'public/models', componentType)
+              const finalPath = path.join(targetDir, `${componentData.id}.glb`)
+              await fs.mkdir(targetDir, { recursive: true })
+              await fs.rename(file.path, finalPath)
+              componentData.model = `/models/${componentType}/${componentData.id}.glb`
             }
 
-            const dbPath = path.join(projectRoot, 'public/database/components.json');
-            const dbContent = await fs.readFile(dbPath, 'utf-8');
-            const componentsDb: ComponentDatabase = JSON.parse(dbContent);
+            const dbPath = path.join(projectRoot, 'public/database/components.json')
+            const dbContent = await fs.readFile(dbPath, 'utf-8')
+            const componentsDb: ComponentDatabase = JSON.parse(dbContent)
 
             if (!componentsDb[componentType]) {
-              componentsDb[componentType] = [];
+              componentsDb[componentType] = []
             }
-            const componentIndex = componentsDb[componentType].findIndex(c => c.id === componentData.id);
+            const componentIndex = componentsDb[componentType].findIndex(
+              (c) => c.id === componentData.id,
+            )
             if (componentIndex > -1) {
-              componentsDb[componentType][componentIndex] = componentData;
+              componentsDb[componentType][componentIndex] = componentData
             } else {
-              componentsDb[componentType].push(componentData);
+              componentsDb[componentType].push(componentData)
             }
 
-            await fs.writeFile(dbPath, JSON.stringify(componentsDb, null, 2));
+            await fs.writeFile(dbPath, JSON.stringify(componentsDb, null, 2))
 
-            res.status(200).json({ 
+            res.status(200).json({
               message: 'Komponens sikeresen mentve!',
-              updatedComponent: componentData 
-            });
+              updatedComponent: componentData,
+            })
           } catch (error) {
-            console.error('API hiba a /api/save-component végponton:', error);
-            res.status(500).json({ message: 'Szerveroldali hiba történt.' });
+            console.error('API hiba a /api/save-component végponton:', error)
+            res.status(500).json({ message: 'Szerveroldali hiba történt.' })
           }
-        });
+        })
 
-        // --- 2. VÉGPONT: SIMA JSON ADATBÁZIS MENTÉSE ---
-        app.use(express.json({ limit: '10mb' })); // JSON parser
+        // --- 2. VÉGPONT: TEXTÚRA FELTÖLTÉS ---
+        app.post('/api/upload-texture', upload.single('textureFile'), async (req, res) => {
+          try {
+            const file = req.file
+            if (!file) {
+              return res.status(400).json({ message: 'Nincs fájl feltöltve.' })
+            }
+
+            const projectRoot = path.dirname(fileURLToPath(import.meta.url))
+            const targetDir = path.join(projectRoot, 'public/textures/uploaded')
+            // Eredeti kiterjesztés megtartása, vagy jpg/png feltételezése
+            const ext = path.extname(file.originalname).toLowerCase() || '.jpg'
+            const filename = `texture_${Date.now()}${ext}`
+            const finalPath = path.join(targetDir, filename)
+
+            await fs.mkdir(targetDir, { recursive: true })
+            await fs.rename(file.path, finalPath)
+
+            const textureUrl = `/textures/uploaded/${filename}`
+
+            res.status(200).json({
+              message: 'Textúra sikeresen feltöltve!',
+              url: textureUrl,
+            })
+          } catch (error) {
+            console.error('API hiba a /api/upload-texture végponton:', error)
+            res.status(500).json({ message: 'Szerveroldali hiba történt.' })
+          }
+        })
+
+        // --- 3. VÉGPONT: SIMA JSON ADATBÁZIS MENTÉSE ---
+        app.use(express.json({ limit: '10mb' })) // JSON parser
         app.post('/api/save-database', async (req, res) => {
           try {
-            const { filename, data } = req.body;
-            if (!filename || !data || (filename !== 'furniture.json' && filename !== 'components.json' && filename !== 'globalSettings.json')) {
-              return res.status(400).json({ message: 'Érvénytelen kérés.' });
+            const { filename, data } = req.body
+            const allowedFiles = [
+              'furniture.json',
+              'components.json',
+              'globalSettings.json',
+              'materials.json',
+            ]
+
+            if (!filename || !data || !allowedFiles.includes(filename)) {
+              return res.status(400).json({ message: 'Érvénytelen kérés.' })
             }
-            const projectRoot = path.dirname(fileURLToPath(import.meta.url));
-            const filePath = path.join(projectRoot, 'public/database', filename);
-            await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8');
-            console.log(`✅ Fájl sikeresen mentve: ${filePath}`);
-            res.status(200).json({ message: `${filename} sikeresen mentve.` });
+            const projectRoot = path.dirname(fileURLToPath(import.meta.url))
+            const filePath = path.join(projectRoot, 'public/database', filename)
+            await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8')
+            console.log(`✅ Fájl sikeresen mentve: ${filePath}`)
+            res.status(200).json({ message: `${filename} sikeresen mentve.` })
           } catch (error) {
-            console.error(`❌ Hiba a /api/save-database végponton:`, error);
-            res.status(500).json({ message: 'Szerver oldali hiba a fájl mentésekor.' });
+            console.error(`❌ Hiba a /api/save-database végponton:`, error)
+            res.status(500).json({ message: 'Szerver oldali hiba a fájl mentésekor.' })
           }
-        });
+        })
 
         // Az express app-ot használjuk middleware-ként
-        server.middlewares.use(app);
-      }
-    }
+        server.middlewares.use(app)
+      },
+    },
   ],
   resolve: {
     dedupe: ['three'],
     alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url))
-    }
-  }
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+    },
+  },
 })

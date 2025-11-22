@@ -9,6 +9,7 @@ import AdminSidePanel from '@/components/admin/AdminSidePanel.vue';
 import ComponentSidePanel from '@/components/admin/ComponentSidePanel.vue';
 import AssetManager from '@/three/Managers/AssetManager';
 import GlobalSettingsEditor from '@/components/admin/GlobalSettingsEditor.vue';
+import MaterialEditor from '@/components/admin/MaterialEditor.vue';
 
 const activeTab = ref('furniture');
 
@@ -23,7 +24,7 @@ onMounted(() => {
 const editingFurniture = ref<Partial<FurnitureConfig> | null>(null);
 const isNewFurniture = ref(false);
 const furnitureEditorRef = ref<{ scrollToSlot: (id: string) => void } | null>(null);
-const originalFurniture = ref<Partial<FurnitureConfig> | null>(null); 
+const originalFurniture = ref<Partial<FurnitureConfig> | null>(null);
 const furnitureEditorKey = ref<string | undefined>(undefined);
 
 // --- KOMPONENS ÁLLAPOTOK ---
@@ -78,7 +79,7 @@ function confirmAndProceed(action: () => void) {
 
 // 1. SIMA JSON MENTÉS (Bútorokhoz és a bal oldali komponens mentés gombhoz)
 async function saveDatabase(
-  filename: 'furniture.json' | 'components.json' | 'globalSettings.json', 
+  filename: 'furniture.json' | 'components.json' | 'globalSettings.json',
   data: FurnitureConfig[] | ComponentDatabase | any
 ) {
   try {
@@ -108,7 +109,7 @@ async function saveComponent(component: ComponentConfig, file: File | null): Pro
     const response = await fetch('/api/save-component', { method: 'POST', body: formData });
     const result = await response.json();
     if (!response.ok) throw new Error(result.message || 'Ismeretlen hiba');
-    
+
     alert(`Komponens sikeresen mentve!`);
     if (file) {
       const assetManager = AssetManager.getInstance();
@@ -167,7 +168,7 @@ function handleCreateNewFurniture() {
     furnitureEditorKey.value = tempId;
   });
 }
-function changeTab(tab: 'furniture' | 'components' | 'global') {
+function changeTab(tab: 'furniture' | 'components' | 'global' | 'materials') {
   confirmAndProceed(() => {
     activeTab.value = tab;
     // Zárd be a szerkesztőket fülváltáskor
@@ -216,9 +217,9 @@ function handleSaveFurniture(furniture: FurnitureConfig) {
 
   // 3. Lépés: Szerkesztési állapotok resetelése
   // A mentett állapot lesz az új "eredeti"
-  originalFurniture.value = JSON.parse(JSON.stringify(furniture)); 
+  originalFurniture.value = JSON.parse(JSON.stringify(furniture));
   // Bezárjuk a szerkesztőt
-  handleCancelFurniture(); 
+  handleCancelFurniture();
 }
 
 // --- KOMPONENS KEZELŐ FÜGGVÉNYEK (MÓDOSÍTVA) ---
@@ -252,21 +253,21 @@ async function handleSaveComponent(component: ComponentConfig, file: File | null
       configStore.updateComponent(selectedComponentType.value, savedComponent);
     }
   }
-  
+
   handleCancelComponent();
 }
 
 function handleDeleteComponent(component: ComponentConfig) {
   // 1. Lépés: Kérjünk megerősítést a felhasználótól
   if (confirm(`Biztosan törölni szeretnéd a(z) "${component.name}" komponenst?`)) {
-    
+
     // 2. Lépés: Hívjuk meg a Pinia store megfelelő action-jét
     // Ez reaktívan frissíteni fogja a bal oldali listát.
     configStore.deleteComponent(selectedComponentType.value, component.id);
-    
+
     // 3. Lépés: Mentsük el a frissített, teljes components.json-t a szerverre
     saveDatabase('components.json', allComponents.value);
-    
+
     // 4. Lépés: Zárjuk be a szerkesztő nézetet
     handleCancelComponent();
   }
@@ -284,74 +285,68 @@ function handleSaveComponentsToServer() {
         <h1 class="text-3xl sm:text-4xl font-bold">Admin Felület</h1>
         <p class="text-sm text-gray-400 -mt-1 mb-4">Verzió 0.5</p>
         <div class="flex border-b border-gray-700">
-          <button @click="changeTab('furniture')" :class="['px-4 py-2 font-semibold', activeTab === 'furniture' ? 'border-b-2 border-blue-500 text-white' : 'text-gray-400']">Bútor Szerkesztő</button>
-          <button @click="changeTab('components')" :class="['px-4 py-2 font-semibold', activeTab === 'components' ? 'border-b-2 border-blue-500 text-white' : 'text-gray-400']">Komponens Szerkesztő</button>
-          <button @click="changeTab('global')" :class="['px-4 py-2 font-semibold', activeTab === 'global' ? 'border-b-2 border-blue-500 text-white' : 'text-gray-400']">Globális Beállítások</button>
+          <button @click="changeTab('furniture')"
+            :class="['px-4 py-2 font-semibold', activeTab === 'furniture' ? 'border-b-2 border-blue-500 text-white' : 'text-gray-400']">Bútor
+            Szerkesztő</button>
+          <button @click="changeTab('components')"
+            :class="['px-4 py-2 font-semibold', activeTab === 'components' ? 'border-b-2 border-blue-500 text-white' : 'text-gray-400']">Komponens
+            Szerkesztő</button>
+          <button @click="changeTab('global')"
+            :class="['px-4 py-2 font-semibold', activeTab === 'global' ? 'border-b-2 border-blue-500 text-white' : 'text-gray-400']">Globális
+            Beállítások</button>
+          <button @click="changeTab('materials')"
+            :class="['px-4 py-2 font-semibold', activeTab === 'materials' ? 'border-b-2 border-blue-500 text-white' : 'text-gray-400']">Anyagok</button>
         </div>
       </div>
       <div class="flex-1 min-h-0 pt-8">
         <!-- 1. ESET: GLOBÁLIS BEÁLLÍTÁSOK (Teljes szélességű nézet) -->
         <div v-if="activeTab === 'global'" class="h-full p-4">
-           <GlobalSettingsEditor @save-to-server="handleSaveGlobalSettings" />
+          <GlobalSettingsEditor @save-to-server="handleSaveGlobalSettings" />
         </div>
 
-        <!-- 2. ESET: RÉGI NÉZET (Bútor vagy Komponens) - Kétoszlopos Grid -->
+        <!-- 2. ESET: ANYAG SZERKESZTŐ (Teljes szélességű nézet) -->
+        <div v-else-if="activeTab === 'materials'" class="h-full p-4">
+          <MaterialEditor />
+        </div>
+
+        <!-- 3. ESET: RÉGI NÉZET (Bútor vagy Komponens) - Kétoszlopos Grid -->
         <div v-else class="grid grid-cols-12 gap-6 h-full">
-          
+
           <!-- Bal oldali sáv (SidePanel) -->
           <div class="col-span-4 self-start sticky top-8">
-            <AdminSidePanel 
-              v-if="activeTab === 'furniture'" 
-              :furniture-list="allFurniture" 
-              :selected-furniture="editingFurniture" 
-              @update:selected-furniture="handleSelectFurniture" 
-              @create-new="handleCreateNewFurniture" 
-              @save-changes="handleSaveChanges" 
-              @slot-clicked="handleSlotClicked" 
-            />
-            <ComponentSidePanel 
-              v-if="activeTab === 'components'" 
-              :key="selectedComponent ? selectedComponent.id : 'no-component-selected'" 
-              :component-database="allComponents" 
-              :selected-component="selectedComponent" 
-              :preview-config="componentPreviewConfig" 
-              @select-component="handleSelectComponent" 
-              @create-new="handleCreateNewComponent" 
-              @save-to-server="handleSaveComponentsToServer" 
-              @create-category="handleCreateCategory" 
-            />
+            <AdminSidePanel v-if="activeTab === 'furniture'" :furniture-list="allFurniture"
+              :selected-furniture="editingFurniture" @update:selected-furniture="handleSelectFurniture"
+              @create-new="handleCreateNewFurniture" @save-changes="handleSaveChanges"
+              @slot-clicked="handleSlotClicked" />
+            <ComponentSidePanel v-if="activeTab === 'components'"
+              :key="selectedComponent ? selectedComponent.id : 'no-component-selected'"
+              :component-database="allComponents" :selected-component="selectedComponent"
+              :preview-config="componentPreviewConfig" @select-component="handleSelectComponent"
+              @create-new="handleCreateNewComponent" @save-to-server="handleSaveComponentsToServer"
+              @create-category="handleCreateCategory" />
           </div>
 
           <!-- Jobb oldali sáv (Editor) -->
           <div class="col-span-8">
-            
+
             <!-- Bútor Szerkesztő -->
             <div v-if="activeTab === 'furniture'">
-              <FurnitureEditor 
-                v-if="editingFurniture"
-                :key="furnitureEditorKey"
-                v-model:furniture="editingFurniture" 
-                :is-new="isNewFurniture"
-                @cancel="handleCancelFurniture"
-                @delete="handleDeleteFurniture"
-                @save="handleSaveFurniture"
-              />
-              <div v-else class="text-center text-gray-500 p-8"><p>Válassz ki egy bútort a szerkesztéshez, vagy hozz létre egy újat.</p></div>
+              <FurnitureEditor v-if="editingFurniture" :key="furnitureEditorKey" v-model:furniture="editingFurniture"
+                :is-new="isNewFurniture" @cancel="handleCancelFurniture" @delete="handleDeleteFurniture"
+                @save="handleSaveFurniture" />
+              <div v-else class="text-center text-gray-500 p-8">
+                <p>Válassz ki egy bútort a szerkesztéshez, vagy hozz létre egy újat.</p>
+              </div>
             </div>
 
             <!-- Komponens Szerkesztő -->
             <div v-if="activeTab === 'components'">
-              <ComponentEditor 
-                v-if="selectedComponent" 
-                :key="selectedComponent.id || 'new-component'" 
-                :component="selectedComponent" 
-                :is-new="isNewComponent" 
-                :component-type="selectedComponentType" 
-                @save="handleSaveComponent" 
-                @cancel="handleCancelComponent" 
-                @delete="handleDeleteComponent" 
-              />
-              <div v-else class="text-center text-gray-500 p-8"><p>Válassz ki egy komponenst a szerkesztéshez.</p></div>
+              <ComponentEditor v-if="selectedComponent" :key="selectedComponent.id || 'new-component'"
+                :component="selectedComponent" :is-new="isNewComponent" :component-type="selectedComponentType"
+                @save="handleSaveComponent" @cancel="handleCancelComponent" @delete="handleDeleteComponent" />
+              <div v-else class="text-center text-gray-500 p-8">
+                <p>Válassz ki egy komponenst a szerkesztéshez.</p>
+              </div>
             </div>
 
           </div>
