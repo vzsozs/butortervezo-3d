@@ -22,6 +22,58 @@ export const useConfigStore = defineStore('config', () => {
     return Object.values(categories).filter(c => c.items.length > 0);
   });
 
+  const availableFamilies = computed(() => {
+    const families = new Set<string>();
+    
+    // Végignézzük az összes kategóriát és komponenst
+    for (const categoryKey in components.value) {
+      const categoryList = components.value[categoryKey];
+      if (Array.isArray(categoryList)) {
+        categoryList.forEach(comp => {
+          if (comp.familyId) {
+            families.add(comp.familyId);
+          }
+        });
+      }
+    }
+    // Ábécé sorrendbe rendezve adjuk vissza
+    return Array.from(families).sort();
+  });
+
+  function getFamiliesForType(componentType: string): string[] {
+    const families = new Set<string>();
+    const comps = components.value[componentType];
+    
+    if (comps && Array.isArray(comps)) {
+      comps.forEach(c => {
+        if (c.familyId) {
+          families.add(c.familyId);
+        }
+      });
+    }
+    return Array.from(families).sort();
+  }
+
+  // --- ÚJ ACTIONS: Global Settings Kezelés ---
+
+  function addGlobalSetting(setting: GlobalSettingConfig) {
+    globalSettings.value.push(setting);
+  }
+
+  function updateGlobalSetting(setting: GlobalSettingConfig) {
+    const index = globalSettings.value.findIndex(s => s.id === setting.id);
+    if (index !== -1) {
+      globalSettings.value[index] = setting;
+    }
+  }
+
+  function deleteGlobalSetting(settingId: string) {
+    const index = globalSettings.value.findIndex(s => s.id === settingId);
+    if (index !== -1) {
+      globalSettings.value.splice(index, 1);
+    }
+  }
+
   // A setConfigs-t átalakítjuk egy központi betöltő függvénnyé
   async function loadAllData() {
     try {
@@ -111,12 +163,16 @@ export const useConfigStore = defineStore('config', () => {
     furnitureList,
     components,
     globalSettings,
-    // Getterek / Computed
     furnitureCategories,
+    availableFamilies,
+    // Action-ök
+    getFamiliesForType, 
+    addGlobalSetting,    
+    updateGlobalSetting, 
+    deleteGlobalSetting, 
     getComponentById,
     getFurnitureById,
-    // Action-ök
-    loadAllData, // A régi setConfigs helyett
+    loadAllData, 
     addComponent,
     updateComponent,
     deleteComponent,

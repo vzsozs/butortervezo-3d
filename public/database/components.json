@@ -102,7 +102,8 @@
           ]
         }
       ],
-      "price": 28000
+      "price": 28000,
+      "familyId": "keretes_ajtok"
     },
     {
       "name": "Ajtó alsó Sima (60cm)",
@@ -120,7 +121,8 @@
           ]
         }
       ],
-      "price": 19000
+      "price": 19000,
+      "familyId": "ajtok_sima"
     },
     {
       "name": "Ajtó alsó Sima (15cm)",
@@ -138,7 +140,8 @@
           ]
         }
       ],
-      "price": 9000
+      "price": 9000,
+      "familyId": "ajtok_sima"
     }
   ],
   "handles": [
@@ -177,7 +180,8 @@
       ],
       "attachmentPoints": [],
       "price": 5600,
-      "materialSource": "corpus"
+      "materialSource": "corpus",
+      "familyId": "lab_butorlap"
     },
     {
       "name": "Láb Bútorlapláb (15cm)",
@@ -190,7 +194,8 @@
       ],
       "attachmentPoints": [],
       "price": 3200,
-      "materialSource": "corpus"
+      "materialSource": "corpus",
+      "familyId": "lab_butorlap"
     },
     {
       "name": "Láb Csőláb",
@@ -202,7 +207,8 @@
         "MAT_Lab_Fem"
       ],
       "attachmentPoints": [],
-      "price": 1800
+      "price": 1800,
+      "familyId": "lab_csolab"
     }
   ],
   "shelves": [

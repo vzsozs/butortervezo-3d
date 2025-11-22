@@ -1,6 +1,5 @@
-<!-- views/HomeView.vue -->
 <template>
-  <!-- A dupla ref-et és id-t javítottam egyre -->
+  <!-- Csak EGY konténer kell -->
   <div id="experience-canvas" ref="sceneContainer" class="absolute inset-0"></div>
 </template>
 
@@ -16,15 +15,15 @@ let experience: Experience | null = null;
 const experienceStore = useExperienceStore();
 const persistenceStore = usePersistenceStore(); 
 
-// Az 'async' kulcsszó már nem kell, mert az getInstance szinkron
 onMounted(() => {
   if (sceneContainer.value) {
-    
+    // Singleton példányosítás
     experience = Experience.getInstance(sceneContainer.value);
-
+    
+    // Store bekötése
     experienceStore.setExperience(experience);
 
-    // Ez a logika maradhat, az állapot betöltése a 3D inicializálása után történik
+    // Állapot betöltése (ez már az Experience-en keresztül fogja építeni a scene-t)
     persistenceStore.loadStateFromLocalStorage();
   }
 });
@@ -33,8 +32,6 @@ onUnmounted(() => {
   if (experience) {
     experience.destroy();
     experienceStore.setExperience(null);
-    // Fontos: a destroy metódusunk már nullázza a belső singleton
-    // példányt, így a rendszer tiszta marad.
   }
 });
 </script>

@@ -12,6 +12,7 @@ export interface ComponentConfig {
   id: string;
   name: string;
   model: string;
+  familyId?: string; 
   materialTarget?: string;
   materialSource?: string;
   price: number;

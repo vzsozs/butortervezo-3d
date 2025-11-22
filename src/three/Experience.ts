@@ -1,15 +1,14 @@
+/* eslint-disable @typescript-eslint/no-this-alias */
 // src/three/Experience.ts
 
-import { toRaw } from 'vue';
+import { toRaw, markRaw } from 'vue';
 import { Scene, Clock, Raycaster, Vector2, Object3D, Group, Mesh, PlaneGeometry, AmbientLight, DirectionalLight } from 'three';
 
-// Új, moduláris komponensek importálása
 import Sizes from './Utils/Sizes';
 import Camera from './Camera';
 import Renderer from './Renderer';
 import World from './World/World';
 
-// Manager importok (a ConfigManager már a globális singleton)
 import ConfigManager from './Managers/ConfigManager';
 import AssetManager from './Managers/AssetManager';
 import PlacementManager from './Managers/PlacementManager';
@@ -18,13 +17,11 @@ import StateManager from './Managers/StateManager';
 import DebugManager from './Managers/DebugManager';
 import Debug from './Utils/Debug';
 
-// Store importok
 import { useExperienceStore } from '@/stores/experience';
 import { useSelectionStore } from '@/stores/selection';
 import { useSettingsStore } from '@/stores/settings';
 import { useHistoryStore, type SceneState } from '@/stores/history';
 
-// A Singleton példány tárolása a modul szintjén
 let instance: Experience | null = null;
 
 export default class Experience {
@@ -32,21 +29,18 @@ export default class Experience {
   public scene!: Scene;
   private clock!: Clock;
 
-  // Új, moduláris property-k
   public sizes!: Sizes;
   public camera!: Camera;
   public renderer!: Renderer;
   public world!: World;
   public debug!: Debug;
 
-  // Interakcióhoz szükséges property-k
   public raycaster!: Raycaster;
   public mouse = new Vector2();
   public intersectableObjects: Object3D[] = [];
   public rulerElements!: Group;
 
-  // Managerek és Store-ok
-  public configManager = ConfigManager; // A globális singleton példány használata
+  public configManager = ConfigManager; 
   public assetManager = AssetManager.getInstance();
   public placementManager!: PlacementManager;
   public interactionManager!: InteractionManager;
@@ -58,63 +52,58 @@ export default class Experience {
   public settingsStore = useSettingsStore();
   public historyStore = useHistoryStore();
 
+  private isDestroyed = false;
+
   private constructor(canvas: HTMLDivElement) {
-    // Singleton minta érvényesítése
-    if (instance) {
-      return instance;
+    // --- ZOMBI GYILKOS (Ez szünteti meg a duplázódást HMR alatt) ---
+    if ((window as any)._experienceInstance) {
+        console.warn("⚠️ Zombi Experience észlelve! Kényszerített leállítás...");
+        (window as any)._experienceInstance.destroy();
     }
-    // eslint-disable-next-line @typescript-eslint/no-this-alias
+    (window as any)._experienceInstance = this;
+    // -------------------------------------------------------------
+
+    if (instance) return instance;
     instance = this;
 
-    // Alapvető Three.js elemek
     this.canvas = canvas;
     this.scene = new Scene();
     this.clock = new Clock();
     this.raycaster = new Raycaster();
 
-    // Modulok inicializálása
     this.sizes = new Sizes();
     this.camera = new Camera();
     this.renderer = new Renderer();
     this.world = new World(this.scene);
     this.debug = new Debug(this.scene);
 
-    // Magas szintű Managerek inicializálása
-    //this.assetManager = new AssetManager(this);
     this.placementManager = new PlacementManager(this);
     this.interactionManager = new InteractionManager(this);
     this.stateManager = new StateManager(this);
-    //this.debugManager = new DebugManager(this);
 
-    // Jelenet specifikus elemek
     this.rulerElements = new Group();
     this.scene.add(this.rulerElements);
     const floor = this.scene.children.find(c => c instanceof Mesh && c.geometry instanceof PlaneGeometry);
     if (floor) this.intersectableObjects.push(floor);
 
-    // Eseményfigyelők beállítása
     this.sizes.addEventListener('resize', this.onResize);
     window.addEventListener('mousemove', this.onPointerMove);
     this.setupTransformControlsListeners();
 
-    // A historyStore első állapotának mentése, miután minden felállt
     this.historyStore.addState();
-
-    // Az update ciklus elindítása
     this.update();
   }
 
-  // Statikus metódus a singleton példány elérésére/létrehozására
   public static getInstance(canvas?: HTMLDivElement): Experience {
-    if (!instance && canvas) {
-      instance = new Experience(canvas);
-    } else if (!instance && !canvas) {
-      throw new Error("Experience has not been initialized yet. Provide a canvas element.");
+    if (!instance && canvas) instance = new Experience(canvas);
+    else if (instance && canvas && instance.canvas !== canvas) {
+        // Ha új canvast kapunk (pl. oldalváltás), eldobjuk a régit
+        instance.destroy();
+        instance = new Experience(canvas);
     }
+    else if (!instance && !canvas) throw new Error("Experience not initialized.");
     return instance!;
   }
-
-  // --- ESEMÉNYKEZELŐK ---
 
   private onResize = () => {
     this.camera.onResize();
@@ -127,14 +116,14 @@ export default class Experience {
   }
   
   private setupTransformControlsListeners() {
-    // @ts-expect-error - event listeners are not fully typed
+    // @ts-expect-error - event typing
     this.camera.transformControls.addEventListener('objectChange', this.onObjectChange);
-    // @ts-expect-error - event listeners are not fully typed
+    // @ts-expect-error - event typing
     this.camera.transformControls.addEventListener('dragging-changed', this.onDraggingChanged);
   }
 
   private onObjectChange = () => {
-    // @ts-expect-error - dragging is a private property but we need to check it
+    // @ts-expect-error - dragging
     if (!this.camera.transformControls.dragging) return;
     const selectedObject = this.selectionStore.selectedObject;
     if (!selectedObject) return;
@@ -154,19 +143,80 @@ export default class Experience {
     }
   }
 
+  // --- UPDATE LOOP (CRASH VÉDELEMMEL) ---
+  private update = () => {
+    if (this.isDestroyed) return;
+    requestAnimationFrame(this.update);
+    
+    // Crash Védelem: Ha a TransformControls árva objektumot fog, elengedjük
+    // @ts-expect-error - private
+    const controlsObj = this.camera.transformControls.object;
+    if (controlsObj && !controlsObj.parent) {
+        this.camera.transformControls.detach();
+        this.selectionStore.clearSelection();
+    }
+
+    this.camera.update();
+    this.renderer.update();
+  }
+
+  // --- GLOBÁLIS CSERE (Nukleáris módszer) ---
+  public async updateGlobalStyles() {
+    console.log("--- [updateGlobalStyles] Indul ---");
+    const globalStyles = this.settingsStore.globalStyleSettings;
+    
+    // 1. Adatok frissítése memóriában
+    const cleanState: SceneState = this.experienceStore.placedObjects.map(obj => {
+        const rawObj = toRaw(obj);
+        const componentState = JSON.parse(JSON.stringify(rawObj.userData.componentState || {}));
+        const config = rawObj.userData.config;
+
+        if (config) {
+            for (const slot of config.componentSlots) {
+                const slotId = slot.slotId;
+                for (const [targetSlotType, targetFamilyId] of Object.entries(globalStyles)) {
+                    const isMatch = slotId.includes(targetSlotType) || slot.componentType === targetSlotType;
+                    if (isMatch) {
+                        const currentId = componentState[slotId];
+                        const candidate = slot.allowedComponents.find((id: string) => {
+                            const c = this.configManager.getComponentById(id);
+                            return c && c.familyId === targetFamilyId;
+                        });
+                        if (candidate && candidate !== currentId) {
+                            componentState[slotId] = candidate;
+                        }
+                    }
+                }
+            }
+        }
+
+        return {
+            configId: rawObj.userData.config.id,
+            position: rawObj.position.toArray(),
+            rotation: rawObj.rotation.toArray(),
+            componentState: componentState,
+            propertyState: JSON.parse(JSON.stringify(rawObj.userData.propertyState || {})),
+            materialState: JSON.parse(JSON.stringify(rawObj.userData.materialState || {}))
+        };
+    });
+
+    // 2. Újratöltés
+    this.newScene(); // Töröl mindent
+    await this.loadState(cleanState); // Épít tiszta lappal
+    
+    console.log("--- [updateGlobalStyles] Kész ---");
+  }
+
   public async updateGlobalMaterials() {
     const globalMaterials = this.settingsStore.globalMaterialSettings;
-    
     for (const object of this.experienceStore.placedObjects) {
       let needsUpdate = false;
       const materialState = object.userData.materialState || {};
       const config = object.userData.config;
-
       if (!config) continue;
 
       for (const slot of config.componentSlots) {
         const slotId = slot.slotId;
-
         for (const [globalTarget, materialId] of Object.entries(globalMaterials)) {
             if (slotId.includes(globalTarget) && materialState[slotId] !== materialId) {
                 materialState[slotId] = materialId;
@@ -174,7 +224,6 @@ export default class Experience {
             }
         }
       }
-
       if (needsUpdate) {
         object.userData.materialState = materialState;
         await this.stateManager.applyMaterialsToObject(object);
@@ -182,106 +231,105 @@ export default class Experience {
     }
   }
 
-  public async updateGlobalStyles() {
-    const globalStyles = this.settingsStore.globalStyleSettings;
-    const objectsToUpdate = [...this.experienceStore.placedObjects];
-
-    console.log('[Experience] Globális stílusok frissítése...', globalStyles);
-
-    for (const object of objectsToUpdate) {
-      let needsRebuild = false;
-      
-      // Fontos: Másolatot készítünk, hogy ne a reaktív objektumot módosítsuk közvetlenül
-      const componentState = JSON.parse(JSON.stringify(object.userData.componentState || {}));
-      const config = object.userData.config;
-
-      if (!config) continue;
-
-      // Végigmegyünk a bútor összes definiált slotján (front_1, leg_1, handle_1...)
-      for (const slot of config.componentSlots) {
-        const slotId = slot.slotId; // pl. "front_1"
-
-        // Megnézzük, hogy van-e erre a típusra globális beállítás
-        // Pl. ha slotId="front_1", akkor keressük a "front" kulcsot a globálisokban
-        for (const [globalTarget, newComponentId] of Object.entries(globalStyles)) {
-            
-            // HA a slot ID tartalmazza a kulcsot (pl. "front_1" tartalmazza "front")
-            // ÉS az érték különbözik
-            if (slotId.includes(globalTarget) && componentState[slotId] !== newComponentId) {
-                console.log(`   -> Frissítés: ${slotId} = ${newComponentId}`);
-                componentState[slotId] = newComponentId;
-                needsRebuild = true;
-            }
-        }
-      }
-
-      if (needsRebuild) {
-        // Töröljük a hibásan bekerült kulcsokat (pl. "front", "leg") ha vannak
-        // Csak a valódi slot ID-k maradhatnak
-        const cleanState: Record<string, string> = {};
-        config.componentSlots.forEach((slot: any) => {
-            if (componentState[slot.slotId]) {
-                cleanState[slot.slotId] = componentState[slot.slotId];
-            }
-        });
-
-        object.userData.componentState = cleanState;
-        await this.rebuildObject(object, cleanState);
-      }
-    }
+  public updateTotalPrice() {
+    this.experienceStore.calculateTotalPrice();
   }
-
-  public toggleFrontVisibility(isVisible: boolean) {
-    this.experienceStore.placedObjects.forEach((object) => {
-      // A userData.componentState-ben tároljuk, mi van a slotokban
-      const componentState = object.userData.componentState;
-      if (!componentState) return;
-
-      // Megkeressük a front-hoz tartozó alkatrészeket
-      // Feltételezzük, hogy a slotId tartalmazza a "front" szót (pl. "front_1", "drawer_front")
-      // VAGY a configban jelölve van. 
-      // Egyszerűsített megoldás: A "front" nevű slotokat keressük.
-      
-      object.traverse((child) => {
-        // Az AssetManager általában a slotId-t adja a Group nevének vagy userData-nak
-        // Itt egy általánosabb megoldás kellhet, de kezdjük ezzel:
-        if (child.userData.slotId && child.userData.slotId.includes('front')) {
-            child.visible = isVisible;
-        }
-      });
-    });
-  }
-
-  // --- FŐ UPDATE CIKLUS ---
-
-  private update = () => {
-    requestAnimationFrame(this.update);
-    this.camera.update();
-    this.renderer.update();
-  }
-
-  // --- MAGAS SZINTŰ ALKALMAZÁS LOGIKA ---
-  // Ezek a metódusok a régi Experience osztályból lettek átemelve és adaptálva.
 
   public addObjectToScene(newObject: Group) {
     this.scene.add(newObject);
-    this.experienceStore.addObject(newObject);
+    this.experienceStore.addObject(markRaw(newObject)); 
     this.updateTotalPrice();
     this.historyStore.addState();
   }
 
-  public async loadState(state: SceneState) {
-    console.log("[Experience] Állapot betöltése...", state);
+  public removeObject(objectToRemove: Group) {
+    const rawObjectToRemove = toRaw(objectToRemove);
+    // @ts-expect-error - object is private
+    const attachedObject = this.camera.transformControls.object;
+    if (attachedObject && toRaw(attachedObject).uuid === rawObjectToRemove.uuid) {
+      this.camera.transformControls.detach();
+      this.selectionStore.clearSelection();
+      this.debug.selectionBoxHelper.visible = false;
+    }
+    this.scene.remove(rawObjectToRemove);
+    
+    const allObjects = this.experienceStore.placedObjects.slice();
+    const index = allObjects.findIndex(obj => obj.uuid === rawObjectToRemove.uuid);
+    if (index > -1) {
+      allObjects.splice(index, 1);
+      this.experienceStore.updatePlacedObjects(allObjects);
+    }
+    this.updateTotalPrice();
+    this.historyStore.addState();
+  }
+
+  public newScene() {
+    console.log("--- [newScene] MÉLYTAKARÍTÁS ---");
+
+    // 1. LECSATOLÁS
     this.camera.transformControls.detach();
     this.selectionStore.clearSelection();
     this.debug.selectionBoxHelper.visible = false;
 
-    const objectsToRemove = [...this.experienceStore.placedObjects];
-    for (const obj of objectsToRemove) {
-      this.scene.remove(toRaw(obj));
-    }
-    this.experienceStore.updatePlacedObjects([]);
+    // 2. FŐ SCENE TAKARÍTÁS
+    const objectsToKill: Object3D[] = [];
+    this.scene.children.forEach(child => {
+        if (child instanceof Group && child !== this.rulerElements) {
+            objectsToKill.push(child);
+        }
+    });
 
+    objectsToKill.forEach(obj => {
+        this.scene.remove(obj);
+        this.disposeRecursively(obj);
+    });
+
+    // 3. RULER ELEMENTS TAKARÍTÁS (A titkos búvóhely!)
+    console.log(`RulerElements tartalma törlés előtt: ${this.rulerElements.children.length} db elem`);
+    // Kényszerített ürítés
+    while(this.rulerElements.children.length > 0){ 
+        const child = this.rulerElements.children[0];
+        this.rulerElements.remove(child);
+        this.disposeRecursively(child);
+    }
+    
+    // 4. Store reset
+    this.experienceStore.updatePlacedObjects([]);
+    
+    // 5. Egyéb
+    this.debug.hideAll();
+    this.settingsStore.resetToDefaults();
+    this.historyStore.clearHistory();
+    this.historyStore.addState();
+    
+    console.log("--- [newScene] KÉSZ ---");
+  }
+
+  // Segédfüggvény a memóriatakarításhoz
+  private disposeRecursively(object: any) {
+    if (!object) return;
+    object.traverse((child: any) => {
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) {
+            const mats = Array.isArray(child.material) ? child.material : [child.material];
+            mats.forEach((m: any) => m.dispose && m.dispose());
+        }
+    });
+  }
+
+  public async loadState(state: SceneState) {
+    // BIZTONSÁGI TAKARÍTÁS: Mielőtt betöltünk, törlünk mindent a Scene-ből is!
+    // Ez javítja a Persistence betöltési hibákat.
+    const existingObjects: Object3D[] = [];
+    this.scene.children.forEach(child => {
+        if (child instanceof Group && child !== this.rulerElements) {
+            existingObjects.push(child);
+        }
+    });
+    existingObjects.forEach(obj => this.scene.remove(obj));
+    this.experienceStore.updatePlacedObjects([]); // Store-t is nullázzuk
+
+    // Újak betöltése
     for (const objState of state) {
       const config = this.configManager.getFurnitureById(objState.configId);
       if (config) {
@@ -293,122 +341,49 @@ export default class Experience {
         newObject.position.fromArray(objState.position);
         newObject.rotation.fromArray(objState.rotation as [number, number, number]);
         newObject.userData.materialState = objState.materialState;
-        
         await this.stateManager.applyMaterialsToObject(newObject);
 
         this.scene.add(newObject);
-        this.experienceStore.addObject(newObject);
+        this.experienceStore.addObject(markRaw(newObject));
       }
     }
     this.updateTotalPrice();
-    console.log("[Experience] Állapot betöltve.");
   }
 
+  // Ez már csak egyedi esetekre kell
   public async rebuildObject(oldObject: Group, newComponentState: Record<string, string>): Promise<Group | null> {
-    const rawOldObject = toRaw(oldObject);
-    
-    const { config, propertyState, materialState } = rawOldObject.userData;
-    if (!config) return null;
+    let objectInScene = this.scene.children.find(c => c.uuid === oldObject.uuid);
+    if (!objectInScene && oldObject.userData?.config) {
+         objectInScene = this.scene.children.find(c => 
+            c.userData?.config?.id === oldObject.userData.config.id && 
+            c.position.equals(oldObject.position)
+        );
+    }
+    if (!objectInScene) return null; 
 
-    // 1. Megjegyezzük, hogy ez volt-e a kiválasztott objektum
-    const wasSelected = this.selectionStore.selectedObject?.uuid === rawOldObject.uuid;
-
-    // 2. HA kiválasztott volt, azonnal lecsatoljuk a TransformControls-t!
-    // Ez akadályozza meg a "must be part of scene graph" hibát.
-    if (wasSelected) {
+    // @ts-expect-error - private
+    const controlsObj = this.camera.transformControls.object;
+    if (controlsObj && controlsObj.uuid === objectInScene.uuid) {
         this.camera.transformControls.detach();
-        this.debug.selectionBoxHelper.visible = false;
+        this.selectionStore.clearSelection();
     }
 
-    // 3. Új objektum építése
+    const config = objectInScene.userData.config;
+    const propertyState = objectInScene.userData.propertyState;
+    const materialState = objectInScene.userData.materialState;
+
     const newObject = await this.assetManager.buildFurnitureFromConfig(config, newComponentState, propertyState);
-    
-    // Pozíció és forgatás másolása
-    newObject.position.copy(rawOldObject.position);
-    newObject.rotation.copy(rawOldObject.rotation);
-    
-    // Anyagok átmentése
-    newObject.userData.materialState = JSON.parse(JSON.stringify(materialState));
+    newObject.position.copy(objectInScene.position);
+    newObject.rotation.copy(objectInScene.rotation);
+    newObject.userData.materialState = JSON.parse(JSON.stringify(materialState || {}));
     await this.stateManager.applyMaterialsToObject(newObject);
 
-    // 4. CSERE A SCENE-BEN
-    this.scene.remove(rawOldObject);
+    this.scene.remove(objectInScene);
     this.scene.add(newObject);
-    
-    // 5. CSERE A STORE-BAN
-    this.experienceStore.replaceObject(rawOldObject.uuid, newObject);
-
-    // 6. VISSZACSATOLÁS
-    // Ha az előbb lecsatoltuk, most rátesszük az újra
-    if (wasSelected) {
-        this.selectionStore.selectObject(newObject);
-        this.debug.selectionBoxHelper.setFromObject(newObject);
-        this.debug.selectionBoxHelper.visible = true;
-        this.camera.transformControls.attach(newObject);
-    }
-    
+    this.experienceStore.replaceObject(oldObject.uuid, newObject);
     this.updateTotalPrice();
+    
     return newObject;
-  }
-
-  public removeObject(objectToRemove: Group) {
-    const rawObjectToRemove = toRaw(objectToRemove);
-    
-    // 1. Ellenőrizzük, hogy a TransformControls ezen az objektumon van-e
-    // @ts-expect-error - object is private
-    const attachedObject = this.camera.transformControls.object;
-    
-    if (attachedObject && toRaw(attachedObject).uuid === rawObjectToRemove.uuid) {
-      this.camera.transformControls.detach();
-      this.selectionStore.clearSelection();
-      this.debug.selectionBoxHelper.visible = false;
-    }
-
-    // 2. Törlés a Scene-ből
-    this.scene.remove(rawObjectToRemove);
-    
-    // 3. Törlés a Store-ból
-    const allObjects = this.experienceStore.placedObjects.slice();
-    const index = allObjects.findIndex(obj => obj.uuid === rawObjectToRemove.uuid);
-    if (index > -1) {
-      allObjects.splice(index, 1);
-      this.experienceStore.updatePlacedObjects(allObjects);
-    }
-
-    this.updateTotalPrice();
-    this.historyStore.addState();
-  }
-
-  public newScene() {
-    console.log("[Experience] Új jelenet létrehozása...");
-    
-    // 1. Objektumok törlése
-    const objectsToRemove = [...this.experienceStore.placedObjects];
-    for (const obj of objectsToRemove) {
-      this.removeObject(obj);
-    }
-    this.experienceStore.updatePlacedObjects([]);
-    
-    // 2. Vonalzó és egyéb elemek takarítása
-    this.rulerElements.clear();
-    
-    // 3. Kijelölés törlése
-    this.selectionStore.clearSelection();
-    this.camera.transformControls.detach();
-    
-    // 4. DEBUG DOBOZOK ELTÜNTETÉSE (Ez hiányzott!)
-    this.debug.hideAll();
-
-    // 5. Store-ok resetelése
-    this.settingsStore.resetToDefaults();
-    this.historyStore.clearHistory();
-    this.historyStore.addState();
-    
-    console.log("[Experience] Jelenet sikeresen visszaállítva.");
-  }
-
-  public updateTotalPrice() {
-    this.experienceStore.calculateTotalPrice();
   }
 
   public getScreenshotCanvas(): HTMLCanvasElement | undefined {
@@ -428,15 +403,23 @@ export default class Experience {
       this.renderer.instance.render(screenshotScene, this.camera.instance);
       return this.renderer.instance.domElement;
     } catch (error) {
-      console.error("[Experience] Hiba a screenshot canvas előkészítése közben:", error);
+      console.error("Screenshot error:", error);
       return undefined;
     }
   }
 
-  // --- TAKARÍTÁS ---
+  public toggleFrontVisibility(isVisible: boolean) {
+    this.experienceStore.placedObjects.forEach((object) => {
+      object.traverse((child) => {
+        if (child.userData.slotId && child.userData.slotId.includes('front')) {
+            child.visible = isVisible;
+        }
+      });
+    });
+  }
 
   public destroy() {
-    // Eseményfigyelők eltávolítása
+    this.isDestroyed = true;
     this.sizes.destroy();
     window.removeEventListener('mousemove', this.onPointerMove);
     this.interactionManager.removeEventListeners();
@@ -445,11 +428,9 @@ export default class Experience {
     // @ts-expect-error - a
     this.camera.transformControls.removeEventListener('dragging-changed', this.onDraggingChanged);
 
-    // Modulok megsemmisítése
     this.camera.destroy();
     this.renderer.destroy();
     
-    // Three.js objektumok felszabadítása
     this.scene.traverse((child) => {
       if (child instanceof Mesh) {
         child.geometry.dispose();
@@ -464,7 +445,15 @@ export default class Experience {
       }
     });
 
-    // Singleton példány nullázása
+    if (this.canvas) {
+        this.canvas.innerHTML = '';
+        const canvasDom = this.renderer.instance.domElement;
+        if (canvasDom && canvasDom.parentElement === this.canvas) {
+            this.canvas.removeChild(canvasDom);
+        }
+    }
+
+    (window as any)._experienceInstance = null;
     instance = null;
     console.log("Experience destroyed");
   }

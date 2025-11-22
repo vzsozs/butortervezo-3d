@@ -70,7 +70,7 @@ export default defineConfig({
         app.post('/api/save-database', async (req, res) => {
           try {
             const { filename, data } = req.body;
-            if (!filename || !data || (filename !== 'furniture.json' && filename !== 'components.json')) {
+            if (!filename || !data || (filename !== 'furniture.json' && filename !== 'components.json' && filename !== 'globalSettings.json')) {
               return res.status(400).json({ message: 'Érvénytelen kérés.' });
             }
             const projectRoot = path.dirname(fileURLToPath(import.meta.url));
