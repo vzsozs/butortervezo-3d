@@ -61,11 +61,6 @@ function deleteItem(id: string) {
 }
 
 // --- Helper a Checkboxokhoz ---
-// Ez adja vissza azokat a családokat, amik elérhetőek a kiválasztott "targetSlotId"-hoz
-const availableFamiliesForCurrent = computed(() => {
-  if (!editingData.value.targetSlotId) return [];
-  return configStore.getFamiliesForType(editingData.value.targetSlotId);
-});
 
 // Elérhető anyagkategóriák
 const availableMaterialCategories = computed(() => {
@@ -76,17 +71,6 @@ const availableMaterialCategories = computed(() => {
   });
   return Array.from(cats).sort();
 });
-
-function toggleOption(familyId: string) {
-  if (!editingData.value.options) editingData.value.options = [];
-
-  const idx = editingData.value.options.indexOf(familyId);
-  if (idx === -1) {
-    editingData.value.options.push(familyId);
-  } else {
-    editingData.value.options.splice(idx, 1);
-  }
-}
 
 function handleSaveToServer() {
   emit('save-to-server');
@@ -123,7 +107,6 @@ function handleSaveToServer() {
           <div class="font-bold text-white">{{ setting.name }}</div>
           <div class="text-xs text-gray-400 mt-1">Vezérel: <span class="text-blue-300">{{ setting.targetSlotId }}</span>
           </div>
-          <div class="text-xs text-gray-500 mt-1">{{ setting.options?.length || 0 }} opció</div>
         </div>
       </div>
 
@@ -144,16 +127,16 @@ function handleSaveToServer() {
             <label class="admin-label">Mit vezéreljen? (Komponens Típus)</label>
             <select v-model="editingData.targetSlotId" class="admin-select">
               <option v-for="type in availableSlotTypes" :key="type" :value="type">
-                {{ type }} (pl. {{ configStore.getFamiliesForType(type).length }} család)
+                {{ type }}
               </option>
             </select>
-            <p class="text-xs text-gray-500 mt-1">Ez határozza meg, hogy milyen családok közül választhatsz.</p>
+            <p class="text-xs text-gray-500 mt-1">Ez határozza meg, hogy melyik elemekre vonatkozik.</p>
           </div>
 
         </div>
 
         <!-- Engedélyezett Anyagkategóriák (Csak ha anyagválasztóról van szó) -->
-        <div class="bg-gray-900 p-4 rounded border border-gray-600"
+        <div class="bg-gray-900 p-4 rounded border border-gray-600 mt-6"
           v-if="editingData.name && editingData.name.toLowerCase().includes('anyag')">
           <label class="admin-label mb-3 block">Melyik Anyagkategóriák jelenjenek meg?</label>
 
@@ -168,27 +151,6 @@ function handleSaveToServer() {
             </label>
           </div>
           <p class="text-[10px] text-gray-500 mt-2">Ha üres, minden kategória megjelenik.</p>
-        </div>
-
-        <!-- Opciók (Családok) Kiválasztása -->
-        <div class="bg-gray-900 p-4 rounded border border-gray-600">
-          <label class="admin-label mb-3 block">Melyik Családok legyenek választhatók?</label>
-
-          <div v-if="availableFamiliesForCurrent.length === 0" class="text-yellow-500 text-sm">
-            Ehhez a típushoz ({{ editingData.targetSlotId }}) még nincsenek családok definiálva az alkatrészeknél!
-          </div>
-
-          <div class="grid grid-cols-2 gap-3">
-            <div v-for="fam in availableFamiliesForCurrent" :key="fam" @click="toggleOption(fam)"
-              class="flex items-center gap-3 p-2 rounded cursor-pointer transition-colors border"
-              :class="editingData.options?.includes(fam) ? 'bg-blue-900/40 border-blue-500' : 'bg-gray-800 border-gray-700 hover:bg-gray-700'">
-              <div class="w-5 h-5 flex items-center justify-center rounded border border-gray-500"
-                :class="editingData.options?.includes(fam) ? 'bg-blue-500 border-blue-500' : ''">
-                <span v-if="editingData.options?.includes(fam)" class="text-white text-xs font-bold">✓</span>
-              </div>
-              <span class="text-sm text-gray-200">{{ fam }}</span>
-            </div>
-          </div>
         </div>
 
         <!-- Gombok -->

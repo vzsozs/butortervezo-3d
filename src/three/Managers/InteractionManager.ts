@@ -236,14 +236,7 @@ export default class InteractionManager {
     })
 
     // --- ÚJ: GLOBÁLIS STÍLUSOK ALKALMAZÁSA ---
-    // Felülírjuk az alapértelmezettet, ha van globális beállítás
-    const globalStyles = this.experience.settingsStore.globalStyleSettings
-    for (const [slotId, componentId] of Object.entries(globalStyles)) {
-      // Csak akkor írjuk felül, ha a bútor rendelkezik ilyen slottal
-      if (config.componentSlots.some((s) => s.slotId === slotId)) {
-        defaultComponentState[slotId] = componentId
-      }
-    }
+    // (Eltávolítva: A család alapú stílusok megszűntek)
 
     const newObject = await this.experience.assetManager.buildFurnitureFromConfig(
       config,

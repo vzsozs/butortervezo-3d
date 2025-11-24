@@ -1,27 +1,5 @@
 [
   {
-    "id": "global_leg_style",
-    "name": "Lábak Stílusa",
-    "type": "style",
-    "targetSlotId": "legs",
-    "options": [
-      "leg_standard",
-      "leg_design",
-      "lab_butorlap",
-      "lab_csolab"
-    ]
-  },
-  {
-    "id": "setting_1763713457812",
-    "name": "Ajtók Stílusa",
-    "type": "select",
-    "targetSlotId": "fronts",
-    "options": [
-      "keretes_ajtok",
-      "ajtok_sima"
-    ]
-  },
-  {
     "id": "setting_1763812728260",
     "name": "Lábak Anyaga",
     "type": "select",
@@ -38,30 +16,11 @@
     "allowedMaterialCategories": []
   },
   {
-    "id": "setting_1763819771188",
-    "name": "Új Beállítás",
-    "type": "select",
-    "targetSlotId": "legs",
-    "options": []
-  },
-  {
     "id": "setting_1763819778946",
     "name": "Korpusz anyaga",
     "type": "select",
     "targetSlotId": "corpuses",
-    "options": [
-      "korpusz"
-    ],
-    "allowedMaterialCategories": []
-  },
-  {
-    "id": "setting_1763819951923",
-    "name": "Fogantyú Stílusa",
-    "type": "select",
-    "targetSlotId": "handles",
-    "options": [
-      "fogantyu"
-    ],
+    "options": [],
     "allowedMaterialCategories": []
   }
 ]

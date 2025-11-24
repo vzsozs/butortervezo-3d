@@ -13,10 +13,10 @@ const configStore = useConfigStore();
 // --- SEGÉDFÜGGVÉNYEK ---
 
 // Családnév szépítése (pl. "modern_stilus" -> "modern stilus")
-function formatFamilyName(familyId: string): string {
-  if (!familyId) return '';
+function formatName(name: string): string {
+  if (!name) return '';
   // Első betű nagy, alsóvonások cseréje
-  return familyId.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  return name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 }
 
 function formatTargetName(slotId: string): string {
@@ -30,11 +30,11 @@ function formatTargetName(slotId: string): string {
     'corpus': 'Korpusz',
     'worktop': 'Munkalap'
   };
-  return map[slotId] || formatFamilyName(slotId);
+  return map[slotId] || formatName(slotId);
 }
 
 const groupedSettings = computed(() => {
-  const groups: Record<string, { targetSlotId: string, styleSetting?: GlobalSettingConfig, materialSetting?: GlobalSettingConfig }> = {};
+  const groups: Record<string, { targetSlotId: string, materialSetting?: GlobalSettingConfig }> = {};
 
   configStore.globalSettings.forEach(setting => {
     const target = setting.targetSlotId;
@@ -42,29 +42,18 @@ const groupedSettings = computed(() => {
       groups[target] = { targetSlotId: target };
     }
 
-    let type = setting.type;
-    // Ha az admin "select"-et ment, próbáljuk kitalálni a nevéből
-    if (type === 'select') {
-      if (setting.name.toLowerCase().includes('anyag')) {
-        type = 'material';
-      } else {
-        type = 'style';
-      }
-    }
-
-    if (type === 'style') {
-      groups[target].styleSetting = setting;
-    } else if (type === 'material') {
+    // Csak material típusú beállításokkal foglalkozunk
+    if (setting.type === 'material' || (setting.type === 'select' && setting.name.toLowerCase().includes('anyag'))) {
       groups[target].materialSetting = setting;
     }
   });
 
-  return Object.values(groups);
+  return Object.values(groups).filter(g => g.materialSetting); // Csak azokat adjuk vissza, ahol van anyagbeállítás
 });
 
 function getMaterialsForTarget(targetSlotId: string) {
   // 1. Megnézzük, van-e globális beállítás erre a slotra, ami korlátozza a kategóriákat
-  const setting = configStore.globalSettings.find(s => s.targetSlotId === targetSlotId && s.type === 'material');
+  const setting = configStore.globalSettings.find(s => s.targetSlotId === targetSlotId && (s.type === 'material' || s.name.toLowerCase().includes('anyag')));
 
   let allowedCategories: string[] = [];
 
@@ -96,25 +85,7 @@ function getMaterialsForTarget(targetSlotId: string) {
 
 async function updateSetting(setting: GlobalSettingConfig, value: string) {
   if (!value) return;
-
-  let type = setting.type;
-  if (type === 'select') {
-    if (setting.name.toLowerCase().includes('anyag')) {
-      type = 'material';
-    } else {
-      type = 'style';
-    }
-  }
-
-  if (type === 'style') {
-    settingsStore.setGlobalStyle(setting.targetSlotId, value);
-  } else if (type === 'material') {
-    settingsStore.setGlobalMaterial(setting.targetSlotId, value);
-  }
-
-  // A Store action-ök már intézik a frissítést (updateGlobalStyles vagy forceGlobalMaterial),
-  // de a biztonság kedvéért itt hagyhatjuk, ha a store nem hívná meg.
-  // Jelenleg a SettingsStore hívja meg őket.
+  settingsStore.setGlobalMaterial(setting.targetSlotId, value);
 }
 
 </script>
@@ -145,27 +116,7 @@ async function updateSetting(setting: GlobalSettingConfig, value: string) {
           {{ formatTargetName(group.targetSlotId) }}
         </h3>
 
-        <div class="grid grid-cols-2 gap-3">
-          <!-- STÍLUS VÁLASZTÓ (Ha van) -->
-          <div v-if="group.styleSetting" class="space-y-1">
-            <label class="text-[10px] font-medium text-gray-400 uppercase tracking-wide">Forma / Stílus</label>
-            <div class="relative group">
-              <select :value="settingsStore.globalStyleSettings[group.styleSetting.targetSlotId] || ''"
-                @change="updateSetting(group.styleSetting, ($event.target as HTMLSelectElement).value)"
-                class="w-full bg-[#2a2a2a] border border-gray-700 text-gray-200 text-xs rounded-md py-2 pl-2 pr-6 appearance-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors cursor-pointer hover:bg-[#333]">
-                <option value="" disabled>Válassz...</option>
-                <option v-for="opt in group.styleSetting.options" :key="opt" :value="opt">
-                  {{ formatFamilyName(opt) }}
-                </option>
-              </select>
-              <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-1 text-gray-500">
-                <svg class="fill-current h-3 w-3" viewBox="0 0 20 20">
-                  <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
-                </svg>
-              </div>
-            </div>
-          </div>
-
+        <div class="grid grid-cols-1 gap-3">
           <!-- ANYAG VÁLASZTÓ (Ha van) -->
           <div v-if="group.materialSetting" class="space-y-1">
             <label class="text-[10px] font-medium text-gray-400 uppercase tracking-wide">Anyag / Szín</label>

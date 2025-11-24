@@ -19,7 +19,7 @@ const emit = defineEmits<{
 
 // --- STATE ---
 const configStore = useConfigStore();
-const { components: storeComponents, availableFamilies } = storeToRefs(configStore);
+const { components: storeComponents } = storeToRefs(configStore);
 
 const editableComponent = ref<Partial<ComponentConfig>>({});
 const selectedFile = ref<File | null>(null);
@@ -27,21 +27,10 @@ const isProcessing = ref(false);
 const isAdvancedVisible = ref(false);
 const modelMaterialOptions = ref<string[]>([]);
 
-const isFamilyModalOpen = ref(false);
-const newFamilyInput = ref('');
-const localFamilies = ref<string[]>([]);
-// ÚJ: Egyesített lista a Select-hez (Store + Helyi új)
-const allFamilyOptions = computed(() => {
-  // Összefűzzük a kettőt, és kiszűrjük a duplikációkat a Set-tel
-  const merged = new Set([...availableFamilies.value, ...localFamilies.value]);
-  return Array.from(merged).sort();
-});
-
 // Checkbox állapotok
 const useHeight = ref(false);
 const useMaterialSource = ref(false);
 
-// Elérhető típusok (pl. shelves, drawers, legs...)
 // Elérhető típusok (pl. shelves, drawers, legs...)
 const componentTypeOptions = computed(() => Object.keys(storeComponents.value));
 
@@ -85,39 +74,6 @@ watch(() => editableComponent.value.name, (newName) => {
   }
 });
 
-function openFamilyModal() {
-  newFamilyInput.value = ''; // Töröljük a mezőt
-  isFamilyModalOpen.value = true;
-}
-
-function closeFamilyModal() {
-  isFamilyModalOpen.value = false;
-}
-
-function confirmNewFamily() {
-  if (!newFamilyInput.value) return;
-
-  // ID Generálás
-  const formattedId = newFamilyInput.value.toLowerCase()
-    .replace(/[áéíóöőúüű]/g, c => ({ 'á': 'a', 'é': 'e', 'í': 'i', 'ó': 'o', 'ö': 'o', 'ő': 'o', 'ú': 'u', 'ü': 'u', 'ű': 'u' }[c] || c))
-    .replace(/\s+/g, '_')
-    .replace(/[^\w-]+/g, '');
-
-  if (formattedId) {
-    // 1. Hozzáadjuk a helyi listához, hogy azonnal választható legyen
-    if (!localFamilies.value.includes(formattedId) && !availableFamilies.value.includes(formattedId)) {
-      localFamilies.value.push(formattedId);
-    }
-
-    // 2. Beállítjuk a komponensnek
-    if (editableComponent.value) {
-      editableComponent.value.familyId = formattedId;
-    }
-
-    closeFamilyModal();
-  }
-}
-
 // --- LOGIKA ---
 async function handleFileChange(event: Event) {
   const input = event.target as HTMLInputElement;
@@ -139,10 +95,22 @@ async function handleFileChange(event: Event) {
       height: analysis.height,
       materialTarget: analysis.materialNames[0] || '',
       materialOptions: analysis.materialNames,
-      attachmentPoints: analysis.attachmentPointNames.map(name => ({
-        id: name,
-        allowedComponentTypes: [], // Alapból üres
-      })),
+      attachmentPoints: analysis.attachmentPointNames.map(name => {
+        const allowedTypes: string[] = [];
+        const lowerName = name.toLowerCase();
+
+        // Auto-detect types based on name
+        if (lowerName.includes('shelf')) allowedTypes.push('shelves');
+        if (lowerName.includes('leg')) allowedTypes.push('legs');
+        if (lowerName.includes('front') || lowerName.includes('door')) allowedTypes.push('fronts');
+        if (lowerName.includes('drawer')) allowedTypes.push('drawers');
+        if (lowerName.includes('handle')) allowedTypes.push('handles');
+
+        return {
+          id: name,
+          allowedComponentTypes: allowedTypes,
+        };
+      }),
     };
     modelMaterialOptions.value = analysis.materialNames;
 
@@ -162,9 +130,6 @@ function saveChanges() {
     // Tisztítás: Ha nincs bepipálva, ne mentsük el az adatot
     if (!useHeight.value) delete componentToSave.height;
     if (!useMaterialSource.value) delete componentToSave.materialSource;
-
-    // Üres familyId-t ne mentsünk
-    if (componentToSave.familyId === '') delete componentToSave.familyId;
 
     // Validáció
     if ((componentToSave.price || 0) < 0) {
@@ -240,38 +205,13 @@ function deleteItem() {
           <input type="number" v-model="editableComponent.price" placeholder="0" class="admin-input" />
         </div>
 
-        <!-- Kategória -->
+        <!-- Szélesség -->
         <div class="flex flex-col gap-1">
-          <label class="admin-label text-xs uppercase tracking-wider text-gray-400">Kategória (Family)</label>
-          <div class="flex gap-2">
-            <!-- Most már az 'allFamilyOptions'-t használjuk -->
-            <select v-model="editableComponent.familyId" class="admin-select flex-1 cursor-pointer">
-              <option value="" disabled>Válassz...</option>
-              <option value="">- Nincs -</option>
-              <option v-for="fam in allFamilyOptions" :key="fam" :value="fam">
-                {{ fam }}
-              </option>
-            </select>
-
-            <!-- Gomb: Prompt helyett Modalt nyit -->
-            <button @click="openFamilyModal"
-              class="admin-btn-secondary px-3 font-bold text-xl flex items-center justify-center pb-1"
-              title="Új kategória">
-              +
-            </button>
-          </div>
+          <label class="admin-label text-xs uppercase tracking-wider text-gray-400">Szélesség (cm)</label>
+          <input type="number" step="0.1" v-model="editableComponent.width" placeholder="pl. 60" class="admin-input" />
         </div>
 
-        <!-- Anyag Célpont -->
-        <div class="col-span-2 flex flex-col gap-1">
-          <label class="admin-label text-xs uppercase tracking-wider text-gray-400">Anyag Célpont (Material
-            Target)</label>
-          <select v-model="editableComponent.materialTarget" class="admin-select"
-            :disabled="modelMaterialOptions.length === 0">
-            <option v-if="modelMaterialOptions.length === 0" value="">⚠️ Nincs anyag a modellben</option>
-            <option v-for="mat in modelMaterialOptions" :key="mat" :value="mat">{{ mat }}</option>
-          </select>
-        </div>
+
 
         <!-- Engedélyezett Anyagkategóriák -->
         <div class="col-span-2 flex flex-col gap-1">
@@ -363,33 +303,6 @@ function deleteItem() {
         </div>
       </div>
 
-    </div>
-
-    <!-- MODAL: ÚJ KATEGÓRIA LÉTREHOZÁSA -->
-    <div v-if="isFamilyModalOpen"
-      class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 backdrop-blur-sm">
-      <div
-        class="bg-gray-800 border border-gray-600 p-6 rounded-lg shadow-2xl w-full max-w-md transform transition-all scale-100">
-        <h3 class="text-xl font-bold text-white mb-4">Új Kategória Létrehozása</h3>
-
-        <div class="mb-4">
-          <label class="block text-sm text-gray-400 mb-1">Kategória neve (pl. Modern Stílus)</label>
-          <input type="text" v-model="newFamilyInput" @keyup.enter="confirmNewFamily" class="admin-input w-full text-lg"
-            placeholder="Írd be a nevet..." autofocus />
-          <p class="text-xs text-gray-500 mt-2">
-            Az azonosító automatikusan generálódik: <span class="font-mono text-blue-400">{{newFamilyInput ?
-              newFamilyInput.toLowerCase().replace(/[áéíóöőúüű]/g, c =>
-              ({ 'á': 'a', 'é': 'e', 'í': 'i', 'ó': 'o', 'ö': 'o', 'ő': 'o', 'ú': 'u', 'ü': 'u', 'ű': 'u' }[c] ||
-                c)).replace(/\s+/g,
-                  '_').replace(/[^\w-]+/g, '') : '...'}}</span>
-          </p>
-        </div>
-
-        <div class="flex justify-end gap-3">
-          <button @click="closeFamilyModal" class="admin-btn-secondary">Mégse</button>
-          <button @click="confirmNewFamily" class="admin-btn px-6">Létrehozás</button>
-        </div>
-      </div>
     </div>
   </div>
 </template>

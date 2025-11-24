@@ -11,12 +11,14 @@ export interface AttachmentPoint {
 export interface ComponentConfig {
   id: string
   name: string
+  price?: number
+  // familyId removed
+  componentType: string
   model: string
-  familyId?: string
+  height?: number
+  width?: number
   materialTarget?: string
   materialSource?: string
-  price: number
-  height?: number
   materialOptions?: string[]
   attachmentPoints?: AttachmentPoint[]
   allowedMaterialCategories?: string[]

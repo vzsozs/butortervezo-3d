@@ -13,15 +13,8 @@ export const useSettingsStore = defineStore('settings', () => {
     legs: '',
     handles: '',
   }
-  const defaultGlobalStyles = {
-    fronts: 'front_bottom_sima_60',
-    legs: 'leg_standard',
-    handles: 'handle_standard',
-  }
-
   // --- ÁLLAPOT (STATE) ---
   const globalMaterialSettings = ref<Record<string, string>>({ ...defaultGlobalMaterials })
-  const globalStyleSettings = ref<Record<string, string>>({ ...defaultGlobalStyles })
   const activeFurnitureId = ref<string | null>('also_szekreny_60')
   const areFrontsVisible = ref(true)
   const isSnappingEnabled = ref(true)
@@ -33,38 +26,12 @@ export const useSettingsStore = defineStore('settings', () => {
   /**
    * A legördülő menü hívja meg. Csak akkor fut le, ha az érték változik.
    */
-  async function setGlobalStyle(targetSlotId: string, newStyleId: string) {
-    if (!newStyleId || globalStyleSettings.value[targetSlotId] === newStyleId) {
-      return // Ne csináljunk semmit, ha nincs változás
-    }
-    // Frissítjük a globális állapotot
-    globalStyleSettings.value[targetSlotId] = newStyleId
-    // Meghívjuk a "force" logikát, ami elvégzi a piszkos munkát
-    await forceGlobalStyle(targetSlotId)
-  }
-
-  /**
-   * A legördülő menü hívja meg. Csak akkor fut le, ha az érték változik.
-   */
   async function setGlobalMaterial(targetSlotId: string, newMaterialId: string) {
     if (!newMaterialId || globalMaterialSettings.value[targetSlotId] === newMaterialId) {
       return
     }
     globalMaterialSettings.value[targetSlotId] = newMaterialId
     await forceGlobalMaterial(targetSlotId)
-  }
-
-  /**
-   * A "Frissítés" gomb hívja meg. Feltétel nélkül rákényszeríti az aktuális globális stílust minden bútorra.
-   */
-  async function forceGlobalStyle(_targetSlotId: string) {
-    const experience = experienceStore.instance
-    if (!experience) return
-
-    // NUKLEÁRIS MEGOLDÁS:
-    // Ahelyett, hogy egyesével építenénk újra (ami race condition-höz vezethet),
-    // meghívjuk a központi, zárolt updateGlobalStyles metódust.
-    await experience.updateGlobalStyles()
   }
 
   /**
@@ -84,7 +51,6 @@ export const useSettingsStore = defineStore('settings', () => {
 
   function resetToDefaults() {
     globalMaterialSettings.value = { ...defaultGlobalMaterials }
-    globalStyleSettings.value = { ...defaultGlobalStyles }
     areFrontsVisible.value = true
     isElementListVisible.value = false
     isRulerModeActive.value = false
@@ -115,7 +81,6 @@ export const useSettingsStore = defineStore('settings', () => {
   return {
     // State
     globalMaterialSettings,
-    globalStyleSettings,
     activeFurnitureId,
     areFrontsVisible,
     isSnappingEnabled,
@@ -123,9 +88,7 @@ export const useSettingsStore = defineStore('settings', () => {
     isRulerModeActive,
     // Actions
     setGlobalMaterial,
-    setGlobalStyle,
     forceGlobalMaterial,
-    forceGlobalStyle,
     setActiveFurnitureId,
     toggleFrontsVisibility,
     toggleElementListVisibility,

@@ -29,38 +29,6 @@ export const useConfigStore = defineStore('config', () => {
     return Object.values(categories).filter((c) => c.items.length > 0)
   })
 
-  const availableFamilies = computed(() => {
-    const families = new Set<string>()
-
-    // Végignézzük az összes kategóriát és komponenst
-    for (const categoryKey in components.value) {
-      const categoryList = components.value[categoryKey]
-      if (Array.isArray(categoryList)) {
-        categoryList.forEach((comp) => {
-          if (comp.familyId) {
-            families.add(comp.familyId)
-          }
-        })
-      }
-    }
-    // Ábécé sorrendbe rendezve adjuk vissza
-    return Array.from(families).sort()
-  })
-
-  function getFamiliesForType(componentType: string): string[] {
-    const families = new Set<string>()
-    const comps = components.value[componentType]
-
-    if (comps && Array.isArray(comps)) {
-      comps.forEach((c) => {
-        if (c.familyId) {
-          families.add(c.familyId)
-        }
-      })
-    }
-    return Array.from(families).sort()
-  }
-
   // --- ÚJ ACTIONS: Global Settings Kezelés ---
 
   function addGlobalSetting(setting: GlobalSettingConfig) {
@@ -204,9 +172,7 @@ export const useConfigStore = defineStore('config', () => {
     globalSettings,
     materials,
     furnitureCategories,
-    availableFamilies,
     // Action-ök
-    getFamiliesForType,
     addGlobalSetting,
     updateGlobalSetting,
     deleteGlobalSetting,

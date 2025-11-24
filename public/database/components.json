@@ -42,7 +42,7 @@
       ],
       "price": 35000,
       "allowedMaterialCategories": [],
-      "familyId": "korpusz"
+      "width": 15
     },
     {
       "name": "Alsó korpusz (60cm)",
@@ -86,7 +86,7 @@
       ],
       "price": 52000,
       "allowedMaterialCategories": [],
-      "familyId": "korpusz"
+      "width": 60
     }
   ],
   "fronts": [
@@ -107,7 +107,8 @@
         }
       ],
       "price": 28000,
-      "familyId": "keretes_ajtok"
+      "allowedMaterialCategories": [],
+      "width": 60
     },
     {
       "name": "Ajtó alsó Sima (60cm)",
@@ -126,7 +127,8 @@
         }
       ],
       "price": 19000,
-      "familyId": "ajtok_sima"
+      "allowedMaterialCategories": [],
+      "width": 60
     },
     {
       "name": "Ajtó alsó Sima (15cm)",
@@ -145,7 +147,8 @@
         }
       ],
       "price": 9000,
-      "familyId": "ajtok_sima"
+      "allowedMaterialCategories": [],
+      "width": 15
     }
   ],
   "handles": [
@@ -159,8 +162,7 @@
       ],
       "attachmentPoints": [],
       "price": 5200,
-      "allowedMaterialCategories": [],
-      "familyId": "fogantyu"
+      "allowedMaterialCategories": []
     },
     {
       "name": "Fogantyú Design",
@@ -172,8 +174,7 @@
       ],
       "attachmentPoints": [],
       "price": 4200,
-      "allowedMaterialCategories": [],
-      "familyId": "fogantyu"
+      "allowedMaterialCategories": []
     }
   ],
   "legs": [
@@ -188,8 +189,7 @@
       ],
       "attachmentPoints": [],
       "price": 5600,
-      "materialSource": "corpus",
-      "familyId": "lab_butorlap"
+      "materialSource": "corpus"
     },
     {
       "name": "Láb Bútorlapláb (15cm)",
@@ -202,8 +202,7 @@
       ],
       "attachmentPoints": [],
       "price": 3200,
-      "materialSource": "corpus",
-      "familyId": "lab_butorlap"
+      "materialSource": "corpus"
     },
     {
       "name": "Láb Csőláb",
@@ -216,7 +215,6 @@
       ],
       "attachmentPoints": [],
       "price": 1800,
-      "familyId": "lab_csolab",
       "allowedMaterialCategories": []
     }
   ],

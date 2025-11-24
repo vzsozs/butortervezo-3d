@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed, inject, type Ref } from 'vue'; 
-import { storeToRefs } from 'pinia'; 
-import { useConfigStore } from '@/stores/config'; 
-import type { ComponentSlotConfig, FurnitureConfig } from '@/config/furniture'; 
+import { computed, inject, type Ref } from 'vue';
+import { storeToRefs } from 'pinia';
+import { useConfigStore } from '@/stores/config';
+import type { ComponentSlotConfig, FurnitureConfig } from '@/config/furniture';
 import ChevronDown from '@/assets/icons/chevron-down.svg?component';
 
 // Ceruza ikon
@@ -10,13 +10,13 @@ const PencilIcon = `<svg class="w-3 h-3" fill="none" stroke="currentColor" viewB
 
 // --- TÍPUSOK ---
 type TreeNode = ComponentSlotConfig & { children?: TreeNode[] };
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+
 type SimpleUpdate = { key: keyof ComponentSlotConfig; value: any };
 type NestedUpdate = { slotId: string; update: SimpleUpdate };
 
 const props = defineProps<{
   node: TreeNode;
-  highlightedSlotId?: string | null; 
+  highlightedSlotId?: string | null;
   suggestions: { componentTypes: string[]; attachmentPoints: string[]; };
   magicGroup?: { name: string; slotIds: string[] };
 }>();
@@ -66,6 +66,28 @@ const allowedComponentsWithNames = computed(() => {
   }).sort((a, b) => a.name.localeCompare(b.name));
 });
 
+// --- SMART FILTERING (Szélesség alapján) ---
+const parentComponentWidth = computed(() => {
+  if (!props.node.attachToSlot || !editableFurniture?.value?.componentSlots) return undefined;
+  const parentSlot = editableFurniture.value.componentSlots.find(s => s.slotId === props.node.attachToSlot);
+  if (!parentSlot?.defaultComponent) return undefined;
+
+  const parentComp = getComponentById(parentSlot.defaultComponent);
+  return parentComp?.width;
+});
+
+const filteredComponents = computed(() => {
+  const all = allComponentsForType.value;
+  const targetWidth = parentComponentWidth.value;
+
+  if (targetWidth === undefined) return all;
+
+  return all.filter(comp => {
+    // Ha a komponensnek nincs szélessége (univerzális), vagy egyezik a szülővel
+    return comp.width === undefined || Math.abs(comp.width - targetWidth) < 0.1;
+  });
+});
+
 // --- UPDATE FÜGGVÉNYEK ---
 function updateSlot<K extends keyof ComponentSlotConfig>(key: K, value: ComponentSlotConfig[K]) {
   emit('update:slot', { key, value });
@@ -81,7 +103,8 @@ function updateAllowedComponent(componentId: string, isChecked: boolean) {
 }
 
 function setAllAllowedComponents(selectAll: boolean) {
-  const allIds = selectAll ? allComponentsForType.value.map(c => c.id) : [];
+  // Csak a szűrt (látható) komponenseket jelöljük ki
+  const allIds = selectAll ? filteredComponents.value.map(c => c.id) : [];
   updateSlot('allowedComponents', allIds);
 }
 
@@ -89,13 +112,13 @@ function setAllAllowedComponents(selectAll: boolean) {
 function updateAttachmentMapping(componentId: string, pointId: string, isChecked: boolean) {
   const newMapping = JSON.parse(JSON.stringify(props.node.attachmentMapping || {}));
   if (!newMapping[componentId]) newMapping[componentId] = [];
-  
+
   const points = newMapping[componentId] as string[];
   const index = points.indexOf(pointId);
-  
+
   if (isChecked && index === -1) points.push(pointId);
   else if (!isChecked && index > -1) points.splice(index, 1);
-  
+
   updateSlot('attachmentMapping', newMapping);
 
   // --- SZINKRONIZÁCIÓ ---
@@ -115,12 +138,12 @@ function setAllMappings(selectAll: boolean) {
   const newMapping = JSON.parse(JSON.stringify(props.node.attachmentMapping || {}));
   const pointsToSet = selectAll ? [...parentAttachmentPoints.value] : [];
   if (!props.node.allowedComponents) return;
-  
+
   for (const componentId of props.node.allowedComponents) {
     newMapping[componentId] = pointsToSet;
   }
   updateSlot('attachmentMapping', newMapping);
-  
+
   // Szinkronizáció itt is (ha az összeset bekapcsoljuk)
   if (props.node.defaultComponent && pointsToSet.length > 0) {
     updateSlot('useAttachmentPoint', pointsToSet[0]);
@@ -151,45 +174,51 @@ function rotate(axis: 'x' | 'y' | 'z', degrees: number) {
 
 <template>
   <div class="bg-gray-800 p-4 rounded-md border border-gray-700 mb-4"
-       :class="{ 'shadow-lg shadow-blue-500/50 ring-2 ring-blue-500': isHighlighted }">
-    
+    :class="{ 'shadow-lg shadow-blue-500/50 ring-2 ring-blue-500': isHighlighted }">
+
     <!-- FEJLÉC -->
     <div class="flex justify-between items-center">
       <div class="flex items-center gap-2 flex-grow">
-        
+
         <!-- NÉV INPUT + CERUZA (ÚJ ELRENDEZÉS) -->
         <div class="flex items-center gap-2">
           <!-- Ceruza ikon: Fixen látható, a név előtt -->
           <span class="text-gray-500" v-html="PencilIcon"></span>
-          
-          <input type="text" :value="node.name" @input="updateSlot('name', ($event.target as HTMLInputElement).value)" 
-                 class="admin-input bg-transparent text-lg font-semibold !p-0 !border-0 w-auto focus:ring-0 cursor-pointer hover:text-blue-300 transition-colors placeholder-gray-600"/>
+
+          <input type="text" :value="node.name" @input="updateSlot('name', ($event.target as HTMLInputElement).value)"
+            class="admin-input bg-transparent text-lg font-semibold !p-0 !border-0 w-auto focus:ring-0 cursor-pointer hover:text-blue-300 transition-colors placeholder-gray-600" />
         </div>
-        
+
         <!-- Varázsgomb -->
-        <button v-if="magicGroup" @click="triggerMagic" 
-                class="ml-2 text-yellow-400 hover:text-yellow-200 bg-yellow-900/30 hover:bg-yellow-900/50 px-2 py-1 rounded text-xs flex items-center gap-1 transition-colors border border-yellow-700/50"
-                title="Automatikus konfiguráció létrehozása">
+        <button v-if="magicGroup" @click="triggerMagic"
+          class="ml-2 text-yellow-400 hover:text-yellow-200 bg-yellow-900/30 hover:bg-yellow-900/50 px-2 py-1 rounded text-xs flex items-center gap-1 transition-colors border border-yellow-700/50"
+          title="Automatikus konfiguráció létrehozása">
           <span>✨</span>
           <span class="font-bold">{{ magicGroup.name }}</span>
         </button>
       </div>
 
-      <button @click="removeSlot" class="text-red-400 hover:text-red-300 p-1 rounded hover:bg-gray-700 transition-colors">
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+      <button @click="removeSlot"
+        class="text-red-400 hover:text-red-300 p-1 rounded hover:bg-gray-700 transition-colors">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16">
+          </path>
+        </svg>
       </button>
     </div>
 
     <!-- TARTALOM -->
     <div class="space-y-4 mt-4 border-t border-gray-700 pt-4">
-      
+
       <!-- Alap beállítások -->
       <div class="grid grid-cols-[auto_1fr_auto_1fr] gap-x-4 gap-y-2 items-center">
         <label class="admin-label justify-self-end">slotId</label>
         <p class="admin-input bg-gray-700/50 text-gray-400 select-none">{{ node.slotId }}</p>
 
         <label class="admin-label justify-self-end">attachToSlot</label>
-        <select :value="node.attachToSlot" @change="updateSlot('attachToSlot', ($event.target as HTMLSelectElement).value)" class="admin-select">
+        <select :value="node.attachToSlot"
+          @change="updateSlot('attachToSlot', ($event.target as HTMLSelectElement).value)" class="admin-select">
           <option value="">-- Gyökér elem --</option>
           <option v-for="slotId in availableParentSlots" :key="slotId" :value="slotId">{{ slotId }}</option>
         </select>
@@ -201,47 +230,61 @@ function rotate(axis: 'x' | 'y' | 'z', degrees: number) {
         <p class="admin-input bg-gray-700/50 text-gray-400 select-none">{{ node.componentType }}</p>
 
         <label class="admin-label justify-self-end">defaultComponent</label>
-        <select v-if="node.componentType" :value="node.defaultComponent" @change="updateSlot('defaultComponent', ($event.target as HTMLSelectElement).value)" class="admin-select">
-          <option v-for="comp in allComponentsForType.filter(c => node.allowedComponents?.includes(c.id))" :key="comp.id" :value="comp.id">{{ comp.name }}</option>
+        <select v-if="node.componentType" :value="node.defaultComponent"
+          @change="updateSlot('defaultComponent', ($event.target as HTMLSelectElement).value)" class="admin-select">
+          <option v-for="comp in allComponentsForType.filter(c => node.allowedComponents?.includes(c.id))"
+            :key="comp.id" :value="comp.id">{{ comp.name }}</option>
         </select>
       </div>
-      
+
       <!-- Engedélyezett Komponensek -->
       <div>
         <div class="flex justify-between items-center mb-2">
           <label class="admin-label !mb-0">Engedélyezett Komponensek</label>
           <!-- JAVÍTÁS: Egy div-be csomagolva a gombok -->
           <div class="flex gap-2">
-            <button @click="setAllAllowedComponents(true)" class="admin-btn-secondary text-xs !py-1 !px-2">Összes</button>
-            <button @click="setAllAllowedComponents(false)" class="admin-btn-secondary text-xs !py-1 !px-2">Semelyik</button>
+            <button @click="setAllAllowedComponents(true)"
+              class="admin-btn-secondary text-xs !py-1 !px-2">Összes</button>
+            <button @click="setAllAllowedComponents(false)"
+              class="admin-btn-secondary text-xs !py-1 !px-2">Semelyik</button>
           </div>
         </div>
-        
+
         <div class="max-h-48 overflow-y-auto space-y-1 border border-gray-700 rounded-md p-3">
-          <div v-if="allComponentsForType.length === 0" class="text-xs text-gray-500 italic text-center py-2">
-            Nincsenek komponensek a kiválasztott 'componentType'-hoz.
+          <div v-if="filteredComponents.length === 0" class="text-xs text-gray-500 italic text-center py-2">
+            Nincsenek kompatibilis komponensek (Szélesség: {{ parentComponentWidth ? parentComponentWidth + 'cm' :
+              'Bármely' }}).
           </div>
-          <label v-for="comp in allComponentsForType" :key="comp.id" class="flex items-center gap-2 cursor-pointer p-1 rounded hover:bg-gray-700/50 transition-colors">
-            <input type="checkbox" :checked="node.allowedComponents?.includes(comp.id)" @change="updateAllowedComponent(comp.id, ($event.target as HTMLInputElement).checked)" class="form-checkbox bg-gray-700 border-gray-600 text-blue-500 focus:ring-blue-500"/>
+          <label v-for="comp in filteredComponents" :key="comp.id"
+            class="flex items-center gap-2 cursor-pointer p-1 rounded hover:bg-gray-700/50 transition-colors">
+            <input type="checkbox" :checked="node.allowedComponents?.includes(comp.id)"
+              @change="updateAllowedComponent(comp.id, ($event.target as HTMLInputElement).checked)"
+              class="form-checkbox bg-gray-700 border-gray-600 text-blue-500 focus:ring-blue-500" />
             <span class="text-gray-300">{{ comp.name }}</span>
+            <span v-if="comp.width" class="text-xs text-gray-500">({{ comp.width }} cm)</span>
           </label>
         </div>
       </div>
 
       <!-- Haladó beállítások -->
       <div class="space-y-4 mt-4 border-t border-gray-700 pt-4">
-        
+
         <!-- Forgatási Szabályok -->
         <div v-if="node.attachToSlot">
           <label class="admin-label mb-2">Forgatási Szabályok</label>
           <div class="grid grid-cols-3 gap-3">
-            <div v-for="axis in (['x', 'y', 'z'] as const)" :key="axis" class="flex items-center justify-between bg-gray-900 rounded-md px-2 py-1">
-              <button @click="rotate(axis, -90)" class="p-2 rounded-md hover:bg-gray-700 transition-colors"><ChevronDown class="w-5 h-5 transform rotate-90 text-gray-300" /></button>
+            <div v-for="axis in (['x', 'y', 'z'] as const)" :key="axis"
+              class="flex items-center justify-between bg-gray-900 rounded-md px-2 py-1">
+              <button @click="rotate(axis, -90)" class="p-2 rounded-md hover:bg-gray-700 transition-colors">
+                <ChevronDown class="w-5 h-5 transform rotate-90 text-gray-300" />
+              </button>
               <div class="text-center">
                 <span class="text-xs text-gray-500 uppercase">{{ axis }}</span>
                 <span class="font-mono text-lg text-gray-300 block">{{ rotationInDegrees[axis] }}°</span>
               </div>
-              <button @click="rotate(axis, 90)" class="p-2 rounded-md hover:bg-gray-700 transition-colors"><ChevronDown class="w-5 h-5 transform -rotate-90 text-gray-300" /></button>
+              <button @click="rotate(axis, 90)" class="p-2 rounded-md hover:bg-gray-700 transition-colors">
+                <ChevronDown class="w-5 h-5 transform -rotate-90 text-gray-300" />
+              </button>
             </div>
           </div>
         </div>
@@ -255,8 +298,9 @@ function rotate(axis: 'x' | 'y' | 'z', degrees: number) {
               <button @click="setAllMappings(false)" class="admin-btn-secondary text-xs !py-1 !px-2">Semelyik</button>
             </div>
           </div>
-          
-          <div v-if="!allowedComponentsWithNames || allowedComponentsWithNames.length === 0" class="text-xs text-gray-500 italic">
+
+          <div v-if="!allowedComponentsWithNames || allowedComponentsWithNames.length === 0"
+            class="text-xs text-gray-500 italic">
             Válassz ki legalább egy "allowedComponent"-et a szabályok beállításához.
           </div>
 
@@ -264,17 +308,16 @@ function rotate(axis: 'x' | 'y' | 'z', degrees: number) {
             <div v-for="component in allowedComponentsWithNames" :key="component.id">
               <div class="flex items-center gap-2 mb-2">
                 <p class="font-semibold text-sm text-gray-300">{{ component.name }}</p>
-                <span v-if="component.id === node.defaultComponent" class="text-xs bg-blue-900 text-blue-300 px-1.5 rounded">Default</span>
+                <span v-if="component.id === node.defaultComponent"
+                  class="text-xs bg-blue-900 text-blue-300 px-1.5 rounded">Default</span>
               </div>
-              
+
               <div class="pl-2 flex flex-col gap-1">
-                <label v-for="pointId in parentAttachmentPoints" :key="pointId" class="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-800/50 rounded p-0.5">
-                  <input 
-                    type="checkbox"
-                    :checked="node.attachmentMapping?.[component.id]?.includes(pointId)"
+                <label v-for="pointId in parentAttachmentPoints" :key="pointId"
+                  class="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-800/50 rounded p-0.5">
+                  <input type="checkbox" :checked="node.attachmentMapping?.[component.id]?.includes(pointId)"
                     @change="updateAttachmentMapping(component.id, pointId, ($event.target as HTMLInputElement).checked)"
-                    class="form-checkbox bg-gray-700 border-gray-600 text-blue-500 focus:ring-blue-500"
-                  />
+                    class="form-checkbox bg-gray-700 border-gray-600 text-blue-500 focus:ring-blue-500" />
                   <span class="font-mono text-gray-300">{{ pointId }}</span>
                 </label>
               </div>
@@ -284,7 +327,7 @@ function rotate(axis: 'x' | 'y' | 'z', degrees: number) {
             </div>
           </div>
         </div>
-        
+
         <div v-else-if="node.attachToSlot" class="text-xs text-yellow-400 bg-yellow-900/20 p-2 rounded">
           ⚠️ A szülő komponens nem kínál csatlakozási pontokat (attachmentPoints).
         </div>
@@ -294,17 +337,10 @@ function rotate(axis: 'x' | 'y' | 'z', degrees: number) {
 
     <!-- REKURZÍV GYEREKEK -->
     <div v-if="node.children && node.children.length > 0" class="ml-6 mt-4 space-y-4 border-l-2 border-gray-600 pl-4">
-      <SlotNode 
-        v-for="childNode in node.children" 
-        :key="childNode.slotId"
-        :node="childNode"
-        :suggestions="suggestions"
-        :highlighted-slot-id="highlightedSlotId" 
-        :magic-group="magicGroup" 
+      <SlotNode v-for="childNode in node.children" :key="childNode.slotId" :node="childNode" :suggestions="suggestions"
+        :highlighted-slot-id="highlightedSlotId" :magic-group="magicGroup"
         @update:slot="payload => emit('update:slot', { slotId: childNode.slotId, update: payload as SimpleUpdate })"
-        @remove:slot="slotId => emit('remove:slot', slotId)"
-        @activate-magic="(g, s) => emit('activate-magic', g, s)"
-      />
+        @remove:slot="slotId => emit('remove:slot', slotId)" @activate-magic="(g, s) => emit('activate-magic', g, s)" />
     </div>
   </div>
 </template>
