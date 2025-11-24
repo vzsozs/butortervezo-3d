@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, inject, type Ref } from 'vue';
+import { computed, inject, ref, type Ref } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useConfigStore } from '@/stores/config';
 import type { ComponentSlotConfig, FurnitureConfig } from '@/config/furniture';
@@ -76,11 +76,13 @@ const parentComponentWidth = computed(() => {
   return parentComp?.width;
 });
 
+const ignoreWidthFilter = ref(false);
+
 const filteredComponents = computed(() => {
   const all = allComponentsForType.value;
   const targetWidth = parentComponentWidth.value;
 
-  if (targetWidth === undefined) return all;
+  if (targetWidth === undefined || ignoreWidthFilter.value) return all;
 
   return all.filter(comp => {
     // Ha a komponensnek nincs szélessége (univerzális), vagy egyezik a szülővel
@@ -240,7 +242,15 @@ function rotate(axis: 'x' | 'y' | 'z', degrees: number) {
       <!-- Engedélyezett Komponensek -->
       <div>
         <div class="flex justify-between items-center mb-2">
-          <label class="admin-label !mb-0">Engedélyezett Komponensek</label>
+          <div class="flex items-center gap-2">
+            <label class="admin-label !mb-0">Engedélyezett Komponensek</label>
+            <!-- Szélesség szűrő toggle -->
+            <label class="flex items-center gap-1 cursor-pointer select-none" title="Szélesség szűrés kikapcsolása">
+              <input type="checkbox" v-model="ignoreWidthFilter"
+                class="form-checkbox w-3 h-3 text-blue-500 bg-gray-700 border-gray-600 rounded focus:ring-0">
+              <span class="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Minden méret</span>
+            </label>
+          </div>
           <!-- JAVÍTÁS: Egy div-be csomagolva a gombok -->
           <div class="flex gap-2">
             <button @click="setAllAllowedComponents(true)"
