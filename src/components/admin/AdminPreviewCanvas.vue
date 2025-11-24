@@ -9,6 +9,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'slot-clicked', slotId: string): void;
+  (e: 'attachment-clicked', pointId: string): void;
 }>();
 
 const canvasContainer = ref<HTMLDivElement | null>(null);
@@ -21,7 +22,7 @@ function updateCanvas(config: Partial<FurnitureConfig> | null, resetCamera: bool
 
   // Ellenőrizzük, hogy van-e értelme kirajzolni valamit (van-e gyökér elem)
   const hasDrawableRoot = config?.componentSlots?.some(slot => !slot.attachToSlot && slot.defaultComponent);
-    
+
   if (config && hasDrawableRoot) {
     // Type casting: Itt már biztosak vagyunk benne, hogy ez egy valid config
     experience.updateObject(config as FurnitureConfig, resetCamera);
@@ -41,7 +42,7 @@ watch(() => props.furnitureConfig, (newConfig, oldConfig) => {
   // Csak akkor resetelünk kamerát, ha teljesen új bútort töltöttünk be (más az ID).
   // Ha csak a nevét írja át vagy slotot állít, a kamera maradjon ott, ahol volt!
   const shouldResetCamera = !oldConfig || oldConfig.id !== newConfig.id;
-  
+
   updateCanvas(newConfig, shouldResetCamera);
 }, { deep: true });
 
@@ -51,6 +52,7 @@ onMounted(() => {
     // 1. Three.js indítása
     experience = new AdminExperience(canvasContainer.value);
     experience.addEventListener('slotClicked', handleSlotClickFrom3D);
+    experience.addEventListener('attachmentClicked', handleAttachmentClickFrom3D);
 
     // 2. Kezdeti kirajzolás (ha van mit)
     if (props.furnitureConfig?.id) {
@@ -66,26 +68,44 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-  // Takarítás
-  resizeObserver?.disconnect();
-  experience?.removeEventListener('slotClicked', handleSlotClickFrom3D);
-  experience?.destroy();
-  experience = null;
+  if (experience) {
+    experience.removeEventListener('slotClicked', handleSlotClickFrom3D);
+    experience.removeEventListener('attachmentClicked', handleAttachmentClickFrom3D);
+    experience.destroy();
+    experience = null;
+  }
+  if (resizeObserver) {
+    resizeObserver.disconnect();
+    resizeObserver = null;
+  }
 });
 
-// --- ESEMÉNYKEZELÉS ---
-function handleSlotClickFrom3D(event: Event) {
-  // Típusbiztosabb eseménykezelés
-  const detail = (event as CustomEvent).detail;
-  if (detail && typeof detail.slotId === 'string') {
-    emit('slot-clicked', detail.slotId);
+// --- EVENT HANDLERS ---
+function handleSlotClickFrom3D(event: any) {
+  const slotId = event.detail.slotId;
+  if (slotId) {
+    emit('slot-clicked', slotId);
   }
 }
+
+function handleAttachmentClickFrom3D(event: any) {
+  const pointId = event.detail.pointId;
+  if (pointId) {
+    emit('attachment-clicked', pointId);
+  }
+}
+
+defineExpose({
+  toggleAttachmentMarkers: (visible: boolean, activePoints: string[]) => {
+    experience?.toggleAttachmentMarkers(visible, activePoints);
+  }
+});
 </script>
 
 <template>
-  <!-- A ref nevét átírtam canvasContainer-re, hogy egyértelműbb legyen -->
-  <div ref="canvasContainer" class="w-full h-full rounded-lg bg-gray-800 cursor-pointer overflow-hidden relative">
-    <!-- Ide jöhetne pl. egy loading spinner, ha épp töltődik a modell -->
-  </div>
+  <div ref="canvasContainer" class="w-full h-full"></div>
 </template>
+
+<style scoped>
+/* Ha kell valami specifikus */
+</style>

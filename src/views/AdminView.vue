@@ -21,11 +21,41 @@ onMounted(() => {
 });
 
 // --- BÚTOR ÁLLAPOTOK ---
-const editingFurniture = ref<Partial<FurnitureConfig> | null>(null);
+// --- BÚTOR ÁLLAPOTOK ---
+const editingFurniture = ref<FurnitureConfig | null>(null);
 const isNewFurniture = ref(false);
-const furnitureEditorRef = ref<{ scrollToSlot: (id: string) => void } | null>(null);
+const furnitureEditorRef = ref<{
+  scrollToSlot: (id: string) => void;
+  handleAttachmentClick: (pointId: string) => void;
+} | null>(null);
+const adminSidePanelRef = ref<{ toggleAttachmentMarkers: (visible: boolean, activePoints: string[]) => void } | null>(null);
 const originalFurniture = ref<Partial<FurnitureConfig> | null>(null);
 const furnitureEditorKey = ref<string | undefined>(undefined);
+
+// ... (rest of the script)
+
+function handleToggleMarkers(visible: boolean, activePoints: string[]) {
+  adminSidePanelRef.value?.toggleAttachmentMarkers(visible, activePoints);
+}
+
+function handleAttachmentClicked(pointId: string) {
+  furnitureEditorRef.value?.handleAttachmentClick(pointId);
+}
+
+// ... (rest of the script)
+
+// --- TEMPLATE UPDATE ---
+// In the template, I need to bind the refs and events.
+// Since replace_file_content works on chunks, I'll do this in two parts if needed,
+// but I can try to target the script section first.
+
+// Wait, I can't insert functions in the middle of the script easily without context.
+// I'll replace the "BÚTOR ÁLLAPOTOK" section to add refs.
+// And then add the functions at the end of the script or somewhere appropriate.
+
+// Let's try to do it in one go if possible, or split it.
+// I'll replace the BÚTOR ÁLLAPOTOK section first.
+
 
 // --- KOMPONENS ÁLLAPOTOK ---
 const selectedComponent = ref<Partial<ComponentConfig> | null>(null);
@@ -276,6 +306,8 @@ function handleDeleteComponent(component: ComponentConfig) {
 function handleSaveComponentsToServer() {
   saveDatabase('components.json', allComponents.value);
 }
+
+
 </script>
 
 <template>
@@ -314,10 +346,10 @@ function handleSaveComponentsToServer() {
 
           <!-- Bal oldali sáv (SidePanel) -->
           <div class="col-span-4 self-start sticky top-8">
-            <AdminSidePanel v-if="activeTab === 'furniture'" :furniture-list="allFurniture"
+            <AdminSidePanel v-if="activeTab === 'furniture'" ref="adminSidePanelRef" :furniture-list="allFurniture"
               :selected-furniture="editingFurniture" @update:selected-furniture="handleSelectFurniture"
-              @create-new="handleCreateNewFurniture" @save-changes="handleSaveChanges"
-              @slot-clicked="handleSlotClicked" />
+              @create-new="handleCreateNewFurniture" @save-changes="handleSaveChanges" @slot-clicked="handleSlotClicked"
+              @attachment-clicked="handleAttachmentClicked" />
             <ComponentSidePanel v-if="activeTab === 'components'"
               :key="selectedComponent ? selectedComponent.id : 'no-component-selected'"
               :component-database="allComponents" :selected-component="selectedComponent"
@@ -331,9 +363,9 @@ function handleSaveComponentsToServer() {
 
             <!-- Bútor Szerkesztő -->
             <div v-if="activeTab === 'furniture'">
-              <FurnitureEditor v-if="editingFurniture" :key="furnitureEditorKey" v-model:furniture="editingFurniture"
-                :is-new="isNewFurniture" @cancel="handleCancelFurniture" @delete="handleDeleteFurniture"
-                @save="handleSaveFurniture" />
+              <FurnitureEditor v-if="editingFurniture" ref="furnitureEditorRef" :key="furnitureEditorKey"
+                v-model:furniture="editingFurniture" :is-new="isNewFurniture" @cancel="handleCancelFurniture"
+                @delete="handleDeleteFurniture" @save="handleSaveFurniture" @toggle-markers="handleToggleMarkers" />
               <div v-else class="text-center text-gray-500 p-8">
                 <p>Válassz ki egy bútort a szerkesztéshez, vagy hozz létre egy újat.</p>
               </div>
