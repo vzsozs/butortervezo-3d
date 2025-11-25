@@ -4,6 +4,7 @@ import { storeToRefs } from 'pinia'; // HOZZÁADVA: storeToRefs
 import type { FurnitureConfig, ComponentSlotConfig, Schema } from '@/config/furniture'; // HOZZÁADVA: Schema
 import { useConfigStore } from '@/stores/config';
 import SlotNode from './SlotNode.vue';
+import ChevronDown from '@/assets/icons/chevron-down.svg?component';
 
 // --- TÍPUSOK ---
 // JAVÍTÁS: Kikapcsoljuk az any ellenőrzést erre a sorra, mert itt szükséges a dinamikus típus
@@ -33,6 +34,8 @@ provide('editableFurniture', editableFurniture);
 
 // --- TAB KEZELÉS ---
 const activeTab = ref<'general' | 'layouts'>('general');
+// Track which schema is currently expanded in the UI
+const openSchemaId = ref<string | null>(null);
 
 // --- SLOT TEMPLATES ---
 const slotTemplates: Record<string, { name: string, type: string, prefix: string }> = {
@@ -67,6 +70,7 @@ watch(editableFurniture, (newVal) => {
 }, { deep: true });
 
 // --- 1. SLOT HOZZÁADÁS ---
+
 function addSlotFromTemplate(template: { name: string, type: string, prefix: string }) {
   if (!editableFurniture.value) return;
   if (!editableFurniture.value.componentSlots) editableFurniture.value.componentSlots = [];
@@ -237,216 +241,141 @@ function getSecondaryPoints(points: any[]) {
   return points.filter(p => !p.allowedComponentTypes.some((t: string) => primaryPointTypes.includes(t)));
 }
 
+function getChildAttachmentPoints(slotId: string, schema?: Schema) {
+  if (!editableFurniture.value?.componentSlots) return [];
+  const slot = editableFurniture.value.componentSlots.find(s => s.slotId === slotId);
+
+  if (!slot) {
+    // console.log(`getChildAttachmentPoints: Slot ${slotId} not found`);
+    return [];
+  }
+
+  // 1. Try to get component from Schema (if provided)
+  let componentId = slot.defaultComponent;
+  if (schema && schema.apply[slotId]) {
+    componentId = schema.apply[slotId];
+  }
+
+  if (!componentId) {
+    // console.log(`getChildAttachmentPoints: Slot ${slotId} has no default component`);
+    return [];
+  }
+
+  const comp = configStore.getComponentById(componentId);
+  if (!comp) {
+    // console.warn(`getChildAttachmentPoints: Component ${componentId} not found for slot ${slotId}`);
+    return [];
+  }
+
+  // console.log(`getChildAttachmentPoints for ${slotId} (${componentId}):`, comp.attachmentPoints);
+  return comp.attachmentPoints || [];
+}
+
 // Ikonok
 const PencilIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>`;
-const EyeIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>`;
-const EyeOffIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"></path></svg>`;
 
-// 2. Új Séma Létrehozása
-function createNewSchema() {
-  if (!editableFurniture.value) return;
-  if (!editableFurniture.value.slotGroups) editableFurniture.value.slotGroups = [];
 
-  // Keressük meg (vagy hozzuk létre) a "Layouts" csoportot
-  let layoutGroup = editableFurniture.value.slotGroups.find(g => g.name === 'Layouts');
-  if (!layoutGroup) {
-    layoutGroup = {
-      groupId: 'group_layouts',
-      name: 'Layouts',
-      controlType: 'schema_select',
-      controlledSlots: [], // Ezt majd dinamikusan töltjük
-      schemas: []
-    };
-    editableFurniture.value.slotGroups.push(layoutGroup);
-  }
-
-  const newSchema: Schema = {
-    id: `schema_${Date.now()}`,
-    name: 'Új Elrendezés',
-    apply: {}
-  };
-
-  // Alapértelmezésben minden dummy AKTÍV (az első elérhető komponenssel)
-  corpusAttachmentPoints.value.forEach(p => {
-    // A slotId-t a dummy nevéből generáljuk (pl. attach_door_L -> slot_door_L)
-    const slotId = p.id.replace('attach_', 'slot_');
-
-    // Keressünk default komponenst
-    const type = p.allowedComponentTypes[0] || '';
-    // storeComponents egy ref, de a template-ben simán használjuk. Itt .value kellhet?
-    // A storeToRefs miatt ez egy Ref<Record<...>>.
-    const comps = (storeComponents.value && storeComponents.value[type]) || [];
-    const defaultCompId = comps[0]?.id || '';
-
-    // Ha van komponens, akkor bekapcsoljuk
-    if (defaultCompId) {
-      newSchema.apply[slotId] = defaultCompId;
-    } else {
-      // Ha nincs (pl. üres kategória), akkor inaktív marad
-      newSchema.apply[slotId] = null;
-    }
-  });
-
-  layoutGroup.schemas.push(newSchema);
-}
-
-// 3. Séma Törlése
-function deleteSchema(schemaIdx: number) {
+function updateControlledSlots() {
   if (!editableFurniture.value?.slotGroups) return;
   const layoutGroup = editableFurniture.value.slotGroups.find(g => g.name === 'Layouts');
-  if (layoutGroup) {
-    layoutGroup.schemas.splice(schemaIdx, 1);
-  }
-}
+  if (!layoutGroup) return;
 
-// Helper: Megkeresi, hogy a sémában melyik slot "tölti be" az adott attachment pointot.
-function findSlotForSchemaPoint(schema: Schema, pointId: string): { slotId: string, componentId: string } | null {
-  if (!editableFurniture.value?.componentSlots) return null;
+  const activeSlotIds = new Set<string>();
 
-  for (const [slotId, componentId] of Object.entries(schema.apply)) {
-    if (!componentId) continue; // Inaktív
-
-    const slot = editableFurniture.value.componentSlots.find(s => s.slotId === slotId);
-    if (!slot) continue;
-
-    // Ellenőrizzük a mappinget
-    // 1. Ha van attachmentMapping és a kiválasztott komponenshez tartozik szabály
-    if (slot.attachmentMapping && slot.attachmentMapping[componentId]) {
-      if (slot.attachmentMapping[componentId]?.includes(pointId)) return { slotId, componentId };
-    }
-    // 2. Ha nincs mapping, vagy nincs szabály, akkor a slot alapértelmezett pontját nézzük?
-    // A schema logika szerint a komponens választás vezérli a pontot.
-    // Ha a slot "fix" (nincs mapping), akkor a useAttachmentPoint a mérvadó.
-    else if (slot.useAttachmentPoint === pointId) {
-      return { slotId, componentId };
-    }
-
-    // 3. Fallback: A slot ID-ból következtetünk (régi logika kompatibilitás)
-    if (slotId === pointId.replace('attach_', 'slot_')) {
-      return { slotId, componentId };
-    }
-  }
-  return null;
-}
-
-// Helper: Megkeresi a legjobb szabad slotot egy új attachment point aktiválásához
-function findBestSlotForPoint(schema: Schema, pointId: string, componentType: string): string {
-  // Ha nincs slot lista, akkor generálunk egyet
-  if (!editableFurniture.value?.componentSlots) return generateFriendlySlotId(componentType);
-
-  // 1. Gyűjtsük ki azokat a slotokat, amik már foglaltak ebben a sémában
-  const usedSlotIds = new Set<string>();
-  for (const [sId, cId] of Object.entries(schema.apply)) {
-    if (cId) usedSlotIds.add(sId);
-  }
-
-  // 2. Keressünk kompatibilis, szabad slotokat
-  const candidates = editableFurniture.value.componentSlots.filter(slot => {
-    // Típus egyezés
-    if (slot.componentType !== componentType) return false;
-
-    // Már foglalt?
-    if (usedSlotIds.has(slot.slotId)) return false;
-
-    // JAVÍTÁS: Ha a slotnak van fix pozíciója (useAttachmentPoint), akkor CSAK ahhoz a ponthoz jó!
-    // Akkor is, ha a mapping szerint máshova is jó lenne (mert ez már egy létező, pozícionált példány).
-    if (slot.useAttachmentPoint && slot.useAttachmentPoint !== pointId) return false;
-
-    // Képes csatlakozni ehhez a ponthoz?
-    // Vagy fixen ezen van, vagy van mappingje hozzá (bármelyik komponenssel)
-    const isFixedHere = slot.useAttachmentPoint === pointId;
-    const canMapHere = slot.attachmentMapping && Object.values(slot.attachmentMapping).some(points => points.includes(pointId));
-
-    return isFixedHere || canMapHere;
+  layoutGroup.schemas.forEach(schema => {
+    Object.entries(schema.apply).forEach(([slotId, val]) => {
+      if (val !== null) activeSlotIds.add(slotId);
+    });
   });
 
-  // 3. Válasszuk ki a legjobbat
-  if (candidates.length > 0) {
-    return candidates[0]!.slotId;
-  }
+  // 1. Frissítsük a csoport controlledSlots listáját
+  layoutGroup.controlledSlots = Array.from(activeSlotIds).sort();
 
-  // 4. Ha nincs szabad, generáljunk újat BARÁTSÁGOS névvel ÉS HOZZUK IS LÉTRE
-  const newSlotId = generateFriendlySlotId(componentType);
+  // 2. Győződjünk meg róla, hogy ezek a slotok léteznek a bútorban
+  if (!editableFurniture.value.componentSlots) editableFurniture.value.componentSlots = [];
 
-  // Létrehozás
-  const corpusSlot = editableFurniture.value.componentSlots.find(s => s.slotId.includes('corpus'));
-  const newSlot: ComponentSlotConfig = {
-    slotId: newSlotId,
-    name: `${slotTemplates[componentType.replace(/s$/, '')]?.name || componentType} ${newSlotId.split('_')[1]}`, // Pl. Ajtó 2
-    componentType: componentType,
-    allowedComponents: [],
-    defaultComponent: null,
-    attachToSlot: corpusSlot?.slotId || '',
-    useAttachmentPoint: pointId, // Itt tudjuk a pointId-t!
-    position: { x: 0, y: 0, z: 0 },
-    rotation: { x: 0, y: 0, z: 0 },
-    scale: { x: 1, y: 1, z: 1 },
-    isAutoGenerated: true // Rejtett slot
-  };
+  activeSlotIds.forEach(slotId => {
+    const exists = editableFurniture.value!.componentSlots.find(s => s.slotId === slotId);
+    if (!exists) {
+      let attachPointId = '';
+      let explicitParentId = '';
 
-  editableFurniture.value.componentSlots.push(newSlot);
+      // Check for Composite ID (parent__point)
+      if (slotId.includes('__')) {
+        const parts = slotId.split('__');
+        explicitParentId = parts[0];
+        attachPointId = parts[1];
+      } else {
+        // Legacy / Standard ID
+        if (slotId.startsWith('slot_')) {
+          attachPointId = slotId.replace('slot_', 'attach_');
+        }
+      }
 
-  return newSlotId;
-}
+      if (attachPointId) {
+        // Find the parent slot that has this attachment point
+        let parentSlotId = '';
+        let pointDef;
 
-function generateFriendlySlotId(componentType: string): string {
-  // Keressük meg a template prefixet
-  let prefix = 'slot';
-  for (const key in slotTemplates) {
-    if (slotTemplates[key]!.type === componentType) {
-      prefix = slotTemplates[key]!.prefix;
-      break;
+        if (explicitParentId) {
+          // If we have an explicit parent, use it!
+          parentSlotId = explicitParentId;
+          const parentSlot = editableFurniture.value!.componentSlots.find(s => s.slotId === explicitParentId);
+          if (parentSlot && parentSlot.defaultComponent) {
+            const comp = configStore.getComponentById(parentSlot.defaultComponent);
+            pointDef = comp?.attachmentPoints?.find(p => p.id === attachPointId);
+          }
+        } else {
+          // Fallback logic (Corpus or search)
+          // 1. Check Corpus
+          parentSlotId = editableFurniture.value!.componentSlots.find(s => s.slotId.includes('corpus'))?.slotId || '';
+          pointDef = corpusAttachmentPoints.value.find(p => p.id === attachPointId);
+
+          // 2. Check other slots (if not found on corpus)
+          if (!pointDef) {
+            for (const slot of editableFurniture.value!.componentSlots) {
+              if (slot.defaultComponent) {
+                const comp = configStore.getComponentById(slot.defaultComponent);
+                const match = comp?.attachmentPoints?.find(p => p.id === attachPointId);
+                if (match) {
+                  pointDef = match;
+                  parentSlotId = slot.slotId;
+                  break;
+                }
+              }
+            }
+          }
+        }
+
+        if (!pointDef) {
+          console.error(`CRITICAL: Point definition NOT found for ${attachPointId} (derived from ${slotId})`);
+          // console.log('Available points:', corpusAttachmentPoints.value.map(p => p.id));
+        } else {
+          console.log(`Creating new slot: ${slotId} for point ${attachPointId} on parent ${parentSlotId}`);
+          const newSlot: ComponentSlotConfig = {
+            slotId: slotId,
+            name: pointDef ? pointDef.id : slotId,
+            componentType: (pointDef && pointDef.allowedComponentTypes.length > 0) ? pointDef.allowedComponentTypes[0]! : 'unknown',
+            allowedComponents: [],
+            defaultComponent: null,
+            attachToSlot: parentSlotId,
+            useAttachmentPoint: attachPointId,
+            position: { x: 0, y: 0, z: 0 },
+            rotation: { x: 0, y: 0, z: 0 },
+            scale: { x: 1, y: 1, z: 1 }
+          };
+          editableFurniture.value!.componentSlots.push(newSlot);
+        }
+      }
     }
-  }
-
-  // Keressünk egy szabad számot
-  let count = 1;
-  while (editableFurniture.value?.componentSlots?.some(s => s.slotId === `${prefix}_${count}`) ?? false) {
-    count++;
-  }
-
-  return `${prefix}_${count}`;
+  });
 }
 
-// Helper a UI-hoz: Melyik sémában mi az állapot
-function getDummyState(schema: Schema, pointId: string) {
-  return findSlotForSchemaPoint(schema, pointId) !== null;
-}
 
-function getDummyComponent(schema: Schema, pointId: string) {
-  const result = findSlotForSchemaPoint(schema, pointId);
-  return result ? result.componentId : '';
-}
-
-function setDummyComponent(schema: Schema, pointId: string, componentId: string) {
-  // Ha már aktív, akkor a meglévő slotot frissítjük
-  const current = findSlotForSchemaPoint(schema, pointId);
-  if (current) {
-    schema.apply[current.slotId] = componentId;
-  } else {
-    // Ha nem aktív, akkor aktiváljuk (ez elvileg nem fordulhat elő a UI-n, mert a select csak aktívnál látszik)
-    toggleDummyInSchema(schema, pointId, true);
-    // Majd beállítjuk a komponenst
-    const newCurrent = findSlotForSchemaPoint(schema, pointId);
-    if (newCurrent) schema.apply[newCurrent.slotId] = componentId;
-  }
-
-  // Auto-preview frissítés
-  if (activePreviewSchemaId.value === schema.id) applyPreview(schema);
-}
-
-// 6. Preview Logika (Moved up)
-const activePreviewSchemaId = ref<string | null>(null);
-const previewBackup = ref<Record<string, string | null>>({}); // SlotId -> defaultComponent
-
-// 4. Segédfüggvények a Sémákhoz
-
-
-// --- GRAPHICAL SELECTOR ---
 function updateMarkers() {
-  if (!activePreviewSchemaId.value) return;
+  if (!openSchemaId.value) return;
 
-  const schema = editableFurniture.value?.slotGroups?.find(g => g.name === 'Layouts')?.schemas.find(s => s.id === activePreviewSchemaId.value);
+  const schema = editableFurniture.value?.slotGroups?.find(g => g.name === 'Layouts')?.schemas.find(s => s.id === openSchemaId.value);
   if (!schema) return;
 
   const activePoints: string[] = [];
@@ -462,9 +391,9 @@ function updateMarkers() {
 }
 
 function handleAttachmentClick(pointId: string) {
-  if (!activePreviewSchemaId.value) return;
+  if (!openSchemaId.value) return;
 
-  const schema = editableFurniture.value?.slotGroups?.find(g => g.name === 'Layouts')?.schemas.find(s => s.id === activePreviewSchemaId.value);
+  const schema = editableFurniture.value?.slotGroups?.find(g => g.name === 'Layouts')?.schemas.find(s => s.id === openSchemaId.value);
   if (!schema) return;
 
   // Megnézzük, hogy jelenleg aktív-e
@@ -474,13 +403,11 @@ function handleAttachmentClick(pointId: string) {
   toggleDummyInSchema(schema, pointId, !isActive);
 }
 
-// Watcher a preview változásra (hogy be/kikapcsoljuk a markereket)
-watch(activePreviewSchemaId, (newId) => {
+// Watcher for openSchemaId to toggle markers
+watch(openSchemaId, (newId) => {
   if (newId) {
-    // Bekapcsoláskor frissítünk
-    setTimeout(() => updateMarkers(), 100); // Kis késleltetés, hogy a 3D biztos kész legyen
+    setTimeout(() => updateMarkers(), 100);
   } else {
-    // Kikapcsoláskor eltüntetjük
     emit('toggle-markers', false, []);
   }
 });
@@ -509,29 +436,60 @@ defineExpose({
 });
 
 // 4. Séma Szerkesztése (Dummy Toggle)
-function toggleDummyInSchema(schema: Schema, pointId: string, isActive: boolean) {
+function toggleDummyInSchema(schema: Schema, pointId: string, isActive: boolean, parentSlotId?: string) {
   // DEBUG: Logoljuk a kattintást
-  console.log(`Toggle Dummy: Schema=${schema.name}, Point=${pointId}, Active=${isActive}`);
+  console.log(`Toggle Dummy: Schema=${schema.name}, Point=${pointId}, Active=${isActive}, Parent=${parentSlotId}`);
 
   if (isActive) {
     // AKTÍV: Kell egy slot és egy komponens
-    const pointDef = corpusAttachmentPoints.value.find(p => p.id === pointId);
+    let pointDef;
+
+    if (parentSlotId) {
+      // Ha van szülő, akkor azon keressük a pontot
+      const parentSlot = allSlots.value.find(s => s.slotId === parentSlotId);
+      if (parentSlot && parentSlot.defaultComponent) {
+        const parentComp = configStore.getComponentById(parentSlot.defaultComponent);
+        pointDef = parentComp?.attachmentPoints?.find(p => p.id === pointId);
+      }
+    } else {
+      // Ha nincs, akkor a korpuszon
+      pointDef = corpusAttachmentPoints.value.find(p => p.id === pointId);
+    }
+
     if (!pointDef) {
-      console.error(`Point definition not found for ${pointId}`);
+      console.error(`Point definition not found for ${pointId} (Parent: ${parentSlotId})`);
       return;
     }
 
     const type = pointDef.allowedComponentTypes[0] || '';
 
     // Keressünk slotot
-    const slotId = findBestSlotForPoint(schema, pointId, type);
-    console.log(`Found/Created slot: ${slotId} for point ${pointId}`);
+    const slotId = findBestSlotForPoint(schema, pointId, type, parentSlotId);
+    console.log(`Found/Created slot: ${slotId} for point ${pointId} (Parent: ${parentSlotId})`);
 
     // Keressünk default komponenst
     const comps = (storeComponents.value && storeComponents.value[type]) || [];
-    const defaultCompId = comps[0]?.id || '';
+    const defaultCompId = comps.length > 0 ? comps[0]!.id : null;
+
+    console.log(`Default component for type '${type}':`, defaultCompId, `(Available: ${comps.length})`);
 
     schema.apply[slotId] = defaultCompId;
+
+    // AUTO-ACTIVATE CHILDREN
+    if (defaultCompId) {
+      const comp = configStore.getComponentById(defaultCompId);
+      if (comp && comp.attachmentPoints) {
+        comp.attachmentPoints.forEach(childPoint => {
+          // Check if already active to avoid loops/redundancy
+          if (!getDummyState(schema, childPoint.id)) {
+            console.log(`Auto-activating child: ${childPoint.id} for parent ${slotId}`);
+            // Recursive call to activate child
+            // Note: We pass slotId as the parentSlotId for the child
+            toggleDummyInSchema(schema, childPoint.id, true, slotId);
+          }
+        });
+      }
+    }
 
   } else {
     // INAKTÍV: Megkeressük ki tölti be, és nullázzuk
@@ -541,213 +499,126 @@ function toggleDummyInSchema(schema: Schema, pointId: string, isActive: boolean)
     }
   }
 
-  // Frissítjük a markereket is, ha van aktív preview
+  // Frissítjük a markereket is
   updateMarkers();
+
+  // Frissítjük a controlled slotokat (hogy a slot létrejöjjön)
+  updateControlledSlots();
+
+  // Apply changes to the furniture immediately
+  activateSchema(schema);
 }
 
-// 6. Preview Logika
+// 6. Direct Activation Logic (No Preview)
 
+// 6. Direct Activation Logic (No Preview)
 
-function togglePreview(schemaId: string) {
-  if (activePreviewSchemaId.value === schemaId) {
-    // Kikapcsolás
-    activePreviewSchemaId.value = null;
-    clearPreview();
-  } else {
-    // Ha már volt aktív más preview, először takarítsunk
-    if (activePreviewSchemaId.value) clearPreview();
-
-    // Bekapcsolás
-    activePreviewSchemaId.value = schemaId;
-    const schema = editableFurniture.value?.slotGroups?.find(g => g.name === 'Layouts')?.schemas.find(s => s.id === schemaId);
-    if (schema) applyPreview(schema);
-  }
-}
-
-function applyPreview(schema: Schema) {
+function activateSchema(schema: Schema) {
   if (!editableFurniture.value?.componentSlots) return;
 
-  // Végigmegyünk a séma szabályain
+  // 1. Apply schema settings directly
   Object.entries(schema.apply).forEach(([slotId, componentId]) => {
-    const targetSlot = editableFurniture.value!.componentSlots.find(s => s.slotId === slotId);
+    // Use allSlots to find nested slots too
+    const targetSlot = allSlots.value.find(s => s.slotId === slotId);
 
-    // Visszafejtjük az attachment point ID-t
-    const attachPointId = slotId.replace('slot_', 'attach_');
+    // Conflict resolution: Find slots using the same attachment point
+    const attachPointId = targetSlot?.useAttachmentPoint || slotId.replace('slot_', 'attach_');
 
-    // KERESSÜNK KONFLIKTUST: Van-e MÁS slot, ami ugyanezt a pontot használja?
-    const conflictingSlots = editableFurniture.value!.componentSlots.filter(s =>
+    // Find conflicting slots in the entire tree
+    const conflictingSlots = allSlots.value.filter(s =>
       s.useAttachmentPoint === attachPointId && s.slotId !== slotId
     );
 
+    // Deactivate conflicting slots
     conflictingSlots.forEach(conflict => {
-      // Mentjük a konfliktusos slot állapotát
-      if (!(conflict.slotId in previewBackup.value)) {
-        previewBackup.value[conflict.slotId] = conflict.defaultComponent;
-      }
-
-      // Ha a target slot (schema slot) létezik, másoljuk át rá a konfliktusos slot beállításait (rotáció, pozíció)
-      // Kikapcsoljuk a konfliktusos slotot (hogy ne legyen duplázódás)
       conflict.defaultComponent = null;
     });
 
+    // Activate target slot
     if (targetSlot) {
-      // Mentjük a target slot eredeti állapotát is
-      if (!(slotId in previewBackup.value)) {
-        previewBackup.value[slotId] = targetSlot.defaultComponent;
-      }
-
       if (componentId === null) {
-        // Inaktív: Nincs komponens
         targetSlot.defaultComponent = null;
       } else {
-        // Aktív: Beállítjuk a komponenst
         targetSlot.defaultComponent = componentId || '';
       }
     }
   });
 
-  // "Szellemek" kezelése: Azok a slotok, amik a Layouts csoporthoz tartoznak, de ebben a sémában nincsenek definiálva
+  // 2. Handle "Ghosts" (Controlled slots not in this schema)
   const layoutGroup = editableFurniture.value?.slotGroups?.find(g => g.name === 'Layouts');
   if (layoutGroup) {
     layoutGroup.controlledSlots.forEach(slotId => {
       if (schema.apply[slotId] === undefined) {
-        const slot = editableFurniture.value!.componentSlots.find(s => s.slotId === slotId);
+        const slot = allSlots.value.find(s => s.slotId === slotId);
         if (slot) {
-          if (!(slotId in previewBackup.value)) {
-            previewBackup.value[slotId] = slot.defaultComponent;
-          }
           slot.defaultComponent = null;
         }
       }
     });
   }
+
+  // Force update markers
+  updateMarkers();
 }
 
-function clearPreview() {
-  if (!editableFurniture.value?.componentSlots) return;
+// Helper to check if a schema is currently fully active
+function isSchemaActive(schema: Schema): boolean {
+  if (!editableFurniture.value?.componentSlots) return false;
 
-  // Visszaállítás a backupból
-  Object.entries(previewBackup.value).forEach(([slotId, originalComponent]) => {
-    const slot = editableFurniture.value!.componentSlots.find(s => s.slotId === slotId);
-    if (slot) {
-      slot.defaultComponent = originalComponent;
+  return Object.entries(schema.apply).every(([slotId, componentId]) => {
+    const slot = allSlots.value.find(s => s.slotId === slotId);
+    if (!slot) return false;
+
+    if (componentId === null) {
+      return slot.defaultComponent === null;
+    } else {
+      if (componentId === '') return slot.defaultComponent !== null;
+      return slot.defaultComponent === componentId;
     }
   });
-
-  // Backup törlése
-  previewBackup.value = {};
 }
 
-// 5. Controlled Slots Frissítése (Compiler)
-// Minden olyan slotnak léteznie kell, ami LEGALÁBB EGY sémában aktív.
-function updateControlledSlots() {
-  if (!editableFurniture.value?.slotGroups) return;
-  const layoutGroup = editableFurniture.value.slotGroups.find(g => g.name === 'Layouts');
-  if (!layoutGroup) return;
 
-  const activeSlotIds = new Set<string>();
+function createNewSchema() {
+  if (!editableFurniture.value) return;
+  if (!editableFurniture.value.slotGroups) editableFurniture.value.slotGroups = [];
 
-  layoutGroup.schemas.forEach(schema => {
-    // Ha van aktív preview, és ez NEM az, akkor hagyjuk figyelmen kívül
-    // DE: A "controlledSlots" listába mindenképp be kell kerülnie az összes lehetséges slotnak,
-    // különben a 3D motor nem tudja hova tenni a dolgokat.
-    // A preview logika máshol dől el (a slotok láthatóságánál vagy a default komponenseknél).
+  let layoutGroup = editableFurniture.value.slotGroups.find(g => g.name === 'Layouts');
+  if (!layoutGroup) {
+    layoutGroup = {
+      groupId: 'layouts',
+      name: 'Layouts',
+      controlType: 'schema_select',
+      schemas: [],
+      controlledSlots: []
+    };
+    editableFurniture.value.slotGroups.push(layoutGroup);
+  }
 
-    // JAVÍTÁS: A compilernek MINDEN sémát figyelembe kell vennie, hogy a slotok létezzenek.
-    // Azt, hogy melyik látszik, a 3D nézetben a "defaultComponent" vagy a "visible" property dönti el?
-    // Jelenleg a rendszer úgy működik, hogy a slotok statikusak, és a tartalmuk változik.
+  const newSchema: Schema = {
+    id: `schema_${Date.now()}`,
+    name: `Új Elrendezés ${layoutGroup.schemas.length + 1}`,
+    apply: {}
+  };
 
-    Object.entries(schema.apply).forEach(([slotId, val]) => {
-      if (val !== null) activeSlotIds.add(slotId);
-    });
-  });
+  layoutGroup.schemas.push(newSchema);
+  openSchemaId.value = newSchema.id;
+}
 
-  // 1. Frissítsük a csoport controlledSlots listáját
-  layoutGroup.controlledSlots = Array.from(activeSlotIds).sort();
 
-  // 2. Győződjünk meg róla, hogy ezek a slotok léteznek a bútorban
-  if (!editableFurniture.value.componentSlots) editableFurniture.value.componentSlots = [];
+function deleteSchema(index: number) {
+  const layoutGroup = editableFurniture.value?.slotGroups?.find(g => g.name === 'Layouts');
+  if (layoutGroup) {
+    layoutGroup.schemas.splice(index, 1);
+  }
+}
 
-  activeSlotIds.forEach(slotId => {
-    const exists = editableFurniture.value!.componentSlots.find(s => s.slotId === slotId);
-    if (!exists) {
-      // Létre kell hozni a slotot
-      // Visszafejtjük a dummy nevet: slot_X -> attach_X
-      // VAGY: Ha friendly ID-t használunk (pl. front_2), akkor nem tudjuk egyszerűen visszafejteni.
-      // De a `findBestSlotForPoint` már eldöntötte, hogy ehhez a ponthoz ez a slot tartozik.
-      // A kérdés: Melyik ponthoz?
-      // A `activeSlotIds` csak a slot ID-kat tartalmazza.
-      // Meg kell keresnünk, hogy melyik sémában, melyik ponthoz van rendelve ez a slot.
 
-      let attachPointId = '';
+function saveChanges() {
+  // Mentés előtt futtassuk le a compilert biztos ami biztos
+  updateControlledSlots();
 
-      // Keressük meg az első sémát, ahol ez a slot aktív
-      const layoutGroup = editableFurniture.value!.slotGroups!.find(g => g.name === 'Layouts');
-      if (layoutGroup) {
-        for (const schema of layoutGroup.schemas) {
-          // Keressük meg a kulcsot (slotId)
-          if (schema.apply[slotId]) {
-            // De ez a slotId. Nekünk az attachment point kellene.
-            // A `schema.apply` kulcsa a SlotID.
-            // Hogy tudjuk meg az AttachmentPoint ID-t?
-            // A `toggleDummyInSchema` híváskor a `schema.apply[slotId]`-t állítjuk be.
-            // De nem tároljuk el, hogy melyik pointId-hez tartozik.
-            // BAJ: Ha friendly ID-t használunk, elveszítjük a kapcsolatot a pointId-vel a sémában?
-            // A sémában csak SlotID -> ComponentID van.
-            // A kapcsolatot a Slot definíciója (useAttachmentPoint) vagy a Mapping adja.
-            // Ha a slot még nem létezik, honnan tudjuk, hova kell csatolni?
-
-            // MEGOLDÁS: A `findBestSlotForPoint` visszatérési értéke csak egy string.
-            // Amikor a `toggleDummyInSchema` meghívja, és beállítja a `schema.apply`-t,
-            // akkor még tudjuk a pointId-t.
-            // De itt, a `updateControlledSlots`-ban már nem.
-
-            // VISSZALÉPÉS: A `updateControlledSlots` nem tudja kitalálni a pointId-t, ha a slotId nem tartalmazza.
-            // Ezért a slotot LÉTRE KELL HOZNI abban a pillanatban, amikor a `findBestSlotForPoint` generálja?
-            // Vagy: A `findBestSlotForPoint` ne csak stringet adjon, hanem hozzon létre slotot ha kell?
-            // Igen!
-          }
-        }
-      }
-
-      // Mivel a fenti logika bonyolult, egyszerűsítsünk:
-      // A `findBestSlotForPoint` felelőssége legyen a slot létrehozása is, ha újat generál.
-      // Így mire ide érünk, a slot már létezik.
-      // Tehát itt csak azokat hozzuk létre, amik "véletlenül" hiányoznak?
-      // Vagy töröljük ezt a logikát innen?
-
-      // Ha a slot nem létezik, de a sémában benne van, az baj.
-      // Próbáljuk meg kitalálni a nevéből, ha "slot_attach_" kezdetű.
-      if (slotId.startsWith('slot_attach_')) {
-        attachPointId = slotId.replace('slot_', 'attach_');
-      } else {
-        // Ha friendly name (pl. front_2), és nem létezik...
-        // Akkor bajban vagyunk.
-        // De ha a `findBestSlotForPoint` létrehozza, akkor ez az ág sosem fut le.
-      }
-
-      if (attachPointId) {
-        const pointDef = corpusAttachmentPoints.value.find(p => p.id === attachPointId);
-        const newSlot: ComponentSlotConfig = {
-          slotId: slotId,
-          name: pointDef ? pointDef.id : slotId,
-          componentType: (pointDef && pointDef.allowedComponentTypes.length > 0) ? pointDef.allowedComponentTypes[0]! : 'unknown',
-          allowedComponents: [],
-          defaultComponent: null,
-          attachToSlot: editableFurniture.value!.componentSlots.find(s => s.slotId.includes('corpus'))?.slotId || '',
-          useAttachmentPoint: attachPointId,
-          position: { x: 0, y: 0, z: 0 },
-          rotation: { x: 0, y: 0, z: 0 },
-          scale: { x: 1, y: 1, z: 1 }
-        };
-        editableFurniture.value!.componentSlots.push(newSlot);
-      }
-    }
-  });
-
-  // 3. (Opcionális) Töröljük azokat a slotokat, amik már SEHOL nem aktívak?
-  // Ezt óvatosan, mert lehet, hogy kézzel hozták létre.
-  // Egyelőre hagyjuk meg őket, legfeljebb árvák lesznek.
+  if (editableFurniture.value) emit('save', editableFurniture.value as FurnitureConfig);
 }
 
 // --- HELPEREK & UPDATE ---
@@ -769,6 +640,8 @@ const allSlots = computed(() => {
   }
   return slots;
 });
+
+
 
 function handleSlotUpdate(payload: SimpleSlotUpdate | NestedSlotUpdate, topLevelSlotId?: string) {
   let targetSlotId: string;
@@ -803,6 +676,18 @@ function handleSlotUpdate(payload: SimpleSlotUpdate | NestedSlotUpdate, topLevel
     // AUTO-UPDATE CHILDREN: Ha a komponens megváltozott, ellenőrizzük a gyerekek csatlakozási pontjait
     if (updateData.key === 'defaultComponent' && updateData.value) {
       autoUpdateChildSlots(slot, updateData.value as string);
+    }
+
+    // SYNC TO ACTIVE SCHEMA: Keep schema in sync with manual edits
+    if (openSchemaId.value && updateData.key === 'defaultComponent') {
+      const layoutGroup = editableFurniture.value?.slotGroups?.find(g => g.name === 'Layouts');
+      const schema = layoutGroup?.schemas.find(s => s.id === openSchemaId.value);
+
+      // Only update if this slot is tracked by the schema
+      if (schema && schema.apply.hasOwnProperty(targetSlotId)) {
+        console.log(`Syncing schema ${schema.name}: ${targetSlotId} -> ${updateData.value}`);
+        schema.apply[targetSlotId] = updateData.value as string | null;
+      }
     }
   }
 }
@@ -878,18 +763,132 @@ function findAndRemoveSlot(nodes: ComponentSlotConfig[], slotId: string): boolea
 function handleSlotRemove(slotId: string) {
   if (editableFurniture.value?.componentSlots) findAndRemoveSlot(editableFurniture.value.componentSlots, slotId);
 }
-function saveChanges() {
-  // Mentés előtt futtassuk le a compilert biztos ami biztos
-  updateControlledSlots();
 
-  // HA van aktív preview, akkor kapcsoljuk ki, hogy NE a preview állapotot mentsük el!
-  if (activePreviewSchemaId.value) {
-    clearPreview();
-    activePreviewSchemaId.value = null;
+// --- HELPER FUNCTIONS FOR SCHEMAS ---
+
+function getDummyState(schema: Schema, pointId: string, parentSlotId?: string): boolean {
+  // Check if the schema has an entry for this point (mapped via slotId)
+  const slotEntry = Object.entries(schema.apply).find(([sId]) => {
+    // 1. Check for Composite ID (parent__point)
+    if (parentSlotId && sId === `${parentSlotId}__${pointId}`) return true;
+
+    // 2. Fallback / Legacy checks (only if no parent specified or standard naming)
+    if (!parentSlotId) {
+      // A. Name convention check
+      if (sId.replace('slot_', 'attach_') === pointId) return true;
+
+      // B. Object property check (if slot exists)
+      const slot = allSlots.value.find(s => s.slotId === sId);
+      if (slot && slot.useAttachmentPoint === pointId) return true;
+    }
+
+    return false;
+  });
+
+  if (slotEntry) {
+    return slotEntry[1] !== null;
+  }
+  return false;
+}
+
+function findSlotForSchemaPoint(schema: Schema, pointId: string, parentSlotId?: string): ComponentSlotConfig | undefined {
+  if (!allSlots.value) return undefined;
+
+  // 1. Check schema for direct mapping
+  const slotEntry = Object.entries(schema.apply).find(([sId]) => {
+    // 1. Check for Composite ID
+    if (parentSlotId && sId === `${parentSlotId}__${pointId}`) return true;
+
+    // 2. Legacy checks
+    if (!parentSlotId) {
+      if (sId.replace('slot_', 'attach_') === pointId) return true;
+      const slot = allSlots.value.find(s => s.slotId === sId);
+      if (slot && slot.useAttachmentPoint === pointId) return true;
+    }
+    return false;
+  });
+
+  if (slotEntry) {
+    return allSlots.value.find(s => s.slotId === slotEntry[0]);
   }
 
-  if (editableFurniture.value) emit('save', editableFurniture.value as FurnitureConfig);
+  // 2. Fallback: Find by attachment point in all slots
+  return allSlots.value.find(s => {
+    const pointMatch = s.useAttachmentPoint === pointId || s.slotId.replace('slot_', 'attach_') === pointId;
+    if (parentSlotId) {
+      return pointMatch && s.attachToSlot === parentSlotId;
+    }
+    return pointMatch;
+  });
 }
+
+function findBestSlotForPoint(schema: Schema, pointId: string, _type: string, parentSlotId?: string): string {
+  // 1. Is there already a slot for this point?
+  const existing = findSlotForSchemaPoint(schema, pointId, parentSlotId);
+  if (existing) return existing.slotId;
+
+  // 2. Generate new ID
+  if (parentSlotId) {
+    return `${parentSlotId}__${pointId}`;
+  }
+
+  return pointId.replace('attach_', 'slot_');
+}
+
+function getSlotTree(slotId: string): ComponentSlotConfig | undefined {
+  // Since allSlots is flat, we can just find it there.
+  // However, SlotNode expects the node object which might contain children.
+  // The objects in allSlots are references to the nodes in the tree, so they should have children if populated.
+  return allSlots.value.find(s => s.slotId === slotId);
+}
+
+
+
+
+function getSchemasForGroup(groupName: string): Schema[] {
+  const layoutGroup = editableFurniture.value?.slotGroups?.find(g => g.name === 'Layouts');
+  if (!layoutGroup) return [];
+
+  // Szűrjük ki azokat a sémákat, amik ehhez a csoporthoz (pl. "fronts") tartoznak
+  return layoutGroup.schemas.filter(schema => {
+    // 1. Nézzük meg, milyen pontok aktívak a sémában
+    const activePoints = Object.keys(schema.apply).filter(slotId => schema.apply[slotId] !== null);
+
+    // 2. Ha nincs aktív pont, akkor hova tartozik? (Pl. "Üres" séma)
+    if (activePoints.length === 0) return false;
+
+    // 3. Ellenőrizzük a pontok típusát
+    // A csoport definíciója:
+    const groupDef = groupedDisplay.value.groups[groupName];
+    if (!groupDef || groupDef.slots.length === 0) return false;
+
+    // A csoport első slotjának típusa (pl. "front")
+    const groupType = groupDef.slots[0]?.componentType;
+    if (!groupType) return false;
+
+    // Most nézzük meg, hogy a séma tartalmaz-e ilyen típusú elemet.
+    return activePoints.some(slotId => {
+      const slot = editableFurniture.value?.componentSlots.find(s => s.slotId === slotId);
+      if (!slot) return false;
+
+      // 1. Közvetlen egyezés (pl. Fronts)
+      if (slot.componentType === groupType) return true;
+
+      // 2. Szülő egyezés (pl. Handles -> Fronts)
+      const children = editableFurniture.value?.componentSlots.filter(s => s.attachToSlot === slotId);
+      return children?.some(child => child.componentType === groupType);
+    });
+  });
+}
+
+function toggleSchema(schemaId: string) {
+  if (openSchemaId.value === schemaId) {
+    openSchemaId.value = null;
+  } else {
+    openSchemaId.value = schemaId;
+  }
+}
+
 </script>
 
 <template>
@@ -911,8 +910,7 @@ function saveChanges() {
 
     <!-- TABS -->
     <div class="flex gap-4 mb-4 border-b border-gray-700">
-      <button @click="{ activeTab = 'general'; clearPreview(); activePreviewSchemaId = null; }"
-        class="pb-2 px-2 text-sm font-bold transition-colors border-b-2"
+      <button @click="{ activeTab = 'general'; }" class="pb-2 px-2 text-sm font-bold transition-colors border-b-2"
         :class="activeTab === 'general' ? 'text-blue-400 border-blue-400' : 'text-gray-400 border-transparent hover:text-gray-200'">
         Általános & Slotok
       </button>
@@ -952,18 +950,34 @@ function saveChanges() {
       <div v-for="(groupData, groupKey) in groupedDisplay.groups" :key="groupKey"
         class="bg-gray-800/50 border border-gray-700 rounded-lg overflow-hidden">
 
-        <div class="bg-gray-800 p-3 flex justify-between items-center border-b border-gray-700">
-          <div class="flex items-center gap-3">
-            <h4 class="text-lg font-bold text-white">{{ groupData.title }}</h4>
-            <span class="text-xs bg-gray-700 text-gray-400 px-2 py-0.5 rounded-full">{{ groupData.slots.length }}
-              db</span>
-          </div>
+        <!-- FEJLÉC (CSOPORT NÉV) -->
+        <div class="bg-gray-900 px-4 py-2 border-b border-gray-700 flex justify-between items-center">
+          <h4 class="font-bold text-gray-300 text-sm uppercase tracking-wider">{{ groupKey }}</h4>
+          <span class="text-xs text-gray-500">{{ groupData.slots.length }} elem</span>
         </div>
 
+        <!-- TARTALOM (SLOTOK VAGY LAYOUT LINK) -->
         <div class="p-4 space-y-4">
-          <SlotNode v-for="slot in groupData.slots" :key="slot.slotId" :node="slot" :suggestions="suggestions"
-            :highlighted-slot-id="highlightedSlotId" :ref="(el) => setSlotNodeRef(el, slot.slotId)"
-            @update:slot="handleSlotUpdate($event, slot.slotId)" @remove:slot="handleSlotRemove" />
+
+          <!-- HA VANNAK SÉMÁK: Egyszerűsített nézet -->
+          <div v-if="getSchemasForGroup(groupKey.toString()).length > 0" class="text-center py-6">
+            <div class="text-gray-400 text-sm mb-3">
+              Ez a csoport ({{ groupKey }}) elrendezés sémákkal van kezelve.
+              <br>
+              A részletes beállításokat a <strong>Layouts</strong> fülön találod.
+            </div>
+            <button @click="activeTab = 'layouts'" class="admin-btn-secondary text-sm">
+              Szerkesztés a Layouts fülön →
+            </button>
+          </div>
+
+          <!-- HA NINCS SÉMA: Hagyományos lista -->
+          <template v-else>
+            <SlotNode v-for="slot in groupData.slots" :key="slot.slotId" :node="slot" :suggestions="suggestions"
+              :highlighted-slot-id="highlightedSlotId" :ref="(el) => setSlotNodeRef(el, slot.slotId)"
+              @update:slot="handleSlotUpdate($event, slot.slotId)" @remove:slot="handleSlotRemove" />
+          </template>
+
         </div>
       </div>
 
@@ -1000,7 +1014,7 @@ function saveChanges() {
 
         <div v-for="(schema, idx) in editableFurniture?.slotGroups?.find(g => g.name === 'Layouts')?.schemas || []"
           :key="schema.id" class="bg-gray-800 border border-gray-700 rounded-lg overflow-hidden transition-all"
-          :class="{ 'ring-2 ring-blue-500': activePreviewSchemaId === schema.id }">
+          :class="{ 'ring-2 ring-blue-500': isSchemaActive(schema) }">
 
           <!-- SÉMA FEJLÉC -->
           <div class="bg-gray-900 p-3 flex justify-between items-center border-b border-gray-700">
@@ -1011,11 +1025,14 @@ function saveChanges() {
             </div>
 
             <div class="flex items-center gap-2">
-              <button @click="togglePreview(schema.id)"
-                class="p-1.5 rounded transition-colors flex items-center gap-1 text-xs font-bold uppercase tracking-wide"
-                :class="activePreviewSchemaId === schema.id ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'">
-                <span v-html="activePreviewSchemaId === schema.id ? EyeIcon : EyeOffIcon"></span>
-                {{ activePreviewSchemaId === schema.id ? 'Preview' : 'Preview' }}
+              <button @click="activateSchema(schema)" class="p-1.5 rounded transition-colors flex items-center gap-1"
+                :class="isSchemaActive(schema) ? 'bg-green-900/50 text-green-400' : 'bg-gray-700 hover:bg-gray-600 text-gray-400'">
+                <span v-if="isSchemaActive(schema)" class="text-xs font-bold uppercase">Aktív</span>
+                <span v-else class="text-xs font-bold uppercase">Előnézet</span>
+              </button>
+              <button @click="toggleSchema(schema.id)" class="p-1 rounded hover:bg-gray-700 transition-colors">
+                <ChevronDown class="w-5 h-5 transform transition-transform duration-200"
+                  :class="{ 'rotate-180': openSchemaId === schema.id }" />
               </button>
               <button @click="deleteSchema(idx)"
                 class="text-red-400 hover:text-red-300 text-xs bg-red-900/20 hover:bg-red-900/40 px-2 py-1.5 rounded ml-2">Törlés</button>
@@ -1023,49 +1040,92 @@ function saveChanges() {
           </div>
 
           <!-- DUMMY KÁRTYÁK (TABLE HELYETT) -->
-          <div class="p-4 space-y-3">
+          <div v-if="openSchemaId === schema.id" class="p-4 space-y-3">
 
             <!-- PRIMARY POINTS -->
             <div v-for="point in getPrimaryPoints(corpusAttachmentPoints)" :key="point.id"
               class="bg-gray-900/50 p-3 rounded border border-gray-700/50 flex items-center justify-between group hover:border-gray-600 transition-colors">
 
               <!-- BAL OLDAL: Címke és ID -->
-              <div class="flex items-center gap-3">
-                <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-colors"
-                  :class="getDummyState(schema, point.id) ? 'bg-green-900/50 text-green-400 border border-green-800' : 'bg-gray-800 text-gray-500 border border-gray-700'">
-                  {{ getDummyState(schema, point.id) ? 'ON' : 'OFF' }}
-                </div>
-                <div>
-                  <div class="font-mono text-sm font-bold text-gray-300">{{ point.id }}</div>
-                  <div class="text-[10px] text-gray-500 uppercase tracking-wider">{{ point.allowedComponentTypes[0] ||
-                    'Unknown' }}</div>
-                </div>
-              </div>
-
-              <!-- JOBB OLDAL: Kapcsoló és Választó -->
-              <div class="flex items-center gap-3">
-
-                <!-- Komponens Választó (Csak ha aktív) -->
-                <div v-if="getDummyState(schema, point.id)" class="min-w-[150px]">
-                  <select :value="getDummyComponent(schema, point.id)"
-                    @change="setDummyComponent(schema, point.id, ($event.target as HTMLSelectElement).value)"
-                    class="bg-gray-800 border border-gray-600 rounded px-2 py-1.5 text-xs w-full focus:ring-1 focus:ring-blue-500 outline-none text-gray-200">
-                    <option value="" disabled>Válassz...</option>
-                    <option
-                      v-for="comp in (storeComponents && storeComponents[point.allowedComponentTypes[0] || ''] || [])"
-                      :key="comp.id" :value="comp.id">
-                      {{ comp.name }}
-                    </option>
-                  </select>
+              <div class="flex-grow">
+                <div class="flex items-center justify-between mb-2">
+                  <div class="flex items-center gap-3">
+                    <button @click="toggleDummyInSchema(schema, point.id, !getDummyState(schema, point.id))"
+                      class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-colors"
+                      :class="getDummyState(schema, point.id) ? 'bg-green-900/50 text-green-400 border border-green-800 hover:bg-green-900' : 'bg-gray-800 text-gray-500 border border-gray-700 hover:bg-gray-700'">
+                      {{ getDummyState(schema, point.id) ? 'ON' : 'OFF' }}
+                    </button>
+                    <div>
+                      <div class="font-mono text-sm font-bold text-gray-300">{{ point.id }}</div>
+                      <div class="text-xs text-gray-500">
+                        {{ point.allowedComponentTypes.join(', ') }}
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
-                <!-- Toggle Gomb -->
-                <button @click="toggleDummyInSchema(schema, point.id, !getDummyState(schema, point.id))"
-                  class="p-2 rounded-full hover:bg-gray-700 transition-colors"
-                  :title="getDummyState(schema, point.id) ? 'Kikapcsolás' : 'Bekapcsolás'">
-                  <span v-if="getDummyState(schema, point.id)" class="text-green-500">●</span>
-                  <span v-else class="text-gray-600">○</span>
-                </button>
+                <!-- HA AKTÍV: SlotNode Editor -->
+                <div v-if="getDummyState(schema, point.id)" class="mt-3 pl-11">
+                  <div v-if="findSlotForSchemaPoint(schema, point.id)"
+                    class="bg-gray-900/50 rounded border border-gray-700/50 p-2">
+                    <!-- Itt meg kell keresnünk a teljes slot objektumot a slotId alapján -->
+                    <template v-if="findSlotForSchemaPoint(schema, point.id)">
+                      <SlotNode v-if="getSlotTree(findSlotForSchemaPoint(schema, point.id)!.slotId)"
+                        :node="getSlotTree(findSlotForSchemaPoint(schema, point.id)!.slotId)!"
+                        :suggestions="suggestions" :highlighted-slot-id="highlightedSlotId"
+                        :ref="(el) => { const s = findSlotForSchemaPoint(schema, point.id); if (s) setSlotNodeRef(el, s.slotId); }"
+                        @update:slot="handleSlotUpdate($event, findSlotForSchemaPoint(schema, point.id)!.slotId)"
+                        @remove:slot="handleSlotRemove" />
+
+                      <!-- CHILD ATTACHMENT POINTS (pl. Handles on Fronts) -->
+                      <div
+                        v-if="getChildAttachmentPoints(findSlotForSchemaPoint(schema, point.id)!.slotId, schema).length > 0"
+                        class="mt-2 pt-2 border-t border-gray-700">
+                        <div class="text-xs font-bold text-gray-500 mb-2 uppercase">További elemek ({{
+                          findSlotForSchemaPoint(schema, point.id)!.name }})</div>
+
+                        <div
+                          v-for="childPoint in getChildAttachmentPoints(findSlotForSchemaPoint(schema, point.id)!.slotId, schema)"
+                          :key="childPoint.id"
+                          class="bg-gray-800/50 p-2 rounded border border-gray-700 mb-2 flex flex-col gap-2">
+
+                          <div class="flex items-center gap-3">
+                            <button
+                              @click="toggleDummyInSchema(schema, childPoint.id, !getDummyState(schema, childPoint.id, findSlotForSchemaPoint(schema, point.id)!.slotId), findSlotForSchemaPoint(schema, point.id)!.slotId)"
+                              class="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold transition-colors"
+                              :class="getDummyState(schema, childPoint.id, findSlotForSchemaPoint(schema, point.id)!.slotId) ? 'bg-green-900/50 text-green-400 border border-green-800 hover:bg-green-900' : 'bg-gray-800 text-gray-500 border border-gray-700 hover:bg-gray-700'">
+                              {{ getDummyState(schema, childPoint.id, findSlotForSchemaPoint(schema, point.id)!.slotId)
+                              ? 'ON' : 'OFF' }}
+                            </button>
+                            <div>
+                              <div class="font-mono text-xs font-bold text-gray-300">{{ childPoint.id }}</div>
+                              <div class="text-[10px] text-gray-500">{{ childPoint.allowedComponentTypes.join(', ') }}
+                              </div>
+                            </div>
+                          </div>
+
+                          <!-- Child Slot Editor (if active) -->
+                          <div
+                            v-if="getDummyState(schema, childPoint.id, findSlotForSchemaPoint(schema, point.id)!.slotId) && findSlotForSchemaPoint(schema, childPoint.id, findSlotForSchemaPoint(schema, point.id)!.slotId)"
+                            class="w-full">
+                            <SlotNode
+                              v-if="getSlotTree(findSlotForSchemaPoint(schema, childPoint.id, findSlotForSchemaPoint(schema, point.id)!.slotId)!.slotId)"
+                              :node="getSlotTree(findSlotForSchemaPoint(schema, childPoint.id, findSlotForSchemaPoint(schema, point.id)!.slotId)!.slotId)!"
+                              :suggestions="suggestions" :highlighted-slot-id="highlightedSlotId"
+                              :ref="(el) => { const s = findSlotForSchemaPoint(schema, childPoint.id, findSlotForSchemaPoint(schema, point.id)!.slotId); if (s) setSlotNodeRef(el, s.slotId); }"
+                              @update:slot="handleSlotUpdate($event, findSlotForSchemaPoint(schema, childPoint.id, findSlotForSchemaPoint(schema, point.id)!.slotId)!.slotId)"
+                              @remove:slot="handleSlotRemove" />
+                          </div>
+
+                        </div>
+                      </div>
+
+                    </template>
+                  </div>
+                  <div v-else class="text-red-500 text-xs">
+                    Hiba: Slot nem található.
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -1083,34 +1143,32 @@ function saveChanges() {
                 <div v-for="point in getSecondaryPoints(corpusAttachmentPoints)" :key="point.id"
                   class="bg-gray-900/30 p-2 rounded border border-gray-800 flex items-center justify-between hover:bg-gray-900/50 transition-colors">
 
-                  <div class="flex items-center gap-3">
-                    <div
-                      class="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold transition-colors"
-                      :class="getDummyState(schema, point.id) ? 'bg-green-900/30 text-green-500 border border-green-900' : 'bg-gray-800 text-gray-600 border border-gray-700'">
-                      {{ getDummyState(schema, point.id) ? 'ON' : 'OFF' }}
-                    </div>
-                    <span class="font-mono text-xs text-gray-400">{{ point.id }}</span>
-                  </div>
-
-                  <div class="flex items-center gap-2">
-                    <div v-if="getDummyState(schema, point.id)" class="min-w-[120px]">
-                      <select :value="getDummyComponent(schema, point.id)"
-                        @change="setDummyComponent(schema, point.id, ($event.target as HTMLSelectElement).value)"
-                        class="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-[10px] w-full focus:ring-1 focus:ring-blue-500 outline-none text-gray-300">
-                        <option value="" disabled>Válassz...</option>
-                        <option
-                          v-for="comp in (storeComponents && storeComponents[point.allowedComponentTypes[0] || ''] || [])"
-                          :key="comp.id" :value="comp.id">
-                          {{ comp.name }}
-                        </option>
-                      </select>
+                  <div class="flex-grow">
+                    <div class="flex items-center justify-between">
+                      <div class="flex items-center gap-3">
+                        <button @click="toggleDummyInSchema(schema, point.id, !getDummyState(schema, point.id))"
+                          class="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold transition-colors"
+                          :class="getDummyState(schema, point.id) ? 'bg-green-900/30 text-green-500 border border-green-900 hover:bg-green-900/50' : 'bg-gray-800 text-gray-600 border border-gray-700 hover:bg-gray-700'">
+                          {{ getDummyState(schema, point.id) ? 'ON' : 'OFF' }}
+                        </button>
+                        <span class="font-mono text-xs text-gray-400">{{ point.id }}</span>
+                      </div>
                     </div>
 
-                    <button @click="toggleDummyInSchema(schema, point.id, !getDummyState(schema, point.id))"
-                      class="p-1.5 rounded-full hover:bg-gray-700 transition-colors">
-                      <span v-if="getDummyState(schema, point.id)" class="text-green-500 text-xs">●</span>
-                      <span v-else class="text-gray-600 text-xs">○</span>
-                    </button>
+                    <!-- HA AKTÍV: SlotNode Editor -->
+                    <div v-if="getDummyState(schema, point.id)" class="mt-2 pl-9">
+                      <div v-if="findSlotForSchemaPoint(schema, point.id)"
+                        class="bg-gray-900/50 rounded border border-gray-700/50 p-2">
+                        <template v-if="findSlotForSchemaPoint(schema, point.id)">
+                          <SlotNode v-if="getSlotTree(findSlotForSchemaPoint(schema, point.id)!.slotId)"
+                            :node="getSlotTree(findSlotForSchemaPoint(schema, point.id)!.slotId)!"
+                            :suggestions="suggestions" :highlighted-slot-id="highlightedSlotId"
+                            :ref="(el) => { const s = findSlotForSchemaPoint(schema, point.id); if (s) setSlotNodeRef(el, s.slotId); }"
+                            @update:slot="handleSlotUpdate($event, findSlotForSchemaPoint(schema, point.id)!.slotId)"
+                            @remove:slot="handleSlotRemove" />
+                        </template>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
