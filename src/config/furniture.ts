@@ -67,7 +67,9 @@ export interface ComponentSlotConfig {
 export interface Schema {
   id: string
   name: string
-  apply: Record<string, string | null>
+  type?: 'front' | 'shelf' | 'drawer' | 'leg' // NEW: Schema type for filtering
+  apply: Record<string, string | null> // path -> componentId
+  slotProperties?: Record<string, Partial<ComponentSlotConfig>> // path -> properties (rotation, position, etc.)
 }
 
 export interface SlotGroup {
