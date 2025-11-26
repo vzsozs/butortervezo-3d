@@ -219,8 +219,10 @@ function rotate(axis: 'x' | 'y' | 'z', degrees: number) {
         <p class="admin-input bg-gray-700/50 text-gray-400 select-none">{{ node.slotId }}</p>
 
         <label class="admin-label justify-self-end">attachToSlot</label>
+        <!-- JAVÍTÁS: w-full és truncate hozzáadva -->
         <select :value="node.attachToSlot"
-          @change="updateSlot('attachToSlot', ($event.target as HTMLSelectElement).value)" class="admin-select">
+          @change="updateSlot('attachToSlot', ($event.target as HTMLSelectElement).value)"
+          class="admin-select w-full truncate">
           <option value="">-- Gyökér elem --</option>
           <option v-for="slotId in availableParentSlots" :key="slotId" :value="slotId">{{ slotId }}</option>
         </select>
@@ -232,8 +234,10 @@ function rotate(axis: 'x' | 'y' | 'z', degrees: number) {
         <p class="admin-input bg-gray-700/50 text-gray-400 select-none">{{ node.componentType }}</p>
 
         <label class="admin-label justify-self-end">defaultComponent</label>
+        <!-- JAVÍTÁS: w-full és truncate hozzáadva -->
         <select v-if="node.componentType" :value="node.defaultComponent"
-          @change="updateSlot('defaultComponent', ($event.target as HTMLSelectElement).value)" class="admin-select">
+          @change="updateSlot('defaultComponent', ($event.target as HTMLSelectElement).value)"
+          class="admin-select w-full truncate">
           <option v-for="comp in allComponentsForType.filter(c => node.allowedComponents?.includes(c.id))"
             :key="comp.id" :value="comp.id">{{ comp.name }}</option>
         </select>

@@ -172,7 +172,8 @@ function rotate(axis: 'x' | 'y' | 'z', degrees: number) {
       <SchemaSlotCard v-for="childPoint in childPoints" :key="childPoint.id" :pointId="childPoint.id"
         :parentPath="currentPath" :schema="schema" :allowedTypes="childPoint.allowedComponentTypes"
         :depth="(depth || 0) + 1" :getSlot="getSlot" @update:schema="(p, c) => emit('update:schema', p, c)"
-        @update:slot="(id, u) => emit('update:slot', id, u)" />
+        @update:slot="(id, u) => emit('update:slot', id, u)"
+        @update:schema-property="(p, u) => emit('update:schema-property', p, u)" />
     </div>
 
   </div>
