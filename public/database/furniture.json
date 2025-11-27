@@ -481,7 +481,105 @@
         "groupId": "layouts",
         "name": "Layouts",
         "controlType": "schema_select",
-        "schemas": [],
+        "schemas": [
+          {
+            "id": "schema_1764250132520",
+            "name": "Balos",
+            "type": "front",
+            "apply": {
+              "root__attach_front_full_L": "front_bottom_keretes_60_l",
+              "root__attach_front_full_L__attach_handle_vertical_L": "fogantyu_hosszukas"
+            },
+            "slotProperties": {
+              "root__attach_front_full_L": {
+                "rotation": {
+                  "x": 1.5707963267948966,
+                  "y": 4.71238898038469,
+                  "z": 0
+                }
+              },
+              "root__attach_front_full_L__attach_handle_vertical_L": {
+                "rotation": {
+                  "x": 0,
+                  "y": 1.5707963267948966,
+                  "z": 0
+                }
+              }
+            }
+          },
+          {
+            "id": "schema_1764250164772",
+            "name": "Jobbos",
+            "type": "front",
+            "apply": {
+              "root__attach_front_full_R": "front_bottom_keretes_60_r",
+              "root__attach_front_full_R__attach_handle_vertical_R": "fogantyu_hosszukas"
+            },
+            "slotProperties": {
+              "root__attach_front_full_R": {
+                "rotation": {
+                  "x": 1.5707963267948966,
+                  "y": 4.71238898038469,
+                  "z": 0
+                }
+              },
+              "root__attach_front_full_R__attach_handle_vertical_R": {
+                "rotation": {
+                  "x": 0,
+                  "y": 1.5707963267948966,
+                  "z": 0
+                }
+              }
+            }
+          },
+          {
+            "id": "schema_1764250204082",
+            "name": "Kétajtós",
+            "type": "front",
+            "apply": {
+              "root__attach_front_full_L": "front_bottom_keretes_30_l",
+              "root__attach_front_full_L__attach_handle_verticall_L": "fogantyu_hosszukas",
+              "root__attach_front_full_R": "front_bottom_keretes_30_r",
+              "root__attach_front_full_R__attach_handle_vertical_R": "fogantyu_hosszukas"
+            },
+            "slotProperties": {
+              "root__attach_front_full_L": {
+                "rotation": {
+                  "x": 1.5707963267948966,
+                  "y": 4.71238898038469,
+                  "z": 0
+                }
+              },
+              "root__attach_front_full_L__attach_handle_verticall_L": {
+                "rotation": {
+                  "x": 0,
+                  "y": 1.5707963267948966,
+                  "z": 0
+                }
+              },
+              "root__attach_front_full_R": {
+                "rotation": {
+                  "x": 1.5707963267948966,
+                  "y": 4.71238898038469,
+                  "z": 0
+                }
+              },
+              "root__attach_front_full_R__attach_handle_vertical_R": {
+                "rotation": {
+                  "x": 0,
+                  "y": 1.5707963267948966,
+                  "z": 0
+                }
+              }
+            }
+          },
+          {
+            "id": "schema_1764250260818",
+            "name": "Nyitott",
+            "type": "front",
+            "apply": {}
+          }
+        ],
         "controlledSlots": []
       }
     ]

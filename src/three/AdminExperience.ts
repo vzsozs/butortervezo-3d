@@ -100,13 +100,62 @@ export default class AdminExperience extends EventTarget {
     this.renderer.setSize(width, height)
   }
 
-  public async updateObject(config: FurnitureConfig, resetCamera: boolean) {
-    if (this.currentObject) {
-      this.scene.remove(this.currentObject)
+  // --- MEMORY MANAGEMENT ---
+  private disposeObject(object: Object3D) {
+    if (!object) return
+
+    // Rekurzívan takarítunk
+    object.traverse((child) => {
+      if (child instanceof Mesh) {
+        if (child.geometry) {
+          child.geometry.dispose()
+        }
+        if (child.material) {
+          if (Array.isArray(child.material)) {
+            child.material.forEach((m) => m.dispose())
+          } else {
+            child.material.dispose()
+          }
+        }
+      }
+    })
+
+    // Kivesszük a szülőből, ha van
+    if (object.parent) {
+      object.parent.remove(object)
     }
+  }
+
+  // --- A JAVÍTOTT UPDATE FÜGGVÉNY ---
+  private isUpdating = false // Új flag a versenyhelyzetek ellen
+
+  public async updateObject(config: FurnitureConfig, resetCamera: boolean) {
+    // Ha már fut egy frissítés, akkor is engedjük, de tudnunk kell róla.
+    // A legjobb védekezés a "Brutális Takarítás".
+
+    console.groupCollapsed('🎨 [Experience] Updating 3D Object')
+
+    // 1. BRUTÁLIS TAKARÍTÁS: Nem bízunk a this.currentObject-ben.
+    // Megkeresünk mindent a Scene-ben, ami bútornak vagy markernek néz ki.
+    const childrenToRemove: Object3D[] = []
+
+    this.scene.children.forEach((child) => {
+      // Ha a neve 'proxy_' -val kezdődik (bútor) VAGY 'attachment_markers'
+      if (child.name.startsWith('proxy_') || child.name === 'attachment_markers') {
+        childrenToRemove.push(child)
+      }
+    })
+
+    if (childrenToRemove.length > 0) {
+      console.log(`🗑️ Found ${childrenToRemove.length} stale objects in scene. Nuking them...`)
+      childrenToRemove.forEach((child) => this.disposeObject(child))
+    }
+
+    this.currentObject = null
     this.clearHighlight()
     this.clearHover()
 
+    // 2. STATE ELŐKÉSZÍTÉS
     const componentState: Record<string, string> = {}
     if (config.componentSlots) {
       config.componentSlots.forEach((slot) => {
@@ -114,34 +163,103 @@ export default class AdminExperience extends EventTarget {
       })
     }
 
+    // 3. ÚJRAÉPÍTÉS
+    this.isUpdating = true
     const newObject = await this.assetManager.buildFurnitureFromConfig(config, componentState)
-    if (!newObject) return
+    this.isUpdating = false
 
+    if (!newObject) {
+      console.warn('⚠️ AssetManager returned null!')
+      console.groupEnd()
+      return
+    }
+
+    // Wireframe hozzáadása
     newObject.traverse((child) => {
       if (child instanceof Mesh) {
-        const wireframeGeo = new WireframeGeometry(child.geometry)
-        const wireframeMat = new LineBasicMaterial({
-          color: 0xffffff,
-          transparent: true,
-          opacity: 0.4,
-        })
-        const wireframe = new LineSegments(wireframeGeo, wireframeMat)
-        wireframe.raycast = () => {} // Ignore wireframe in raycasting
-        child.add(wireframe)
+        if (!child.children.some((c) => c instanceof LineSegments)) {
+          const wireframeGeo = new WireframeGeometry(child.geometry)
+          const wireframeMat = new LineBasicMaterial({
+            color: 0xffffff,
+            transparent: true,
+            opacity: 0.4,
+          })
+          const wireframe = new LineSegments(wireframeGeo, wireframeMat)
+          wireframe.raycast = () => {}
+          child.add(wireframe)
+        }
       }
     })
 
+    // 4. MEGJELENÍTÉS
+    // MÉG EGYSZER ELLENŐRIZZÜK, hogy nem került-e be valami, amíg vártunk
+    const doubleCheck = this.scene.children.filter((c) => c.name.startsWith('proxy_'))
+    if (doubleCheck.length > 0) {
+      console.warn('⚠️ Race condition detected! Cleaning up late arrivals...')
+      doubleCheck.forEach((c) => this.disposeObject(c))
+    }
+
     this.currentObject = newObject
+    this.currentObject.userData.config = config
     this.scene.add(this.currentObject)
 
+    console.log('✅ New object added to scene.')
+
     if (resetCamera) {
-      console.log('%c[Experience] Új bútor, kamera reset.', 'color: cyan')
       this.frameObject(this.currentObject)
-    } else {
-      console.log('%c[Experience] Meglévő bútor frissítve, kamera pozíció megmarad.', 'color: cyan')
     }
 
     this.currentObjectId = config.id
+    console.groupEnd()
+  }
+
+  // --- MARKER JAVÍTÁS ---
+  public toggleAttachmentMarkers(visible: boolean, activePoints: string[] = []) {
+    this.markersVisible = visible
+
+    // Itt is név alapján keresünk és törlünk, nem változó alapján
+    const existingMarkers = this.scene.children.filter((c) => c.name === 'attachment_markers')
+    existingMarkers.forEach((m) => this.disposeObject(m))
+    this.markersGroup = null
+
+    if (!visible || !this.currentObject) return
+
+    this.markersGroup = new Group()
+    this.markersGroup.name = 'attachment_markers'
+
+    let corpusSlot: Object3D | undefined
+    this.currentObject.traverse((child) => {
+      if (child.name.includes('corpus') && !corpusSlot) {
+        corpusSlot = child
+      }
+    })
+
+    if (!corpusSlot) return
+
+    const attachmentPoints: Object3D[] = []
+    corpusSlot.traverse((child) => {
+      if (child.name.startsWith('attach_')) {
+        attachmentPoints.push(child)
+      }
+    })
+
+    const sphereGeo = new SphereGeometry(0.03, 16, 16)
+    const activeMat = new MeshStandardMaterial({ color: 0x00ff00, emissive: 0x004400 })
+    const inactiveMat = new MeshStandardMaterial({ color: 0xff0000, emissive: 0x440000 })
+
+    attachmentPoints.forEach((point) => {
+      const isActive = activePoints.includes(point.name)
+      const marker = new Mesh(sphereGeo, isActive ? activeMat : inactiveMat)
+
+      const worldPos = new Vector3()
+      point.getWorldPosition(worldPos)
+      marker.position.copy(worldPos)
+
+      marker.userData = { isMarker: true, pointId: point.name, isActive }
+      this.markersGroup!.add(marker)
+    })
+
+    this.scene.add(this.markersGroup)
   }
 
   private frameObject(object: Group) {
@@ -184,48 +302,6 @@ export default class AdminExperience extends EventTarget {
   // --- GRAPHICAL SELECTOR LOGIC ---
   private markersGroup: Group | null = null
   private markersVisible: boolean = false
-
-  public toggleAttachmentMarkers(visible: boolean, activePoints: string[] = []) {
-    this.markersVisible = visible
-
-    if (this.markersGroup) {
-      this.scene.remove(this.markersGroup)
-      this.markersGroup = null
-    }
-
-    if (!visible || !this.currentObject) return
-
-    this.markersGroup = new Group()
-    this.markersGroup.name = 'attachment_markers'
-
-    const corpusSlot = this.currentObject.children.find((c) => c.name.includes('corpus'))
-    if (!corpusSlot) return
-
-    const attachmentPoints: Object3D[] = []
-    corpusSlot.traverse((child) => {
-      if (child.name.startsWith('attach_')) {
-        attachmentPoints.push(child)
-      }
-    })
-
-    const sphereGeo = new SphereGeometry(0.03, 16, 16)
-    const activeMat = new MeshStandardMaterial({ color: 0x00ff00, emissive: 0x004400 })
-    const inactiveMat = new MeshStandardMaterial({ color: 0xff0000, emissive: 0x440000 })
-
-    attachmentPoints.forEach((point) => {
-      const isActive = activePoints.includes(point.name)
-      const marker = new Mesh(sphereGeo, isActive ? activeMat : inactiveMat)
-
-      const worldPos = new Vector3()
-      point.getWorldPosition(worldPos)
-      marker.position.copy(worldPos)
-
-      marker.userData = { isMarker: true, pointId: point.name, isActive }
-      this.markersGroup!.add(marker)
-    })
-
-    this.scene.add(this.markersGroup)
-  }
 
   private getIntersects(event: MouseEvent) {
     const rect = this.renderer.domElement.getBoundingClientRect()
@@ -301,7 +377,6 @@ export default class AdminExperience extends EventTarget {
           return
         }
       }
-      // HA a markerek látszanak, akkor SEMMI MÁST nem engedünk kattintani!
       return
     }
 
@@ -323,7 +398,6 @@ export default class AdminExperience extends EventTarget {
         this.originalMaterial = this.originalHoverMaterial || (hitObject.material as Material)
 
         if (this.originalMaterial === this.hoverMaterial) {
-          // Fallback if something went wrong with material state
           this.originalMaterial = hitObject.material as Material
         }
 
@@ -340,11 +414,11 @@ export default class AdminExperience extends EventTarget {
 
   public clearCanvas() {
     if (this.currentObject) {
-      this.scene.remove(this.currentObject)
+      this.disposeObject(this.currentObject)
       this.currentObject = null
     }
     if (this.markersGroup) {
-      this.scene.remove(this.markersGroup)
+      this.disposeObject(this.markersGroup)
       this.markersGroup = null
     }
     this.clearHighlight()
