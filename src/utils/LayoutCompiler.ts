@@ -1,3 +1,4 @@
+// src/utils/LayoutCompiler.ts
 import type { ComponentSlotConfig, ComponentConfig } from '@/config/furniture'
 
 export type PathSchema = Record<string, string | null>
@@ -14,45 +15,29 @@ export class LayoutCompiler {
    * Compiles a path-based schema into a flat list of ComponentSlotConfigs.
    * @param rootComponentId The ID of the root component (e.g. the corpus).
    * @param schema The path-based schema (e.g. { "root__attach_front": "door_id" }).
-   * @returns A list of ComponentSlotConfig objects ready for the 3D engine.
+   * @returns A list of ComponentSlotConfig objects (children only, root is handled by Composer).
    */
   compile(
     rootComponentId: string,
     schema: PathSchema,
-    existingSlots: ComponentSlotConfig[] = [],
-    schemaId?: string, // NEW
-    slotProperties?: SlotProperties, // NEW
+    schemaId?: string,
+    slotProperties?: SlotProperties,
   ): ComponentSlotConfig[] {
     const slots: ComponentSlotConfig[] = []
 
-    // Helper to find existing slot
-    const findExisting = (id: string) => existingSlots.find((s) => s.slotId === id)
-
-    // 1. Create Root Slot
-    const rootSlotId = 'corpus_1' // Standard ID for the main corpus
+    // 1. Define Root Context
+    // A Composer gondoskodik a valódi korpuszról, mi csak a gyerekeit generáljuk.
+    // Feltételezzük, hogy a korpusz ID-ja 'corpus_1' (ez a standard).
+    // Ha a jövőben dinamikus a korpusz ID, azt paraméterként kellene átadni.
+    const rootSlotId = 'corpus_1'
     const rootPath = 'root'
 
+    // Ellenőrizzük, hogy létezik-e a komponens definíció
     const rootComponent = this.componentLookup(rootComponentId)
     if (!rootComponent) {
       console.error(`LayoutCompiler: Root component '${rootComponentId}' not found.`)
       return []
     }
-
-    const existingRoot = findExisting(rootSlotId)
-    const rootSlot: ComponentSlotConfig = {
-      slotId: rootSlotId,
-      name: 'Korpusz',
-      componentType: rootComponent.componentType,
-      defaultComponent: rootComponentId,
-      allowedComponents: [rootComponentId],
-      position: existingRoot?.position || { x: 0, y: 0, z: 0 },
-      rotation: existingRoot?.rotation || { x: 0, y: 0, z: 0 },
-      scale: existingRoot?.scale || { x: 1, y: 1, z: 1 },
-      attachToSlot: '',
-      useAttachmentPoint: '',
-      properties: existingRoot?.properties, // Preserve properties
-    }
-    slots.push(rootSlot)
 
     // 2. Recursively process children
     this.processChildren(
@@ -61,7 +46,6 @@ export class LayoutCompiler {
       rootPath,
       schema,
       slots,
-      existingSlots,
       schemaId,
       slotProperties,
     )
@@ -75,16 +59,16 @@ export class LayoutCompiler {
     parentPath: string,
     schema: PathSchema,
     slots: ComponentSlotConfig[],
-    existingSlots: ComponentSlotConfig[],
-    schemaId?: string, // NEW
-    slotProperties?: SlotProperties, // NEW
+    schemaId?: string,
+    slotProperties?: SlotProperties,
   ) {
     const parentComponent = this.componentLookup(parentComponentId)
     if (!parentComponent || !parentComponent.attachmentPoints) return
 
     parentComponent.attachmentPoints.forEach((point) => {
       const currentPath = `${parentPath}__${point.id}`
-      // Check if path is explicitly defined in schema (even if null)
+
+      // Check if path is explicitly defined in schema
       const isDefined = Object.prototype.hasOwnProperty.call(schema, currentPath)
       const childComponentId = schema[currentPath]
 
@@ -102,33 +86,32 @@ export class LayoutCompiler {
         }
 
         // Generate a deterministic Slot ID
-        // We use the path hash or just the path itself (sanitized) to ensure uniqueness
-        // But for simplicity and readability in debug, let's use a derived name.
-        // However, standard IDs like 'front_1' are expected by some legacy logic?
-        // The user said "Ne a slotId-kat mentsd...".
-        // Let's try to generate IDs that look like "slot_<path>" to be unique.
         const baseSlotId = `slot_${currentPath.replace(/__/g, '_')}`
-        // Append schemaId to ensure uniqueness across schemas (forces re-render)
         const newSlotId = schemaId ? `${baseSlotId}_${schemaId}` : baseSlotId
 
-        // Find existing slot (look for base match to preserve pos/rot across schemas)
-        const existingSlot = existingSlots.find((s) => s.slotId.startsWith(baseSlotId))
-
+        // Load saved properties for this path (rotation, position overrides)
         const savedProps = slotProperties?.[currentPath]
+
+        // Determine Component Type
+        let resolvedType = 'unknown'
+        if (childComponent) {
+          resolvedType = childComponent.componentType
+        } else if (point.allowedComponentTypes && point.allowedComponentTypes.length > 0) {
+          resolvedType = point.allowedComponentTypes[0]!
+        }
 
         const newSlot: ComponentSlotConfig = {
           name: point.id,
-          componentType: point.allowedComponentTypes[0] || 'unknown',
-          defaultComponent: childComponentId ?? null, // Can be null
-          allowedComponents:
-            existingSlot?.allowedComponents || (childComponentId ? [childComponentId] : []),
-          position: existingSlot?.position || { x: 0, y: 0, z: 0 },
-          rotation: existingSlot?.rotation || { x: 0, y: 0, z: 0 },
-          scale: existingSlot?.scale || { x: 1, y: 1, z: 1 },
-          properties: existingSlot?.properties,
+          componentType: resolvedType,
+          defaultComponent: childComponentId ?? null,
+          allowedComponents: childComponentId ? [childComponentId] : [],
+          position: { x: 0, y: 0, z: 0 },
+          rotation: { x: 0, y: 0, z: 0 },
+          scale: { x: 1, y: 1, z: 1 },
           isAutoGenerated: true,
-          ...savedProps, // Apply saved properties (overrides existingSlot)
-          // Ensure critical fields are not overwritten by savedProps
+          ...savedProps, // Apply saved properties
+
+          // Critical fields (cannot be overridden by savedProps)
           slotId: newSlotId,
           attachToSlot: parentSlotId,
           useAttachmentPoint: point.id,
@@ -144,7 +127,6 @@ export class LayoutCompiler {
             currentPath,
             schema,
             slots,
-            existingSlots,
             schemaId,
             slotProperties,
           )
