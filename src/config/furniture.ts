@@ -75,9 +75,10 @@ export interface Schema {
 export interface SlotGroup {
   groupId: string
   name: string
-  controlType: 'schema_select'
+  controlType: 'schema_select' | 'checkbox_group'
   controlledSlots: string[]
   schemas: Schema[]
+  defaultSchemaId?: string
 }
 
 export interface FurnitureConfig {
