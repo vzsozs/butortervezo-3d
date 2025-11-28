@@ -93,6 +93,7 @@ export function useFurnitureComposer(
         schema.apply,
         targetSchemaId, // Fontos: a target ID-t adjuk át a compilernek!
         schema.slotProperties,
+        schema,
       )
     }
     console.log(`✨ Generated ${generatedSlots.length} slots from schema`)

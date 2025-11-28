@@ -406,6 +406,52 @@ export default class AdminExperience extends EventTarget {
     }
   }
 
+  // --- X-RAY MÓD (Átlátszó ajtók) ---
+  public setXRayMode(enabled: boolean) {
+    if (!this.currentObject) return
+
+    this.currentObject.traverse((child) => {
+      // Megkeressük a frontokat (ajtók, fiókelők)
+      // A slotId-t az AssetManager mentette el a userData-ba, ez a legbiztosabb pont.
+      const slotId = child.userData.slotId || child.name
+      const isFront =
+        slotId.includes('front') || slotId.includes('door') || slotId.includes('drawer_front')
+
+      if (isFront && child instanceof Mesh) {
+        if (enabled) {
+          // BEKAPCSOLÁS: Átlátszóvá tesszük
+
+          // 1. Elmentjük az eredeti anyagot (ha még nincs mentve)
+          if (!child.userData.originalMaterial) {
+            child.userData.originalMaterial = child.material
+          }
+
+          // 2. Klónozzuk és módosítjuk
+          // Fontos: A klónozás kell, különben minden ilyen anyagú tárgy átlátszó lenne a világban
+          const xrayMaterial = (child.userData.originalMaterial as Material).clone()
+          xrayMaterial.transparent = true
+          xrayMaterial.opacity = 0.15 // 15% láthatóság (kicsit több mint 10, hogy jobban érzékelhető legyen)
+          xrayMaterial.depthWrite = false // Hogy átlássunk rajta rendesen
+
+          // Ha StandardMaterial, akkor a roughness-t is felvesszük, hogy ne csillogjon annyira
+          if ('roughness' in xrayMaterial) {
+            ;(xrayMaterial as any).roughness = 0.8
+          }
+
+          child.material = xrayMaterial
+        } else {
+          // KIKAPCSOLÁS: Visszaállítjuk az eredetit
+          if (child.userData.originalMaterial) {
+            child.material = child.userData.originalMaterial
+
+            // Opcionális: A klónozott xray anyagot takaríthatjuk, de a GC megoldja
+            child.userData.originalMaterial = null // Töröljük a referenciát
+          }
+        }
+      }
+    })
+  }
+
   private animate = () => {
     this.animationFrameId = requestAnimationFrame(this.animate)
     this.controls.update()

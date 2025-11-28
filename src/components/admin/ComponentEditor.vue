@@ -24,14 +24,12 @@ const { components: storeComponents } = storeToRefs(configStore);
 const editableComponent = ref<Partial<ComponentConfig>>({});
 const selectedFile = ref<File | null>(null);
 const isProcessing = ref(false);
-const isAdvancedVisible = ref(false);
 const modelMaterialOptions = ref<string[]>([]);
 
 // Checkbox állapotok
-const useHeight = ref(false);
 const useMaterialSource = ref(false);
 
-// Elérhető típusok (pl. shelves, drawers, legs...)
+// Elérhető típusok
 const componentTypeOptions = computed(() => Object.keys(storeComponents.value));
 
 // Elérhető anyagkategóriák
@@ -44,31 +42,29 @@ const availableMaterialCategories = computed(() => {
   return Array.from(cats).sort();
 });
 
-// --- WATCHERS (ÖSSZEVONVA ÉS TISZTÍTVA) ---
+// --- WATCHERS ---
 watch(() => props.component, (newComponent) => {
   const comp = newComponent ? JSON.parse(JSON.stringify(newComponent)) : {};
+
+  // Biztosítjuk, hogy a properties objektum létezzen
+  if (!comp.properties) {
+    comp.properties = {};
+  }
+
   editableComponent.value = comp;
   selectedFile.value = null;
 
-  // Opciók betöltése
   modelMaterialOptions.value = comp.materialOptions || [];
   if (!comp.allowedMaterialCategories) comp.allowedMaterialCategories = [];
 
-  // Checkboxok állapota
-  useHeight.value = comp.height !== undefined && comp.height !== null;
   useMaterialSource.value = !!comp.materialSource;
-
-  // Ha nem új, alapból rejtjük a haladót
-  if (!props.isNew) {
-    isAdvancedVisible.value = false;
-  }
 }, { immediate: true, deep: true });
 
-// Automatikus ID generálás (Csak új elemnél)
+// Automatikus ID generálás
 watch(() => editableComponent.value.name, (newName) => {
   if (props.isNew && newName) {
     editableComponent.value.id = newName.toLowerCase()
-      .replace(/[áéíóöőúüű]/g, c => ({ 'á': 'a', 'é': 'e', 'í': 'i', 'ó': 'o', 'ö': 'o', 'ő': 'o', 'ú': 'u', 'ü': 'u', 'ű': 'u' }[c] || c)) // Ékezetmentesítés
+      .replace(/[áéíóöőúüű]/g, c => ({ 'á': 'a', 'é': 'e', 'í': 'i', 'ó': 'o', 'ö': 'o', 'ő': 'o', 'ú': 'u', 'ü': 'u', 'ű': 'u' }[c] || c))
       .replace(/\s+/g, '_')
       .replace(/[^\w-]+/g, '');
   }
@@ -89,17 +85,21 @@ async function handleFileChange(event: Event) {
 
     editableComponent.value = {
       ...editableComponent.value,
-      name: baseName, // Szebb név
+      name: baseName,
       id: baseName.toLowerCase().replace(/\s+/g, '_'),
       model: `/models/${props.componentType}/${file.name}`,
-      height: analysis.height,
       materialTarget: analysis.materialNames[0] || '',
       materialOptions: analysis.materialNames,
+
+      properties: {
+        ...editableComponent.value.properties,
+        height: analysis.height,
+      },
+
       attachmentPoints: analysis.attachmentPointNames.map(name => {
         const allowedTypes: string[] = [];
         const lowerName = name.toLowerCase();
 
-        // Auto-detect types based on name
         if (lowerName.includes('shelf')) allowedTypes.push('shelves');
         if (lowerName.includes('leg')) allowedTypes.push('legs');
         if (lowerName.includes('front') || lowerName.includes('door')) allowedTypes.push('fronts');
@@ -127,11 +127,8 @@ function saveChanges() {
   if (editableComponent.value) {
     const componentToSave = JSON.parse(JSON.stringify(editableComponent.value));
 
-    // Tisztítás: Ha nincs bepipálva, ne mentsük el az adatot
-    if (!useHeight.value) delete componentToSave.height;
     if (!useMaterialSource.value) delete componentToSave.materialSource;
 
-    // Validáció
     if ((componentToSave.price || 0) < 0) {
       alert("Az ár nem lehet negatív!");
       return;
@@ -207,11 +204,24 @@ function deleteItem() {
 
         <!-- Szélesség -->
         <div class="flex flex-col gap-1">
-          <label class="admin-label text-xs uppercase tracking-wider text-gray-400">Szélesség (cm)</label>
-          <input type="number" step="0.1" v-model="editableComponent.width" placeholder="pl. 60" class="admin-input" />
+          <label class="admin-label text-xs uppercase tracking-wider text-gray-400">Szélesség (mm)</label>
+          <input type="number" v-model.number="editableComponent.properties!.width" placeholder="pl. 600"
+            class="admin-input" />
         </div>
 
+        <!-- Magasság -->
+        <div class="flex flex-col gap-1">
+          <label class="admin-label text-xs uppercase tracking-wider text-gray-400">Magasság (mm)</label>
+          <input type="number" v-model.number="editableComponent.properties!.height" placeholder="pl. 720"
+            class="admin-input" />
+        </div>
 
+        <!-- Mélység -->
+        <div class="flex flex-col gap-1">
+          <label class="admin-label text-xs uppercase tracking-wider text-gray-400">Mélység (mm)</label>
+          <input type="number" v-model.number="editableComponent.properties!.depth" placeholder="pl. 510"
+            class="admin-input" />
+        </div>
 
         <!-- Engedélyezett Anyagkategóriák -->
         <div class="col-span-2 flex flex-col gap-1">
@@ -238,7 +248,51 @@ function deleteItem() {
 
       </div>
 
-      <!-- CSATLAKOZÁSI PONTOK (MODERN UI) -->
+      <!-- SPECIÁLIS TULAJDONSÁGOK (Korpusz / Polc / Anyag) -->
+      <div class="bg-gray-800 p-4 rounded-lg border border-gray-700">
+        <h4 class="font-bold text-white mb-3">Speciális Beállítások</h4>
+
+        <div class="grid grid-cols-3 gap-4">
+
+          <!-- 1. Falvastagság -->
+          <div class="flex flex-col h-full justify-between gap-1">
+            <div>
+              <label class="admin-label text-xs uppercase tracking-wider text-yellow-500">Falvastagság (mm)</label>
+              <p class="text-[10px] text-gray-400 mb-1">Korpusz esetén: Ezt vonjuk le a belső magasság számításához.</p>
+            </div>
+            <input type="number" v-model.number="editableComponent.properties!.wallThickness" placeholder="pl. 18"
+              class="admin-input w-full" />
+          </div>
+
+          <!-- 2. Max Polcok -->
+          <div class="flex flex-col h-full justify-between gap-1">
+            <div>
+              <label class="admin-label text-xs uppercase tracking-wider text-yellow-500">Max Polcok Száma</label>
+              <p class="text-[10px] text-gray-400 mb-1">Korpusz esetén: Ennyi polcot enged a csúszka.</p>
+            </div>
+            <input type="number" v-model.number="editableComponent.properties!.maxShelves" placeholder="pl. 3"
+              class="admin-input w-full" />
+          </div>
+
+          <!-- 3. Anyag Öröklés -->
+          <div class="flex flex-col h-full justify-between gap-1">
+            <div>
+              <label
+                class="flex items-center gap-2 cursor-pointer admin-label text-xs uppercase tracking-wider text-yellow-500">
+                <input type="checkbox" v-model="useMaterialSource"
+                  class="form-checkbox rounded text-blue-500 w-3 h-3" />
+                Anyag Öröklés
+              </label>
+              <p class="text-[10px] text-gray-400 mb-1">Ha az anyagot a szülőtől örökli (pl. korpusz szín).</p>
+            </div>
+            <input type="text" v-model="editableComponent.materialSource" placeholder="pl. corpus"
+              :disabled="!useMaterialSource" class="admin-input w-full" />
+          </div>
+
+        </div>
+      </div>
+
+      <!-- CSATLAKOZÁSI PONTOK -->
       <div v-if="editableComponent.attachmentPoints && editableComponent.attachmentPoints.length > 0"
         class="bg-gray-800 p-4 rounded-lg border border-gray-700">
         <h4 class="font-bold text-white mb-1">Csatlakozási Pontok</h4>
@@ -266,39 +320,6 @@ function deleteItem() {
               </label>
             </div>
 
-          </div>
-        </div>
-      </div>
-
-      <!-- HALADÓ BEÁLLÍTÁSOK (Toggle) -->
-      <div class="border-t border-gray-700 pt-4">
-        <button @click="isAdvancedVisible = !isAdvancedVisible"
-          class="flex items-center gap-2 text-gray-400 hover:text-white transition-colors text-sm font-medium">
-          <span class="transform transition-transform" :class="isAdvancedVisible ? 'rotate-90' : ''">▶</span>
-          Haladó beállítások
-        </button>
-
-        <div v-if="isAdvancedVisible" class="grid grid-cols-2 gap-4 mt-4">
-          <!-- Magasság -->
-          <div class="p-3 bg-gray-800 rounded border border-gray-700" :class="{ 'opacity-50': !useHeight }">
-            <label class="flex items-center gap-2 cursor-pointer mb-2">
-              <input type="checkbox" v-model="useHeight" class="form-checkbox rounded text-blue-500" />
-              <span class="font-bold text-sm">Fix Magasság (Height)</span>
-            </label>
-            <input type="number" step="0.01" v-model="editableComponent.height" :disabled="!useHeight"
-              class="admin-input" />
-            <p class="text-xs text-gray-500 mt-1">Pl. lábaknál a magasság meghatározásához.</p>
-          </div>
-
-          <!-- Anyag Forrás -->
-          <div class="p-3 bg-gray-800 rounded border border-gray-700" :class="{ 'opacity-50': !useMaterialSource }">
-            <label class="flex items-center gap-2 cursor-pointer mb-2">
-              <input type="checkbox" v-model="useMaterialSource" class="form-checkbox rounded text-blue-500" />
-              <span class="font-bold text-sm">Anyag Öröklés (Source)</span>
-            </label>
-            <input type="text" v-model="editableComponent.materialSource" placeholder="pl. corpus"
-              :disabled="!useMaterialSource" class="admin-input" />
-            <p class="text-xs text-gray-500 mt-1">Ha az anyagot a szülőtől örökli (pl. korpusz szín).</p>
           </div>
         </div>
       </div>

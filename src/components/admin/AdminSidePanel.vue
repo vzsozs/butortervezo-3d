@@ -43,14 +43,23 @@ function selectFurniture(furniture: FurnitureConfig) {
 }
 
 // --- GRAPHICAL SELECTOR BRIDGE ---
-const previewCanvasRef = ref<{ toggleAttachmentMarkers: (visible: boolean, activePoints: string[]) => void } | null>(null);
+const previewCanvasRef = ref<{
+  toggleAttachmentMarkers: (visible: boolean, activePoints: string[]) => void;
+  setXRayMode: (enabled: boolean) => void;
+} | null>(null);
 
 function toggleAttachmentMarkers(visible: boolean, activePoints: string[]) {
   previewCanvasRef.value?.toggleAttachmentMarkers(visible, activePoints);
 }
 
+// JAVÍTÁS: Továbbítjuk a kérést a gyerek komponensnek (AdminPreviewCanvas)
+function setXRayMode(enabled: boolean) {
+  previewCanvasRef.value?.setXRayMode(enabled);
+}
+
 defineExpose({
-  toggleAttachmentMarkers
+  toggleAttachmentMarkers,
+  setXRayMode
 });
 </script>
 

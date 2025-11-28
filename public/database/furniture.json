@@ -580,7 +580,8 @@
             "apply": {}
           }
         ],
-        "controlledSlots": []
+        "controlledSlots": [],
+        "defaultSchemaId": "schema_1764250132520"
       }
     ]
   }

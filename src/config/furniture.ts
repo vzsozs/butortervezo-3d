@@ -1,27 +1,45 @@
 // src/config/furniture.ts
 
-// --- ÚJ, TISZTA DEFINÍCIÓ EGY CSATLAKOZÁSI PONTHOZ ---
-// Ezt használja a components.json
+// --- ÚJ: FIZIKAI TULAJDONSÁGOK ---
+export interface ComponentProperties {
+  width?: number
+  height?: number
+  depth?: number
+  weight?: number
+  price?: number
+  wallThickness?: number // Falvastagság (mm) - FONTOS a polc matekhoz!
+  maxShelves?: number // Max polc szám - FONTOS a korláthoz!
+}
+
+// --- CSATLAKOZÁSI PONT ---
 export interface AttachmentPoint {
   id: string
   allowedComponentTypes: string[]
 }
 
-// --- KOMPONENS DEFINÍCIÓ FRISSÍTÉSE ---
+// --- KOMPONENS DEFINÍCIÓ ---
 export interface ComponentConfig {
   id: string
   name: string
   price?: number
-  // familyId removed
   componentType: string
   model: string
-  height?: number
-  width?: number
+
   materialTarget?: string
   materialSource?: string
   materialOptions?: string[]
   attachmentPoints?: AttachmentPoint[]
   allowedMaterialCategories?: string[]
+
+  // JAVÍTÁS: Itt használjuk az új interface-t!
+  properties?: ComponentProperties
+}
+
+// ÚJ INTERFACE A POLC BEÁLLÍTÁSOKHOZ
+export interface ShelfSchemaConfig {
+  mode: 'auto' | 'custom' // 'auto' = Matek, 'custom' = Attach Point
+  count: number // Hány darab polc (csak auto módnál)
+  componentId: string | null // Milyen polcot rakjunk be (csak auto módnál)
 }
 
 export interface PropertyConfig {
@@ -67,9 +85,10 @@ export interface ComponentSlotConfig {
 export interface Schema {
   id: string
   name: string
-  type?: 'front' | 'shelf' | 'drawer' | 'leg' // NEW: Schema type for filtering
+  type?: 'front' | 'shelf' | 'drawer' | 'leg' | 'internal' // NEW: Schema type for filtering
   apply: Record<string, string | null> // path -> componentId
   slotProperties?: Record<string, Partial<ComponentSlotConfig>> // path -> properties (rotation, position, etc.)
+  shelfConfig?: ShelfSchemaConfig
 }
 
 export interface SlotGroup {

@@ -3,13 +3,13 @@ import { computed, ref } from 'vue';
 import { useConfigStore } from '@/stores/config';
 import type { ComponentSlotConfig } from '@/config/furniture';
 import ChevronDown from '@/assets/icons/chevron-down.svg?component';
-import ComponentSelectorModal from './ComponentSelectorModal.vue'; // NEW
+import ComponentSelectorModal from './ComponentSelectorModal.vue';
 
 const props = defineProps<{
-  pointId: string; // The attachment point ID (e.g. 'attach_front')
-  parentPath: string; // The path of the parent (e.g. 'root')
+  pointId: string;
+  parentPath: string;
   schema: Record<string, string | null>;
-  allowedTypes: string[]; // NEW: Explicitly pass allowed types
+  allowedTypes: string[];
   depth?: number;
   getSlot: (path: string, pointId: string) => ComponentSlotConfig | undefined;
 }>();
@@ -17,27 +17,26 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'update:schema', path: string, componentId: string | null): void;
   (e: 'update:slot', slotId: string, update: Partial<ComponentSlotConfig>): void;
-  (e: 'update:schema-property', path: string, update: Partial<ComponentSlotConfig>): void; // NEW
+  (e: 'update:schema-property', path: string, update: Partial<ComponentSlotConfig>): void;
 }>();
 
 const configStore = useConfigStore();
 const isExpanded = ref(true);
 const showSettings = ref(false);
-const showSelectorModal = ref(false);
+
+// ÁLLAPOT: Melyik módban van a modal?
+const activeModalMode = ref<'single' | 'multiple' | null>(null);
 
 // --- COMPUTED ---
 const currentPath = computed(() => `${props.parentPath}__${props.pointId}`);
 const assignedComponentId = computed(() => props.schema[currentPath.value]);
 
-// The actual slot config object (if it exists)
 const slotConfig = computed(() => props.getSlot(props.parentPath, props.pointId));
 
-// The component currently assigned to this slot
 const assignedComponent = computed(() =>
   assignedComponentId.value ? configStore.getComponentById(assignedComponentId.value) : null
 );
 
-// Attachment points of the assigned component (for recursion)
 const childPoints = computed(() => assignedComponent.value?.attachmentPoints || []);
 
 const rotationInDegrees = computed(() => {
@@ -48,18 +47,14 @@ const rotationInDegrees = computed(() => {
 });
 
 // --- ACTIONS ---
-function handleComponentSelect(componentId: string) {
+
+function handleSingleSelect(componentId: string) {
   emit('update:schema', currentPath.value, componentId || null);
-  showSelectorModal.value = false;
+  activeModalMode.value = null;
 }
 
-function handleAllowedSelect(componentIds: string[]) {
+function handleMultiSelect(componentIds: string[]) {
   updateSlotProperty('allowedComponents', componentIds);
-
-  // Auto-assign logic:
-  // 1. If current assigned component is NOT in the new list, pick the first one from the new list.
-  // 2. If the new list is empty, unassign.
-  // 3. If current is valid, keep it.
 
   const current = assignedComponentId.value;
   if (componentIds.length === 0) {
@@ -74,7 +69,6 @@ function handleAllowedSelect(componentIds: string[]) {
 function updateSlotProperty(key: keyof ComponentSlotConfig, value: any) {
   if (slotConfig.value) {
     emit('update:slot', slotConfig.value.slotId, { [key]: value });
-    // ALSO emit schema update if we have a path
     emit('update:schema-property', currentPath.value, { [key]: value });
   }
 }
@@ -107,45 +101,56 @@ function rotate(axis: 'x' | 'y' | 'z', degrees: number) {
           <ChevronDown class="w-4 h-4 transition-transform" :class="{ '-rotate-90': !isExpanded }" />
         </button>
 
-        <!-- Slot Name / Point ID -->
-        <div class="flex-grow flex items-center gap-2">
-          <span class="font-bold text-gray-200">{{ pointId }}</span>
-          <span v-if="assignedComponent"
-            class="text-xs bg-blue-900/50 text-blue-300 px-2 py-0.5 rounded border border-blue-800">
-            {{ assignedComponent.name }}
-          </span>
-          <span v-else class="text-xs text-gray-500 italic">(Üres)</span>
+        <!-- Slot Name / Point ID (BAL OLDAL) -->
+        <div class="flex-grow font-bold text-gray-200">
+          {{ pointId }}
         </div>
 
-        <!-- Settings Toggle -->
-        <button @click="showSettings = !showSettings"
-          class="p-1.5 rounded hover:bg-gray-700 text-gray-400 hover:text-blue-400 transition-colors"
-          :class="{ 'text-blue-400 bg-blue-900/20': showSettings }" title="Beállítások">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-              d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z">
-            </path>
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z">
-            </path>
-          </svg>
-        </button>
+        <!-- JOBB OLDAL: Alapértelmezett + Beállítások -->
+        <div class="flex items-center gap-3">
+
+          <!-- Alapértelmezett választó -->
+          <div class="flex items-center gap-2 mr-2">
+            <span class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Alapértelmezett:</span>
+
+            <button v-if="assignedComponent" @click.stop="activeModalMode = 'single'"
+              class="text-xs bg-blue-900/50 text-blue-300 px-2 py-0.5 rounded border border-blue-800 hover:bg-blue-800 hover:text-white hover:border-blue-500 transition-colors cursor-pointer"
+              title="Kattints az alapértelmezett elem módosításához">
+              {{ assignedComponent.name }}
+            </button>
+
+            <span v-else class="text-xs text-gray-500 italic">(Nincs)</span>
+          </div>
+
+          <!-- Settings Toggle -->
+          <button @click="showSettings = !showSettings"
+            class="p-1.5 rounded hover:bg-gray-700 text-gray-400 hover:text-blue-400 transition-colors border border-transparent hover:border-gray-600"
+            :class="{ 'text-blue-400 bg-blue-900/20 border-blue-800': showSettings }" title="Beállítások">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z">
+              </path>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z">
+              </path>
+            </svg>
+          </button>
+        </div>
+
       </div>
 
       <!-- CARD BODY (Component Selection) -->
       <div class="p-3 bg-gray-800 space-y-2">
-        <button @click="showSelectorModal = true"
+        <button @click="activeModalMode = 'multiple'"
           class="w-full flex justify-between items-center px-3 py-2 bg-gray-700 hover:bg-gray-600 border border-gray-600 rounded-md text-sm text-white transition-colors">
           <span v-if="assignedComponent" class="font-medium">{{ assignedComponent.name }}</span>
           <span v-else class="text-gray-400 italic">Komponens kiválasztása...</span>
           <ChevronDown class="w-4 h-4 text-gray-400" />
         </button>
-
-
       </div>
 
       <!-- SETTINGS PANEL -->
       <div v-if="showSettings && slotConfig" class="border-t border-gray-700 p-3 bg-gray-900/30 space-y-4">
-
         <!-- Rotation -->
         <div>
           <label class="text-xs font-bold text-gray-500 uppercase mb-2 block">Forgatás</label>
@@ -160,8 +165,6 @@ function rotate(axis: 'x' | 'y' | 'z', degrees: number) {
                 <ChevronDown class="w-3 h-3 -rotate-90" />
               </button>
             </div>
-
-
           </div>
         </div>
       </div>
@@ -178,8 +181,8 @@ function rotate(axis: 'x' | 'y' | 'z', degrees: number) {
 
   </div>
 
-  <!-- MODAL (Hybrid) -->
-  <ComponentSelectorModal v-if="showSelectorModal" :allowedTypes="allowedTypes" :currentValue="assignedComponentId"
-    :selectedValues="slotConfig?.allowedComponents || []" :multiple="true" @select="handleComponentSelect"
-    @select-multiple="handleAllowedSelect" @close="showSelectorModal = false" />
+  <!-- MODAL -->
+  <ComponentSelectorModal v-if="activeModalMode" :allowedTypes="allowedTypes" :multiple="activeModalMode === 'multiple'"
+    :currentValue="assignedComponentId" :selectedValues="slotConfig?.allowedComponents || []"
+    @select="handleSingleSelect" @select-multiple="handleMultiSelect" @close="activeModalMode = null" />
 </template>

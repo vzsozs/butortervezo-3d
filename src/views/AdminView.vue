@@ -21,41 +21,21 @@ onMounted(() => {
 });
 
 // --- BÚTOR ÁLLAPOTOK ---
-// --- BÚTOR ÁLLAPOTOK ---
 const editingFurniture = ref<FurnitureConfig | null>(null);
 const isNewFurniture = ref(false);
 const furnitureEditorRef = ref<{
   scrollToSlot: (id: string) => void;
   handleAttachmentClick: (pointId: string) => void;
 } | null>(null);
-const adminSidePanelRef = ref<{ toggleAttachmentMarkers: (visible: boolean, activePoints: string[]) => void } | null>(null);
+
+// JAVÍTÁS: Kiegészítettük a típust a setXRayMode-dal
+const adminSidePanelRef = ref<{
+  toggleAttachmentMarkers: (visible: boolean, activePoints: string[]) => void;
+  setXRayMode: (enabled: boolean) => void;
+} | null>(null);
+
 const originalFurniture = ref<Partial<FurnitureConfig> | null>(null);
 const furnitureEditorKey = ref<string | undefined>(undefined);
-
-// ... (rest of the script)
-
-function handleToggleMarkers(visible: boolean, activePoints: string[]) {
-  adminSidePanelRef.value?.toggleAttachmentMarkers(visible, activePoints);
-}
-
-function handleAttachmentClicked(pointId: string) {
-  furnitureEditorRef.value?.handleAttachmentClick(pointId);
-}
-
-// ... (rest of the script)
-
-// --- TEMPLATE UPDATE ---
-// In the template, I need to bind the refs and events.
-// Since replace_file_content works on chunks, I'll do this in two parts if needed,
-// but I can try to target the script section first.
-
-// Wait, I can't insert functions in the middle of the script easily without context.
-// I'll replace the "BÚTOR ÁLLAPOTOK" section to add refs.
-// And then add the functions at the end of the script or somewhere appropriate.
-
-// Let's try to do it in one go if possible, or split it.
-// I'll replace the BÚTOR ÁLLAPOTOK section first.
-
 
 // --- KOMPONENS ÁLLAPOTOK ---
 const selectedComponent = ref<Partial<ComponentConfig> | null>(null);
@@ -63,7 +43,7 @@ const isNewComponent = ref(false);
 const selectedComponentType = ref('');
 const componentPreviewConfig = ref<Partial<FurnitureConfig> | null>(null);
 
-// Watch a KOMPONENS preview-hoz (változatlan)
+// Watch a KOMPONENS preview-hoz
 watch(selectedComponent, (newComp) => {
   if (newComp?.id && newComp.model && !newComp.model.startsWith('path/to')) {
     componentPreviewConfig.value = {
@@ -75,7 +55,7 @@ watch(selectedComponent, (newComp) => {
   }
 }, { deep: true });
 
-// Watch az AUTOMATIKUS BÚTOR ID GENERÁLÁSHOZ (változatlan)
+// Watch az AUTOMATIKUS BÚTOR ID GENERÁLÁSHOZ
 watch(editingFurniture, (currentFurniture) => {
   if (isNewFurniture.value && currentFurniture) {
     const newId = (currentFurniture.name || '').toLowerCase().replace(/\s+/g, '_').replace(/[^\w-]+/g, '');
@@ -83,10 +63,9 @@ watch(editingFurniture, (currentFurniture) => {
   }
 }, { deep: true });
 
-// --- ÚJ: "UNSAVED CHANGES" DETEKTOR ---
+// --- "UNSAVED CHANGES" DETEKTOR ---
 const hasUnsavedChanges = computed(() => {
   if (!editingFurniture.value || !originalFurniture.value) return false;
-  // Összehasonlítjuk az eredeti és a jelenlegi állapotot
   return JSON.stringify(editingFurniture.value) !== JSON.stringify(originalFurniture.value);
 });
 
@@ -94,7 +73,7 @@ function handleSaveGlobalSettings() {
   saveDatabase('globalSettings.json', configStore.globalSettings);
 }
 
-// --- ÚJ: NAVIGÁCIÓS MEGERŐSÍTŐ ---
+// --- NAVIGÁCIÓS MEGERŐSÍTŐ ---
 function confirmAndProceed(action: () => void) {
   if (hasUnsavedChanges.value) {
     if (confirm('Vannak nem mentett változtatásaid. Biztosan el akarod dobni őket?')) {
@@ -105,9 +84,8 @@ function confirmAndProceed(action: () => void) {
   }
 }
 
-// --- ADATBÁZIS MENTÉSI FÜGGVÉNYEK (SZÉTVÁLASZTVA) ---
+// --- ADATBÁZIS MENTÉSI FÜGGVÉNYEK ---
 
-// 1. SIMA JSON MENTÉS (Bútorokhoz és a bal oldali komponens mentés gombhoz)
 async function saveDatabase(
   filename: 'furniture.json' | 'components.json' | 'globalSettings.json',
   data: FurnitureConfig[] | ComponentDatabase | any
@@ -126,7 +104,6 @@ async function saveDatabase(
   }
 }
 
-// 2. KOMPONENS MENTÉSE FÁJLLAL (JAVÍTVA: most már visszaadja a frissített komponenst)
 async function saveComponent(component: ComponentConfig, file: File | null): Promise<ComponentConfig | null> {
   const formData = new FormData();
   formData.append('componentData', JSON.stringify(component));
@@ -145,41 +122,44 @@ async function saveComponent(component: ComponentConfig, file: File | null): Pro
       const assetManager = AssetManager.getInstance();
       assetManager.invalidateModelCache(result.updatedComponent.model);
     }
-    return result.updatedComponent; // Visszaadjuk a szerver által véglegesített adatot
+    return result.updatedComponent;
   } catch (error) {
     console.error(error);
     alert(`Hiba a komponens mentése közben: ${error}`);
-    return null; // Hiba esetén null-t adunk vissza
+    return null;
   }
 }
 
-// <<< EZ AZ ÚJ FÜGGVÉNY
 async function handleCreateCategory(categoryName: string) {
   if (allComponents.value && !allComponents.value[categoryName]) {
-    // 1. Lépés: Módosítjuk a store memóriában lévő állapotát
     allComponents.value[categoryName] = [];
     console.log(`Új kategória létrehozva a store-ban: ${categoryName}`);
-
-    // 2. Lépés: Azonnal elmentjük a teljes, frissített components.json-t a szerverre
-    // A saveDatabase függvényt használjuk, mert itt nincs fájlfeltöltés.
     try {
-      // A `saveDatabase` már a `allComponents.value`-t használja, ami a frissített állapotot tartalmazza.
       await saveDatabase('components.json', allComponents.value);
       console.log(`A(z) ${categoryName} kategóriával frissített components.json sikeresen mentve.`);
     } catch (error) {
       console.error('Hiba az új kategória mentésekor:', error);
-      // Hiba esetén visszacsináljuk a változtatást a memóriában, hogy a UI konzisztens maradjon
       delete allComponents.value[categoryName];
     }
   }
 }
 
-// --- BÚTOR KEZELŐ FÜGGVÉNYEK (VÁLTOZATLAN) ---
+// JAVÍTOTT X-RAY KEZELÉS
+function handleToggleXRay(enabled: boolean) {
+  // Csak a SidePanel-en keresztül kommunikálunk, mert ott van a 3D motor
+  if (adminSidePanelRef.value && typeof adminSidePanelRef.value.setXRayMode === 'function') {
+    adminSidePanelRef.value.setXRayMode(enabled);
+  } else {
+    console.warn('AdminSidePanel ref is missing or setXRayMode is not available.');
+  }
+}
+
+// --- BÚTOR KEZELŐ FÜGGVÉNYEK ---
 function handleSelectFurniture(furniture: FurnitureConfig | null) {
   if (furniture) {
     const copy = JSON.parse(JSON.stringify(furniture));
     editingFurniture.value = copy;
-    originalFurniture.value = JSON.parse(JSON.stringify(copy)); // Eredeti állapot mentése
+    originalFurniture.value = JSON.parse(JSON.stringify(copy));
     isNewFurniture.value = false;
     furnitureEditorKey.value = furniture.id;
   } else {
@@ -193,7 +173,7 @@ function handleCreateNewFurniture() {
     const tempId = `new_${Date.now()}`;
     const newFurniture = { id: tempId, name: 'Új bútor', category: 'bottom_cabinets', componentSlots: [] };
     editingFurniture.value = newFurniture;
-    originalFurniture.value = JSON.parse(JSON.stringify(newFurniture)); // Eredeti állapot mentése
+    originalFurniture.value = JSON.parse(JSON.stringify(newFurniture));
     isNewFurniture.value = true;
     furnitureEditorKey.value = tempId;
   });
@@ -201,7 +181,6 @@ function handleCreateNewFurniture() {
 function changeTab(tab: 'furniture' | 'components' | 'global' | 'materials') {
   confirmAndProceed(() => {
     activeTab.value = tab;
-    // Zárd be a szerkesztőket fülváltáskor
     handleCancelFurniture();
     handleCancelComponent();
   });
@@ -235,24 +214,25 @@ function handleSlotClicked(slotId: string) {
 }
 
 function handleSaveFurniture(furniture: FurnitureConfig) {
-  // 1. Lépés: Store frissítése
   if (isNewFurniture.value) {
     configStore.addFurniture(furniture);
   } else {
     configStore.updateFurniture(furniture);
   }
-
-  // 2. Lépés: Szerverre mentés
   saveDatabase('furniture.json', allFurniture.value);
-
-  // 3. Lépés: Szerkesztési állapotok resetelése
-  // A mentett állapot lesz az új "eredeti"
   originalFurniture.value = JSON.parse(JSON.stringify(furniture));
-  // Bezárjuk a szerkesztőt
   handleCancelFurniture();
 }
 
-// --- KOMPONENS KEZELŐ FÜGGVÉNYEK (MÓDOSÍTVA) ---
+function handleToggleMarkers(visible: boolean, activePoints: string[]) {
+  adminSidePanelRef.value?.toggleAttachmentMarkers(visible, activePoints);
+}
+
+function handleAttachmentClicked(pointId: string) {
+  furnitureEditorRef.value?.handleAttachmentClick(pointId);
+}
+
+// --- KOMPONENS KEZELŐ FÜGGVÉNYEK ---
 function handleSelectComponent(component: ComponentConfig, type: string) {
   selectedComponentType.value = type;
   selectedComponent.value = JSON.parse(JSON.stringify(component));
@@ -260,45 +240,30 @@ function handleSelectComponent(component: ComponentConfig, type: string) {
 }
 function handleCreateNewComponent(type: string) {
   selectedComponentType.value = type;
-  selectedComponent.value = { name: '', id: '' }; // Kevesebb alapértelmezett érték, a fájl úgyis felülírja
+  selectedComponent.value = { name: '', id: '' };
   isNewComponent.value = true;
 }
 function handleCancelComponent() {
   selectedComponent.value = null;
   isNewComponent.value = false;
 }
-// EZ A FÜGGVÉNY FOGADJA AZ ESEMÉNYT A COMPONENTEDITOR-BÓL
+
 async function handleSaveComponent(component: ComponentConfig, file: File | null) {
   const savedComponent = await saveComponent(component, file);
-
-  // Csak akkor frissítjük a store-t, ha a mentés sikeres volt
   if (savedComponent) {
-    // EZ A HIÁNYZÓ LOGIKA:
-    // Megnézzük, hogy új komponensről volt-e szó, és a megfelelő store action-t hívjuk.
     if (isNewComponent.value) {
       configStore.addComponent(selectedComponentType.value, savedComponent);
     } else {
-      // A frissítés már a saveComponent-ben megtörtént a szerver válasza alapján,
-      // de a biztonság kedvéért itt is meghívhatjuk.
       configStore.updateComponent(selectedComponentType.value, savedComponent);
     }
   }
-
   handleCancelComponent();
 }
 
 function handleDeleteComponent(component: ComponentConfig) {
-  // 1. Lépés: Kérjünk megerősítést a felhasználótól
   if (confirm(`Biztosan törölni szeretnéd a(z) "${component.name}" komponenst?`)) {
-
-    // 2. Lépés: Hívjuk meg a Pinia store megfelelő action-jét
-    // Ez reaktívan frissíteni fogja a bal oldali listát.
     configStore.deleteComponent(selectedComponentType.value, component.id);
-
-    // 3. Lépés: Mentsük el a frissített, teljes components.json-t a szerverre
     saveDatabase('components.json', allComponents.value);
-
-    // 4. Lépés: Zárjuk be a szerkesztő nézetet
     handleCancelComponent();
   }
 }
@@ -306,8 +271,6 @@ function handleDeleteComponent(component: ComponentConfig) {
 function handleSaveComponentsToServer() {
   saveDatabase('components.json', allComponents.value);
 }
-
-
 </script>
 
 <template>
@@ -331,17 +294,17 @@ function handleSaveComponentsToServer() {
         </div>
       </div>
       <div class="flex-1 min-h-0 pt-8">
-        <!-- 1. ESET: GLOBÁLIS BEÁLLÍTÁSOK (Teljes szélességű nézet) -->
+        <!-- 1. ESET: GLOBÁLIS BEÁLLÍTÁSOK -->
         <div v-if="activeTab === 'global'" class="h-full p-4">
           <GlobalSettingsEditor @save-to-server="handleSaveGlobalSettings" />
         </div>
 
-        <!-- 2. ESET: ANYAG SZERKESZTŐ (Teljes szélességű nézet) -->
+        <!-- 2. ESET: ANYAG SZERKESZTŐ -->
         <div v-else-if="activeTab === 'materials'" class="h-full p-4">
           <MaterialEditor />
         </div>
 
-        <!-- 3. ESET: RÉGI NÉZET (Bútor vagy Komponens) - Kétoszlopos Grid -->
+        <!-- 3. ESET: RÉGI NÉZET (Bútor vagy Komponens) -->
         <div v-else class="grid grid-cols-12 gap-6 h-full">
 
           <!-- Bal oldali sáv (SidePanel) -->
@@ -363,9 +326,11 @@ function handleSaveComponentsToServer() {
 
             <!-- Bútor Szerkesztő -->
             <div v-if="activeTab === 'furniture'">
+              <!-- JAVÍTÁS: Bekötöttük a @toggle-xray eseményt -->
               <FurnitureEditor v-if="editingFurniture" ref="furnitureEditorRef" :key="furnitureEditorKey"
                 v-model:furniture="editingFurniture" :is-new="isNewFurniture" @cancel="handleCancelFurniture"
-                @delete="handleDeleteFurniture" @save="handleSaveFurniture" @toggle-markers="handleToggleMarkers" />
+                @delete="handleDeleteFurniture" @save="handleSaveFurniture" @toggle-markers="handleToggleMarkers"
+                @toggle-xray="handleToggleXRay" />
               <div v-else class="text-center text-gray-500 p-8">
                 <p>Válassz ki egy bútort a szerkesztéshez, vagy hozz létre egy újat.</p>
               </div>

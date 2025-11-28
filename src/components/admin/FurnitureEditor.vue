@@ -7,6 +7,7 @@ import SlotNode from './SlotNode.vue';
 import SchemaWizard from './SchemaWizard.vue';
 import SchemaSlotCard from './SchemaSlotCard.vue';
 import { useFurnitureComposer } from '@/composables/useFurnitureComposer';
+import ComponentSelectorModal from './ComponentSelectorModal.vue';
 
 // --- TÍPUSOK ---
 type SimpleSlotUpdate = { key: keyof ComponentSlotConfig; value: any };
@@ -23,6 +24,7 @@ const emit = defineEmits<{
   (e: 'delete', id: string): void;
   (e: 'cancel'): void;
   (e: 'toggle-markers', visible: boolean, activePoints: string[]): void;
+  (e: 'toggle-xray', enabled: boolean): void;
 }>();
 
 // --- STATE ---
@@ -133,9 +135,24 @@ async function handleSchemaCreate(type: 'front' | 'shelf' | 'drawer') {
 // Markerek kezelése
 watch(openSchemaId, (newId) => {
   if (newId) {
+    // 1. Markerek frissítése (ez volt eddig is)
     setTimeout(() => updateMarkers(), 100);
+
+    // 2. X-RAY MÓD KEZELÉSE (ÚJ)
+    const layoutGroup = editableFurniture.value?.slotGroups?.find(g => g.name === 'Layouts');
+    const schema = layoutGroup?.schemas.find(s => s.id === newId);
+
+    // Ha a séma típusa 'shelf' vagy 'internal', akkor kapcsoljuk be a röntgent
+    if (schema && (schema.type === 'shelf' || schema.type === 'internal')) {
+      emit('toggle-xray', true);
+    } else {
+      emit('toggle-xray', false);
+    }
+
   } else {
+    // Ha bezárjuk a sémát, mindent lekapcsolunk
     emit('toggle-markers', false, []);
+    emit('toggle-xray', false);
   }
 });
 
@@ -412,6 +429,48 @@ function setDefaultSchema(schemaId: string) {
   editableFurniture.value = { ...editableFurniture.value } as FurnitureConfig;
 }
 
+// Polc config frissítése
+function updateShelfConfig(schema: Schema, key: string, value: any) {
+  if (!schema.shelfConfig) {
+    schema.shelfConfig = { mode: 'auto', count: 0, componentId: null };
+  }
+  (schema.shelfConfig as any)[key] = value;
+
+  // Trigger update
+  editableFurniture.value = { ...editableFurniture.value } as FurnitureConfig;
+}
+
+// Korpusz max polc számának lekérése
+function getRootComponentMaxShelves(): number {
+  const rootId = getRootComponentId();
+  if (!rootId) return 5;
+  const comp = configStore.getComponentById(rootId);
+  return comp?.properties?.maxShelves || 5;
+}
+
+// Komponens név lekérése ID alapján
+function getComponentName(id: string | null | undefined) {
+  if (!id) return null;
+  return configStore.getComponentById(id)?.name;
+}
+
+// Polc választó modal kezelése (ehhez kell egy új state változó)
+const showShelfSelector = ref(false);
+const activeShelfSchema = ref<Schema | null>(null);
+
+function openShelfSelector(schema: Schema) {
+  activeShelfSchema.value = schema;
+  showShelfSelector.value = true;
+}
+
+function handleShelfSelect(componentId: string) {
+  if (activeShelfSchema.value) {
+    updateShelfConfig(activeShelfSchema.value, 'componentId', componentId);
+  }
+  showShelfSelector.value = false;
+  activeShelfSchema.value = null;
+}
+
 const PencilIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>`;
 </script>
 
@@ -616,18 +675,85 @@ const PencilIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewB
             </div>
           </div>
 
-          <!-- REKURZÍV FA NÉZET -->
+          <!-- REKURZÍV FA NÉZET (Csak ha nyitva van) -->
           <div v-if="openSchemaId === schema.id" class="p-4 bg-gray-800/50">
+
             <div class="text-sm text-gray-400 mb-4">
-              Itt szerkesztheted a bútor felépítését. A változtatások azonnal megjelennek a 3D nézetben.
+              Itt szerkesztheted a bútor felépítését.
             </div>
 
-            <div class="space-y-4">
+            <!-- A) SPECIÁLIS POLC VEZÉRLŐ (Ha type === 'shelf') -->
+            <div v-if="schema.type === 'shelf'" class="space-y-6">
+
+              <!-- 1. MÓD VÁLASZTÓ -->
+              <div class="flex bg-gray-900 p-1 rounded-lg border border-gray-700">
+                <button @click="updateShelfConfig(schema, 'mode', 'auto')"
+                  class="flex-1 py-2 text-sm font-bold rounded transition-colors"
+                  :class="schema.shelfConfig?.mode === 'auto' ? 'bg-blue-600 text-white shadow' : 'text-gray-400 hover:text-white'">
+                  🧮 Automatikus (Osztott)
+                </button>
+                <button @click="updateShelfConfig(schema, 'mode', 'custom')"
+                  class="flex-1 py-2 text-sm font-bold rounded transition-colors"
+                  :class="schema.shelfConfig?.mode === 'custom' ? 'bg-blue-600 text-white shadow' : 'text-gray-400 hover:text-white'">
+                  📍 Egyedi (Fix Pontok)
+                </button>
+              </div>
+
+              <!-- 2. AUTOMATA MÓD BEÁLLÍTÁSOK -->
+              <div v-if="schema.shelfConfig?.mode === 'auto'"
+                class="space-y-4 bg-gray-800 p-4 rounded border border-gray-700">
+
+                <!-- Polc Típus Választó -->
+                <div>
+                  <label class="text-xs font-bold text-gray-500 uppercase mb-2 block">Polc Típusa</label>
+                  <button @click="openShelfSelector(schema)"
+                    class="w-full flex justify-between items-center px-3 py-2 bg-gray-700 hover:bg-gray-600 border border-gray-600 rounded text-sm text-white">
+                    <span>{{ getComponentName(schema.shelfConfig?.componentId) || 'Válassz polcot...' }}</span>
+                    <span class="text-gray-400">▼</span>
+                  </button>
+                </div>
+
+                <!-- Darabszám Slider -->
+                <div>
+                  <div class="flex justify-between mb-2">
+                    <label class="text-xs font-bold text-gray-500 uppercase">Polcok Száma</label>
+                    <span class="text-sm font-bold text-blue-400">{{ schema.shelfConfig?.count || 0 }} db</span>
+                  </div>
+                  <input type="range" min="0" :max="getRootComponentMaxShelves() || 5" step="1"
+                    :value="schema.shelfConfig?.count || 0"
+                    @input="updateShelfConfig(schema, 'count', parseInt(($event.target as HTMLInputElement).value))"
+                    class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500" />
+                  <div class="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>0</span>
+                    <span>Max: {{ getRootComponentMaxShelves() || 5 }}</span>
+                  </div>
+                </div>
+
+                <!-- Info -->
+                <div class="text-xs text-gray-400 italic bg-gray-900/50 p-2 rounded">
+                  ℹ️ A polcok egyenletesen lesznek elosztva a korpusz belső magasságában.
+                </div>
+
+              </div>
+
+              <!-- 3. EGYEDI MÓD (Visszaesik a Fa nézetre) -->
+              <div v-else>
+                <div class="text-xs text-yellow-500 mb-2">
+                  ⚠️ Egyedi módban a 3D modellben lévő csatlakozási pontokat (attach_shelf_...) használjuk.
+                </div>
+                <!-- Itt majd megjelenik a lenti fa nézet, mert a feltétel engedi -->
+              </div>
+
+            </div>
+
+            <!-- B) HAGYOMÁNYOS FA NÉZET (Minden másra, VAGY ha shelf=custom) -->
+            <div v-if="schema.type !== 'shelf' || schema.shelfConfig?.mode === 'custom'" class="space-y-4">
               <SchemaSlotCard v-for="point in getRootAttachmentPoints()" :key="point.id" :pointId="point.id"
                 parentPath="root" :schema="schema.apply" :allowedTypes="point.allowedComponentTypes"
                 :getSlot="getSlotForPath" @update:schema="handleSchemaUpdate" @update:slot="handleSlotUpdate"
                 @update:schema-property="handleSchemaPropertyUpdate" />
             </div>
+
           </div>
         </div>
 
@@ -636,6 +762,11 @@ const PencilIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewB
 
     <!-- WIZARD MODAL -->
     <SchemaWizard v-if="showWizard" @select="handleSchemaCreate" @cancel="showWizard = false" />
+
+    <!-- POLC VÁLASZTÓ MODAL -->
+    <ComponentSelectorModal v-if="showShelfSelector" :allowedTypes="['shelves']"
+      :currentValue="activeShelfSchema?.shelfConfig?.componentId || null" :selectedValues="[]" :multiple="false"
+      @select="handleShelfSelect" @close="showShelfSelector = false" />
 
   </div>
 </template>

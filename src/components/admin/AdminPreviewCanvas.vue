@@ -59,13 +59,14 @@ onMounted(() => {
       updateCanvas(props.furnitureConfig, true);
     }
 
-    // 3. ÚJ: Átméretezés figyelése (Reszponzivitás)
+    // 3. Átméretezés figyelése (Reszponzivitás)
     resizeObserver = new ResizeObserver(() => {
-      experience?.resize(); // Feltételezem, hogy van resize() metódusod az AdminExperience-ben!
+      experience?.resize();
     });
     resizeObserver.observe(canvasContainer.value);
   }
 });
+
 
 onUnmounted(() => {
   if (experience) {
@@ -95,9 +96,14 @@ function handleAttachmentClickFrom3D(event: any) {
   }
 }
 
+// --- EXPOSE (KIFELÉ LÁTHATÓ METÓDUSOK) ---
 defineExpose({
   toggleAttachmentMarkers: (visible: boolean, activePoints: string[]) => {
     experience?.toggleAttachmentMarkers(visible, activePoints);
+  },
+  // EZT ADTUK HOZZÁ: Továbbítjuk a kérést a 3D motornak
+  setXRayMode: (enabled: boolean) => {
+    experience?.setXRayMode(enabled);
   }
 });
 </script>
@@ -105,7 +111,3 @@ defineExpose({
 <template>
   <div ref="canvasContainer" class="w-full h-full"></div>
 </template>
-
-<style scoped>
-/* Ha kell valami specifikus */
-</style>
