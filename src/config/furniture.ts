@@ -117,10 +117,48 @@ export interface ComponentDatabase {
 export interface GlobalSettingConfig {
   id: string
   name: string
-  type: string
-  targetSlotId: string
-  options?: string[]
+  groupId: string // ÚJ
+  type: 'material' | 'component' // MÓDOSÍTVA
   allowedMaterialCategories?: string[]
+  allowedComponentIds?: string[] // ÚJ
+  // targetSlotId és options mezők törölhetők, ha már nem használod a régi logikát
+}
+
+export interface MaterialConfig {
+  id: string
+  name: string
+  category: string | string[]
+  type: 'color' | 'texture'
+  value: string
+  properties?: {
+    roughness?: number
+    metalness?: number
+    [key: string]: any
+  }
+}
+
+export interface StyleVariant {
+  id: string
+  name: string // Pl. "Keretes / Klasszikus"
+  componentIds: string[] // Pl. ["front_keretes_60", "front_keretes_30", "drawer_keretes"]
+}
+
+export interface GlobalGroupConfig {
+  id: string
+  name: string // Pl. "Ajtók és Fiókok"
+  targets: string[] // Pl. ["fronts", "drawers"] - Miket vezérel?
+
+  // Anyag Beállítások
+  material: {
+    enabled: boolean
+    allowedCategories: string[] // Pl. ["Bútorlap", "Festett"]
+  }
+
+  // Stílus Beállítások
+  style: {
+    enabled: boolean
+    variants: StyleVariant[] // Itt vannak a csoportosított stílusok
+  }
 }
 
 export interface MaterialConfig {

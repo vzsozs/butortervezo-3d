@@ -70,7 +70,12 @@ const hasUnsavedChanges = computed(() => {
 });
 
 function handleSaveGlobalSettings() {
-  saveDatabase('globalSettings.json', configStore.globalSettings);
+  // Ellenőrizzük, hogy létezik-e az adat
+  if (!configStore.globalGroups) {
+    console.error("Hiba: Nincs menthető globális beállítás (globalGroups is undefined)");
+    return;
+  }
+  saveDatabase('globalSettings.json', configStore.globalGroups);
 }
 
 // --- NAVIGÁCIÓS MEGERŐSÍTŐ ---
@@ -91,10 +96,13 @@ async function saveDatabase(
   data: FurnitureConfig[] | ComponentDatabase | any
 ) {
   try {
+    // JAVÍTÁS: Proxy mentesítés a biztonság kedvéért
+    const cleanData = JSON.parse(JSON.stringify(data));
+
     const response = await fetch('/api/save-database', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filename, data }),
+      body: JSON.stringify({ filename, data: cleanData }),
     });
     if (!response.ok) throw new Error(await response.text());
     alert(`${filename} sikeresen mentve!`);

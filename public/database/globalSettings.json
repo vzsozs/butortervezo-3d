@@ -1,26 +1,107 @@
 [
   {
-    "id": "setting_1763812728260",
-    "name": "Lábak Anyaga",
-    "type": "select",
-    "targetSlotId": "legs",
-    "options": [],
-    "allowedMaterialCategories": []
+    "id": "group_1764454754584",
+    "name": "Korpusz",
+    "targets": [
+      "corpuses"
+    ],
+    "material": {
+      "enabled": true,
+      "allowedCategories": [
+        "Bútorlap",
+        "Egyéb",
+        "Hátfal",
+        "general"
+      ]
+    },
+    "style": {
+      "enabled": false,
+      "variants": []
+    }
   },
   {
-    "id": "setting_1763812774261",
-    "name": "Ajtók Anyaga",
-    "type": "select",
-    "targetSlotId": "fronts",
-    "options": [],
-    "allowedMaterialCategories": []
+    "id": "group_1764454809813",
+    "name": "Ajtók",
+    "targets": [
+      "fronts"
+    ],
+    "material": {
+      "enabled": true,
+      "allowedCategories": [
+        "Bútorlap",
+        "Egyéb",
+        "Hátfal",
+        "general"
+      ]
+    },
+    "style": {
+      "enabled": true,
+      "variants": [
+        {
+          "id": "var_1764454819849",
+          "name": "Keretes",
+          "componentIds": [
+            "front_bottom_keretes_60_l"
+          ]
+        }
+      ]
+    }
   },
   {
-    "id": "setting_1763819778946",
-    "name": "Korpusz anyaga",
-    "type": "select",
-    "targetSlotId": "corpuses",
-    "options": [],
-    "allowedMaterialCategories": []
+    "id": "group_1764454998970",
+    "name": "Fogantyú",
+    "targets": [
+      "handles"
+    ],
+    "material": {
+      "enabled": true,
+      "allowedCategories": [
+        "Fém"
+      ]
+    },
+    "style": {
+      "enabled": true,
+      "variants": [
+        {
+          "id": "var_1764455009837",
+          "name": "Standard",
+          "componentIds": [
+            "handle_standard"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "group_1764454778690",
+    "name": "Lábak",
+    "targets": [
+      "legs"
+    ],
+    "material": {
+      "enabled": true,
+      "allowedCategories": [
+        "Fém"
+      ]
+    },
+    "style": {
+      "enabled": true,
+      "variants": [
+        {
+          "id": "var_1764454793948",
+          "name": "Standard",
+          "componentIds": [
+            "leg_standard"
+          ]
+        },
+        {
+          "id": "var_1764454880659",
+          "name": "Design",
+          "componentIds": [
+            "leg_design"
+          ]
+        }
+      ]
+    }
   }
 ]

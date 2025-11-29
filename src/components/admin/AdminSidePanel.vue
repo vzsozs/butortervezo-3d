@@ -85,10 +85,17 @@ defineExpose({
   <div class="flex flex-col h-full bg-gray-900 rounded-lg shadow-lg overflow-hidden border border-gray-700 p-4">
 
     <!-- 1. FELSŐ SZEKCIÓ: 3D PREVIEW -->
-    <!-- 1. FELSŐ SZEKCIÓ: 3D PREVIEW -->
-    <div class="h-96 bg-gray-900 p-1 rounded-lg shadow-inner border border-gray-700 flex-shrink-0 mb-4 overflow-hidden">
-      <AdminPreviewCanvas ref="previewCanvasRef" :furniture-config="selectedFurniture"
-        @slot-clicked="(id) => emit('slot-clicked', id)" @attachment-clicked="(id) => emit('attachment-clicked', id)" />
+    <div class="flex-shrink-0 mb-4">
+      <h2 class="section-header">3D Előnézet</h2>
+      <div class="bg-gray-900 p-1 rounded-lg h-96 shadow-inner border border-gray-700">
+        <AdminPreviewCanvas v-if="selectedFurniture" ref="previewCanvasRef" :furniture-config="selectedFurniture"
+          @slot-clicked="(id) => emit('slot-clicked', id)"
+          @attachment-clicked="(id) => emit('attachment-clicked', id)" />
+        <div v-else class="w-full h-full flex flex-col items-center justify-center text-gray-500 text-sm">
+          <span class="text-2xl mb-2">🧊</span>
+          <p>Válassz bútort</p>
+        </div>
+      </div>
     </div>
 
     <!-- 2. KÖZÉPSŐ SZEKCIÓ: LISTA -->

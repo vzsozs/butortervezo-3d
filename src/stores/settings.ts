@@ -5,16 +5,16 @@ import { useExperienceStore } from './experience'
 export const useSettingsStore = defineStore('settings', () => {
   const experienceStore = useExperienceStore()
 
-  // --- ALAPÉRTELMEZETT ÉRTÉKEK ---
-  // Alapértelmezett anyagok (üresen hagyjuk, vagy null-t használunk, ha a rendszer engedi)
-  const defaultGlobalMaterials = {
-    fronts: '',
-    corpuses: '',
-    legs: '',
-    handles: '',
-  }
   // --- ÁLLAPOT (STATE) ---
-  const globalMaterialSettings = ref<Record<string, string>>({ ...defaultGlobalMaterials })
+
+  // 1. Globális Anyagok (groupId -> materialId)
+  // Pl. { "fronts": "mat_white_gloss", "corpuses": "mat_oak" }
+  const globalMaterialSettings = ref<Record<string, string>>({})
+
+  // 2. Globális Stílusok / Komponensek (groupId -> componentId)
+  // Pl. { "fronts": "front_keretes", "legs": "leg_modern" }
+  const globalComponentSettings = ref<Record<string, string>>({})
+
   const activeFurnitureId = ref<string | null>('also_szekreny_60')
   const areFrontsVisible = ref(true)
   const isSnappingEnabled = ref(true)
@@ -24,33 +24,49 @@ export const useSettingsStore = defineStore('settings', () => {
   // --- AKCIÓK (ACTIONS) ---
 
   /**
-   * A legördülő menü hívja meg. Csak akkor fut le, ha az érték változik.
+   * Globális ANYAG beállítása
    */
-  async function setGlobalMaterial(targetSlotId: string, newMaterialId: string) {
-    if (!newMaterialId || globalMaterialSettings.value[targetSlotId] === newMaterialId) {
+  async function setGlobalMaterial(groupId: string, newMaterialId: string) {
+    if (!newMaterialId || globalMaterialSettings.value[groupId] === newMaterialId) {
       return
     }
-    globalMaterialSettings.value[targetSlotId] = newMaterialId
-    await forceGlobalMaterial(targetSlotId)
+    globalMaterialSettings.value[groupId] = newMaterialId
+
+    // Azonnali frissítés a 3D térben
+    await forceGlobalUpdate()
   }
 
   /**
-   * A "Frissítés" gomb hívja meg. Feltétel nélkül rákényszeríti az aktuális globális anyagot minden bútorra.
+   * Globális STÍLUS (Komponens) beállítása
    */
-  async function forceGlobalMaterial(_targetSlotId: string) {
+  async function setGlobalComponentStyle(groupId: string, newComponentId: string) {
+    if (!newComponentId || globalComponentSettings.value[groupId] === newComponentId) {
+      return
+    }
+    globalComponentSettings.value[groupId] = newComponentId
+
+    // Itt később majd a 3D modell cserét kell meghívni
+    // Egyelőre logoljuk, hogy lássuk működik-e
+    console.log(`[SettingsStore] Stílus váltás: ${groupId} -> ${newComponentId}`)
+
+    // TODO: Implementálni a 3D cserét az Experience-ben
+    // await experienceStore.instance?.updateGlobalComponents(groupId, newComponentId);
+  }
+
+  /**
+   * Kényszerített frissítés (Anyagok)
+   */
+  async function forceGlobalUpdate() {
     const experience = experienceStore.instance
     if (!experience) return
-
-    // NUKLEÁRIS MEGOLDÁS:
-    // Ahelyett, hogy egyesével próbálnánk frissíteni (ami hibás volt a slot ID mapping miatt),
-    // meghívjuk a központi updateGlobalMaterials metódust, ami helyesen kezeli a mappinget.
     await experience.updateGlobalMaterials()
   }
 
   // --- EGYÉB AKCIÓK ---
 
   function resetToDefaults() {
-    globalMaterialSettings.value = { ...defaultGlobalMaterials }
+    globalMaterialSettings.value = {}
+    globalComponentSettings.value = {}
     areFrontsVisible.value = true
     isElementListVisible.value = false
     isRulerModeActive.value = false
@@ -62,8 +78,6 @@ export const useSettingsStore = defineStore('settings', () => {
 
   function toggleFrontsVisibility() {
     areFrontsVisible.value = !areFrontsVisible.value
-    console.log(`[Settings Store] Az areFrontsVisible új értéke: ${areFrontsVisible.value}`)
-
     const experience = experienceStore.instance
     if (experience) {
       experience.stateManager.updateFrontsVisibility(areFrontsVisible.value)
@@ -81,6 +95,7 @@ export const useSettingsStore = defineStore('settings', () => {
   return {
     // State
     globalMaterialSettings,
+    globalComponentSettings, // ÚJ
     activeFurnitureId,
     areFrontsVisible,
     isSnappingEnabled,
@@ -88,7 +103,8 @@ export const useSettingsStore = defineStore('settings', () => {
     isRulerModeActive,
     // Actions
     setGlobalMaterial,
-    forceGlobalMaterial,
+    setGlobalComponentStyle, // ÚJ
+    forceGlobalUpdate,
     setActiveFurnitureId,
     toggleFrontsVisibility,
     toggleElementListVisibility,

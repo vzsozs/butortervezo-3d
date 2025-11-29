@@ -1,9 +1,10 @@
+// src/stores/config.ts
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import type {
   FurnitureConfig,
   ComponentConfig,
-  GlobalSettingConfig,
+  GlobalGroupConfig, // ÚJ TÍPUS
   ComponentDatabase,
   MaterialConfig,
 } from '@/config/furniture'
@@ -11,10 +12,12 @@ import type {
 export const useConfigStore = defineStore('config', () => {
   const furnitureList = ref<FurnitureConfig[]>([])
   const components = ref<ComponentDatabase>({})
-  const globalSettings = ref<GlobalSettingConfig[]>([])
+
+  // JAVÍTÁS: globalSettings helyett globalGroups
+  const globalGroups = ref<GlobalGroupConfig[]>([])
+
   const materials = ref<MaterialConfig[]>([])
 
-  // Ez a computed property tökéletes, marad
   const furnitureCategories = computed(() => {
     const categories: Record<string, { name: string; items: FurnitureConfig[] }> = {
       bottom_cabinets: { name: 'Alsó szekrények', items: [] },
@@ -29,27 +32,44 @@ export const useConfigStore = defineStore('config', () => {
     return Object.values(categories).filter((c) => c.items.length > 0)
   })
 
-  // --- ÚJ ACTIONS: Global Settings Kezelés ---
+  // --- ÚJ ACTIONS: Global Group Kezelés ---
 
-  function addGlobalSetting(setting: GlobalSettingConfig) {
-    globalSettings.value.push(setting)
+  function addGlobalGroup(group: GlobalGroupConfig) {
+    globalGroups.value.push(group)
   }
 
-  function updateGlobalSetting(setting: GlobalSettingConfig) {
-    const index = globalSettings.value.findIndex((s) => s.id === setting.id)
+  function updateGlobalGroup(group: GlobalGroupConfig) {
+    const index = globalGroups.value.findIndex((g) => g.id === group.id)
     if (index !== -1) {
-      globalSettings.value[index] = setting
+      globalGroups.value[index] = group
     }
   }
 
-  function deleteGlobalSetting(settingId: string) {
-    const index = globalSettings.value.findIndex((s) => s.id === settingId)
+  function deleteGlobalGroup(groupId: string) {
+    const index = globalGroups.value.findIndex((g) => g.id === groupId)
     if (index !== -1) {
-      globalSettings.value.splice(index, 1)
+      globalGroups.value.splice(index, 1)
     }
   }
 
-  // --- ÚJ ACTIONS: Material Kezelés ---
+  // --- SORRENDEZÉS (NYILAK) ---
+  function moveGroupUp(index: number) {
+    if (index > 0) {
+      const temp = globalGroups.value[index]
+      globalGroups.value[index] = globalGroups.value[index - 1]
+      globalGroups.value[index - 1] = temp
+    }
+  }
+
+  function moveGroupDown(index: number) {
+    if (index < globalGroups.value.length - 1) {
+      const temp = globalGroups.value[index]
+      globalGroups.value[index] = globalGroups.value[index + 1]
+      globalGroups.value[index + 1] = temp
+    }
+  }
+
+  // --- Material Kezelés (Változatlan) ---
   function addMaterial(material: MaterialConfig) {
     materials.value.push(material)
   }
@@ -68,7 +88,7 @@ export const useConfigStore = defineStore('config', () => {
     }
   }
 
-  // A setConfigs-t átalakítjuk egy központi betöltő függvénnyé
+  // Betöltés
   async function loadAllData() {
     try {
       const [furnitureRes, componentsRes, globalSettingsRes, materialsRes] = await Promise.all([
@@ -79,22 +99,22 @@ export const useConfigStore = defineStore('config', () => {
       ])
       furnitureList.value = await furnitureRes.json()
       components.value = await componentsRes.json()
-      globalSettings.value = await globalSettingsRes.json()
+
+      // JAVÍTÁS: Itt is globalGroups-ba töltünk
+      globalGroups.value = await globalSettingsRes.json()
 
       if (materialsRes.ok) {
         materials.value = await materialsRes.json()
       } else {
-        console.warn('Materials database not found or empty.')
         materials.value = []
       }
-
-      console.log('Adatbázis sikeresen betöltve a store-ba a központi helyről.')
+      console.log('Adatbázis sikeresen betöltve.')
     } catch (error) {
       console.error('Hiba a központi adatbázis betöltése közben:', error)
     }
   }
 
-  // A meglévő getterek tökéletesek, maradnak
+  // Getterek (Változatlan)
   function getComponentById(id: string): ComponentConfig | undefined {
     for (const categoryKey in components.value) {
       const categoryComponents = components.value[categoryKey]
@@ -114,68 +134,51 @@ export const useConfigStore = defineStore('config', () => {
     return materials.value.find((m) => m.id === id)
   }
 
-  // --- ÚJ ACTION-ÖK AZ ADMIN FELÜLETHEZ ---
-
-  // Komponens hozzáadása
+  // Admin Actions (Változatlan)
   function addComponent(type: string, component: ComponentConfig) {
-    if (!components.value[type]) {
-      components.value[type] = []
-    }
+    if (!components.value[type]) components.value[type] = []
     components.value[type].push(component)
   }
 
-  // Komponens frissítése
   function updateComponent(type: string, component: ComponentConfig) {
     const categoryComponents = components.value[type]
     if (!categoryComponents) return
     const index = categoryComponents.findIndex((c) => c.id === component.id)
-    if (index !== -1) {
-      categoryComponents[index] = component
-    }
+    if (index !== -1) categoryComponents[index] = component
   }
 
-  // Komponens törlése
   function deleteComponent(type: string, componentId: string) {
     const categoryComponents = components.value[type]
     if (!categoryComponents) return
     const index = categoryComponents.findIndex((c) => c.id === componentId)
-    if (index !== -1) {
-      categoryComponents.splice(index, 1)
-    }
+    if (index !== -1) categoryComponents.splice(index, 1)
   }
 
-  // Bútor hozzáadása
   function addFurniture(furniture: FurnitureConfig) {
     furnitureList.value.push(furniture)
   }
 
-  // Bútor frissítése
   function updateFurniture(furniture: FurnitureConfig) {
     const index = furnitureList.value.findIndex((f) => f.id === furniture.id)
-    if (index !== -1) {
-      furnitureList.value[index] = furniture
-    }
+    if (index !== -1) furnitureList.value[index] = furniture
   }
 
-  // Bútor törlése
   function deleteFurniture(furnitureId: string) {
     const index = furnitureList.value.findIndex((f) => f.id === furnitureId)
-    if (index !== -1) {
-      furnitureList.value.splice(index, 1)
-    }
+    if (index !== -1) furnitureList.value.splice(index, 1)
   }
 
   return {
-    // Állapotok
     furnitureList,
     components,
-    globalSettings,
+    globalGroups, // ÚJ EXPORT
     materials,
     furnitureCategories,
-    // Action-ök
-    addGlobalSetting,
-    updateGlobalSetting,
-    deleteGlobalSetting,
+    addGlobalGroup,
+    updateGlobalGroup,
+    deleteGlobalGroup,
+    moveGroupUp, // ÚJ
+    moveGroupDown, // ÚJ
     addMaterial,
     updateMaterial,
     deleteMaterial,
