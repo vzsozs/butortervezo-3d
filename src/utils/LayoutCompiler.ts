@@ -66,7 +66,7 @@ export class LayoutCompiler {
     return slots
   }
 
-  // ÚJ FÜGGVÉNY: A MATEK
+  // A MATEK
   private generateAutoShelves(
     corpus: ComponentConfig,
     parentSlotId: string,
@@ -111,7 +111,7 @@ export class LayoutCompiler {
         useAttachmentPoint: '', // Nem használunk dummy pontot!
 
         // POZÍCIÓ (A lényeg)
-        position: { x: 0, y: posY / 1000, z: 0 }, // mm -> méter konverzió Three.js-hez!
+        position: { x: 0, y: posY, z: 0 }, // mm -> méter konverzió Three.js-hez!
         rotation: { x: 0, y: 0, z: 0 },
         scale: { x: 1, y: 1, z: 1 },
       }

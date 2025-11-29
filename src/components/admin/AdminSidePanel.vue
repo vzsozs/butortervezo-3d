@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, onBeforeUpdate, onUpdated } from 'vue';
 import type { FurnitureConfig } from '@/config/furniture';
 import AdminPreviewCanvas from './AdminPreviewCanvas.vue';
 import CollapsibleCategory from './CollapsibleCategory.vue';
@@ -17,6 +17,22 @@ const emit = defineEmits<{
 }>();
 
 const searchQuery = ref('');
+const scrollContainer = ref<HTMLElement | null>(null);
+
+// --- GÖRGETÉS POZÍCIÓ MEGŐRZÉSE ---
+let savedScrollTop = 0;
+
+onBeforeUpdate(() => {
+  if (scrollContainer.value) {
+    savedScrollTop = scrollContainer.value.scrollTop;
+  }
+});
+
+onUpdated(() => {
+  if (scrollContainer.value) {
+    scrollContainer.value.scrollTop = savedScrollTop;
+  }
+});
 
 const categorizedFurniture = computed(() => {
   const list = props.furnitureList || [];
@@ -39,6 +55,7 @@ const categorizedFurniture = computed(() => {
 });
 
 function selectFurniture(furniture: FurnitureConfig) {
+  if (props.selectedFurniture?.id === furniture.id) return;
   emit('update:selectedFurniture', furniture);
 }
 
@@ -52,13 +69,9 @@ function toggleAttachmentMarkers(visible: boolean, activePoints: string[]) {
   previewCanvasRef.value?.toggleAttachmentMarkers(visible, activePoints);
 }
 
-// JAVÍTÁS: Továbbítjuk a kérést a gyerek komponensnek (AdminPreviewCanvas)
 function setXRayMode(enabled: boolean) {
-  console.log('bridge SidePanel FOGADTA:', enabled); // <--- EZT FIGYELD
   if (previewCanvasRef.value) {
     previewCanvasRef.value.setXRayMode(enabled);
-  } else {
-    console.error('❌ HIBA: previewCanvasRef értéke null!');
   }
 }
 
@@ -71,28 +84,26 @@ defineExpose({
 <template>
   <div class="flex flex-col h-full bg-gray-900 rounded-lg shadow-lg overflow-hidden border border-gray-700 p-4">
 
-    <!-- 1. FELSŐ SZEKCIÓ: 3D PREVIEW (Fix magasság) -->
+    <!-- 1. FELSŐ SZEKCIÓ: 3D PREVIEW -->
     <div class="h-96 bg-black relative border border-gray-700 rounded-lg flex-shrink-0 mb-4 overflow-hidden">
       <AdminPreviewCanvas ref="previewCanvasRef" :furniture-config="selectedFurniture"
         @slot-clicked="(id) => emit('slot-clicked', id)" @attachment-clicked="(id) => emit('attachment-clicked', id)" />
 
-      <!-- Overlay információ -->
       <div class="absolute top-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded pointer-events-none">
         Preview
       </div>
     </div>
 
-    <!-- 2. KÖZÉPSŐ SZEKCIÓ: LISTA (Görgethető) -->
+    <!-- 2. KÖZÉPSŐ SZEKCIÓ: LISTA -->
     <div class="flex-1 min-h-0 flex flex-col overflow-hidden">
       <h2 class="section-header flex-shrink-0">Bútorok</h2>
 
-      <!-- Keresőmező -->
       <div class="mb-2 pr-2">
         <input type="text" v-model="searchQuery" placeholder="Keresés név vagy ID alapján..."
           class="admin-input w-full text-sm" />
       </div>
 
-      <div class="overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+      <div ref="scrollContainer" class="overflow-y-auto space-y-2 pr-2 custom-scrollbar">
         <CollapsibleCategory v-for="(items, categoryName) in categorizedFurniture" :key="categoryName"
           :title="categoryName.toString().replace(/_/g, ' ')" start-open>
           <div v-for="furniture in items" :key="furniture.id" @click="selectFurniture(furniture)"
@@ -103,21 +114,19 @@ defineExpose({
             ]">
             <div class="flex justify-between items-center">
               <p class="font-semibold text-sm text-gray-200">{{ furniture.name }}</p>
-              <!-- Ha van ár, kiírhatjuk, ha nincs, nem baj -->
               <span v-if="furniture.price" class="text-xs text-gray-500 font-mono">{{ furniture.price }} Ft</span>
             </div>
             <p class="text-xs text-gray-500 truncate">{{ furniture.id }}</p>
           </div>
         </CollapsibleCategory>
 
-        <!-- Üres állapot -->
         <div v-if="Object.keys(categorizedFurniture).length === 0" class="text-center text-gray-500 py-4 text-sm">
           Nincs találat.
         </div>
       </div>
     </div>
 
-    <!-- 3. ALSÓ SZEKCIÓ: MŰVELETEK (Fix) -->
+    <!-- 3. ALSÓ SZEKCIÓ: MŰVELETEK -->
     <div class="flex-shrink-0 mt-4 pt-4 border-t border-gray-700">
       <button @click="$emit('createNew')" class="w-full admin-btn flex justify-center items-center gap-2 py-3">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -131,7 +140,6 @@ defineExpose({
 </template>
 
 <style scoped>
-/* Ugyanaz a stílus, mint a komponens panelnél */
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;
 }

@@ -73,7 +73,8 @@ const parentComponentWidth = computed(() => {
   if (!parentSlot?.defaultComponent) return undefined;
 
   const parentComp = getComponentById(parentSlot.defaultComponent);
-  return parentComp?.width;
+  // JAVÍTÁS: properties.width használata
+  return parentComp?.properties?.width;
 });
 
 const ignoreWidthFilter = ref(false);
@@ -85,8 +86,10 @@ const filteredComponents = computed(() => {
   if (targetWidth === undefined || ignoreWidthFilter.value) return all;
 
   return all.filter(comp => {
+    // JAVÍTÁS: properties.width használata
+    const compWidth = comp.properties?.width;
     // Ha a komponensnek nincs szélessége (univerzális), vagy egyezik a szülővel
-    return comp.width === undefined || Math.abs(comp.width - targetWidth) < 0.1;
+    return compWidth === undefined || Math.abs(compWidth - targetWidth) < 0.1;
   });
 });
 
@@ -105,7 +108,6 @@ function updateAllowedComponent(componentId: string, isChecked: boolean) {
 }
 
 function setAllAllowedComponents(selectAll: boolean) {
-  // Csak a szűrt (látható) komponenseket jelöljük ki
   const allIds = selectAll ? filteredComponents.value.map(c => c.id) : [];
   updateSlot('allowedComponents', allIds);
 }
@@ -123,12 +125,8 @@ function updateAttachmentMapping(componentId: string, pointId: string, isChecked
 
   updateSlot('attachmentMapping', newMapping);
 
-  // --- SZINKRONIZÁCIÓ ---
-  // Ha az éppen alapértelmezett komponenst módosítjuk, frissítjük a useAttachmentPoint-ot is,
-  // hogy a rendszer konzisztens maradjon (a simple mode a háttérben).
   if (componentId === props.node.defaultComponent) {
     if (points.length > 0) {
-      // Ha van kiválasztva pont, beállítjuk az elsőt (a 3D motor ezt szereti fallbacknek)
       updateSlot('useAttachmentPoint', points[0]);
     } else {
       updateSlot('useAttachmentPoint', '');
@@ -146,13 +144,11 @@ function setAllMappings(selectAll: boolean) {
   }
   updateSlot('attachmentMapping', newMapping);
 
-  // Szinkronizáció itt is (ha az összeset bekapcsoljuk)
   if (props.node.defaultComponent && pointsToSet.length > 0) {
     updateSlot('useAttachmentPoint', pointsToSet[0]);
   }
 }
 
-// --- VARÁZSLAT ---
 function triggerMagic() {
   if (props.magicGroup) emit('activate-magic', props.magicGroup.name, props.magicGroup.slotIds);
 }
@@ -181,17 +177,11 @@ function rotate(axis: 'x' | 'y' | 'z', degrees: number) {
     <!-- FEJLÉC -->
     <div class="flex justify-between items-center">
       <div class="flex items-center gap-2 flex-grow">
-
-        <!-- NÉV INPUT + CERUZA (ÚJ ELRENDEZÉS) -->
         <div class="flex items-center gap-2">
-          <!-- Ceruza ikon: Fixen látható, a név előtt -->
           <span class="text-gray-500" v-html="PencilIcon"></span>
-
           <input type="text" :value="node.name" @input="updateSlot('name', ($event.target as HTMLInputElement).value)"
             class="admin-input bg-transparent text-lg font-semibold !p-0 !border-0 w-auto focus:ring-0 cursor-pointer hover:text-blue-300 transition-colors placeholder-gray-600" />
         </div>
-
-        <!-- Varázsgomb -->
         <button v-if="magicGroup" @click="triggerMagic"
           class="ml-2 text-yellow-400 hover:text-yellow-200 bg-yellow-900/30 hover:bg-yellow-900/50 px-2 py-1 rounded text-xs flex items-center gap-1 transition-colors border border-yellow-700/50"
           title="Automatikus konfiguráció létrehozása">
@@ -219,7 +209,6 @@ function rotate(axis: 'x' | 'y' | 'z', degrees: number) {
         <p class="admin-input bg-gray-700/50 text-gray-400 select-none">{{ node.slotId }}</p>
 
         <label class="admin-label justify-self-end">attachToSlot</label>
-        <!-- JAVÍTÁS: w-full és truncate hozzáadva -->
         <select :value="node.attachToSlot"
           @change="updateSlot('attachToSlot', ($event.target as HTMLSelectElement).value)"
           class="admin-select w-full truncate">
@@ -234,7 +223,6 @@ function rotate(axis: 'x' | 'y' | 'z', degrees: number) {
         <p class="admin-input bg-gray-700/50 text-gray-400 select-none">{{ node.componentType }}</p>
 
         <label class="admin-label justify-self-end">defaultComponent</label>
-        <!-- JAVÍTÁS: w-full és truncate hozzáadva -->
         <select v-if="node.componentType" :value="node.defaultComponent"
           @change="updateSlot('defaultComponent', ($event.target as HTMLSelectElement).value)"
           class="admin-select w-full truncate">
@@ -246,17 +234,21 @@ function rotate(axis: 'x' | 'y' | 'z', degrees: number) {
       <!-- Engedélyezett Komponensek -->
       <div>
         <div class="flex justify-between items-center mb-2">
+          <label class="admin-label !mb-0">Engedélyezett Komponensek</label>
+
+          <!-- JAVÍTÁS: Gombok és Checkbox egy csoportban -->
           <div class="flex items-center gap-2">
-            <label class="admin-label !mb-0">Engedélyezett Komponensek</label>
-            <!-- Szélesség szűrő toggle -->
-            <label class="flex items-center gap-1 cursor-pointer select-none" title="Szélesség szűrés kikapcsolása">
+            <!-- Checkbox gomb stílusban -->
+            <label
+              class="flex items-center gap-2 cursor-pointer select-none bg-gray-700 hover:bg-gray-600 border border-gray-600 rounded px-2 py-1 transition-colors"
+              :class="{ 'bg-blue-900/30 border-blue-800': !ignoreWidthFilter }">
               <input type="checkbox" v-model="ignoreWidthFilter"
-                class="form-checkbox w-3 h-3 text-blue-500 bg-gray-700 border-gray-600 rounded focus:ring-0">
-              <span class="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Minden méret</span>
+                class="form-checkbox w-3 h-3 text-blue-500 bg-gray-800 border-gray-500 rounded focus:ring-0">
+              <span class="text-[10px] text-gray-300 uppercase font-bold tracking-wider">Minden méret</span>
             </label>
-          </div>
-          <!-- JAVÍTÁS: Egy div-be csomagolva a gombok -->
-          <div class="flex gap-2">
+
+            <div class="h-4 w-px bg-gray-700 mx-1"></div> <!-- Elválasztó -->
+
             <button @click="setAllAllowedComponents(true)"
               class="admin-btn-secondary text-xs !py-1 !px-2">Összes</button>
             <button @click="setAllAllowedComponents(false)"
@@ -264,9 +256,9 @@ function rotate(axis: 'x' | 'y' | 'z', degrees: number) {
           </div>
         </div>
 
-        <div class="max-h-48 overflow-y-auto space-y-1 border border-gray-700 rounded-md p-3">
+        <div class="max-h-48 overflow-y-auto space-y-1 border border-gray-700 rounded-md p-3 custom-scrollbar">
           <div v-if="filteredComponents.length === 0" class="text-xs text-gray-500 italic text-center py-2">
-            Nincsenek kompatibilis komponensek (Szélesség: {{ parentComponentWidth ? parentComponentWidth + 'cm' :
+            Nincsenek kompatibilis komponensek (Szélesség: {{ parentComponentWidth ? parentComponentWidth + 'mm' :
               'Bármely' }}).
           </div>
           <label v-for="comp in filteredComponents" :key="comp.id"
@@ -275,7 +267,8 @@ function rotate(axis: 'x' | 'y' | 'z', degrees: number) {
               @change="updateAllowedComponent(comp.id, ($event.target as HTMLInputElement).checked)"
               class="form-checkbox bg-gray-700 border-gray-600 text-blue-500 focus:ring-blue-500" />
             <span class="text-gray-300">{{ comp.name }}</span>
-            <span v-if="comp.width" class="text-xs text-gray-500">({{ comp.width }} cm)</span>
+            <!-- JAVÍTÁS: properties.width használata -->
+            <span v-if="comp.properties?.width" class="text-xs text-gray-500">({{ comp.properties.width }} mm)</span>
           </label>
         </div>
       </div>

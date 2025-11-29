@@ -200,7 +200,7 @@ export default class AssetManager {
         // Csak akkor állítunk pozíciót, ha a slot configban benne van!
         // A régi elemeknél ez undefined, így azok maradnak 0,0,0-án, ahogy eddig.
         if (slot.position) {
-          model.position.set(slot.position.x, slot.position.y, slot.position.z)
+          model.position.set(slot.position.x / 1000, slot.position.y / 1000, slot.position.z / 1000)
         }
 
         if (slot.rotation) {

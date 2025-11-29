@@ -8,6 +8,8 @@ import SchemaWizard from './SchemaWizard.vue';
 import SchemaSlotCard from './SchemaSlotCard.vue';
 import { useFurnitureComposer } from '@/composables/useFurnitureComposer';
 import ComponentSelectorModal from './ComponentSelectorModal.vue';
+// ÚJ IMPORT:
+import { getSuggestedComponentConfig } from '@/utils/AutoConfigurator';
 
 // --- TÍPUSOK ---
 type SimpleSlotUpdate = { key: keyof ComponentSlotConfig; value: any };
@@ -61,6 +63,16 @@ watch(() => props.furniture, (newVal) => {
     if (!editableFurniture.value || editableFurniture.value.id !== newVal.id) {
       editableFurniture.value = JSON.parse(JSON.stringify(newVal));
     }
+  } else if (props.isNew) {
+    // JAVÍTÁS: Ha új bútor, inicializáljuk egy üres vázzal, hogy ne legyen null error
+    editableFurniture.value = {
+      id: `furniture_${Date.now()}`,
+      name: 'Új Bútor',
+      category: 'bottom_cabinets',
+      componentSlots: [],
+      slotGroups: [],
+      price: 0
+    };
   } else {
     editableFurniture.value = null;
   }
@@ -71,7 +83,7 @@ const { composedSlots } = useFurnitureComposer(editableFurniture, openSchemaId);
 
 // Live update a szülő felé (3D nézet)
 watch(composedSlots, (newSlots) => {
-  console.log('📡 [Editor] composedSlots changed! Emitting update...', newSlots.length, 'items');
+  // console.log('📡 [Editor] composedSlots changed! Emitting update...', newSlots.length, 'items');
   if (editableFurniture.value) {
     const viewObject = {
       ...editableFurniture.value,
@@ -92,14 +104,9 @@ function switchTab(tab: 'general' | 'layouts') {
 // --- SÉMA KEZELÉS ---
 
 function toggleSchema(schemaId: string) {
-  console.log('🖱️ KATTINTÁS TÖRTÉNT! SchemaID:', schemaId);
-  console.log('   Jelenlegi openSchemaId:', openSchemaId.value);
-
   if (openSchemaId.value === schemaId) {
-    console.log('   Döntés: BEZÁRÁS');
     openSchemaId.value = null;
   } else {
-    console.log('   Döntés: MEGNYITÁS');
     openSchemaId.value = schemaId;
   }
 }
@@ -139,30 +146,18 @@ async function handleSchemaCreate(type: 'front' | 'shelf' | 'drawer') {
 
 // Markerek kezelése
 watch(openSchemaId, (newId) => {
-  console.log('👀 WATCHER LEFUTOTT! Új ID:', newId);
-
   if (newId) {
-    // Markerek frissítése
     setTimeout(() => updateMarkers(), 100);
-
-    // X-RAY LOGIKA
     const layoutGroup = editableFurniture.value?.slotGroups?.find(g => g.name === 'Layouts');
     const schema = layoutGroup?.schemas.find(s => s.id === newId);
 
-    console.log('   Megtalált séma:', schema?.name);
-    console.log('   Séma típusa:', schema?.type);
-
-    // Ellenőrizzük a típust
     if (schema && (schema.type === 'shelf' || schema.type === 'internal')) {
-      console.log('   ✅ FELTÉTEL IGAZ -> EMIT toggle-xray TRUE');
       emit('toggle-xray', true);
     } else {
-      console.log('   ❌ FELTÉTEL HAMIS (Nem shelf/internal) -> EMIT toggle-xray FALSE');
       emit('toggle-xray', false);
     }
 
   } else {
-    console.log('   Nincs ID (Bezárva) -> Minden kikapcsolása');
     emit('toggle-markers', false, []);
     emit('toggle-xray', false);
   }
@@ -233,13 +228,18 @@ function addSlotFromTemplate(template: { name: string, type: string, prefix: str
   if (!editableFurniture.value) return;
   if (!editableFurniture.value.componentSlots) editableFurniture.value.componentSlots = [];
 
+  // JAVÍTÁS: Automatikus komponens választás az új AutoConfigurator segítségével
+  const suggestions = getSuggestedComponentConfig(template.type, storeComponents.value);
+
   const count = editableFurniture.value.componentSlots.filter(s => s.slotId.startsWith(template.prefix)).length + 1;
+
   const newSlot: ComponentSlotConfig = {
     slotId: `${template.prefix}_${count}`,
     name: `${template.name} ${count}`,
     componentType: template.type,
-    allowedComponents: [],
-    defaultComponent: null,
+    // Itt töltjük ki az adatokat a store-ból:
+    allowedComponents: suggestions.allowedComponents,
+    defaultComponent: suggestions.defaultComponent ?? null,
     position: { x: 0, y: 0, z: 0 },
     rotation: { x: 0, y: 0, z: 0 },
     scale: { x: 1, y: 1, z: 1 },
@@ -247,12 +247,30 @@ function addSlotFromTemplate(template: { name: string, type: string, prefix: str
     useAttachmentPoint: '',
   };
 
-  if (newSlot.componentType !== 'corpuses') {
+  // Automatikus szülő keresés
+  if (newSlot.componentType === 'handles') {
+    // 1. Fogantyú speciális eset: Ajtót vagy Fiókot keresünk
+    // Megkeressük az első elérhető frontot vagy fiókot
+    const parent = editableFurniture.value.componentSlots.find(s =>
+      s.componentType === 'fronts' || s.componentType === 'drawers'
+    );
+
+    if (parent) {
+      newSlot.attachToSlot = parent.slotId;
+    }
+  }
+  else if (newSlot.componentType !== 'corpuses') {
+    // 2. Minden más (Láb, Polc, stb.) -> Korpuszhoz csatlakozik
     const corpus = editableFurniture.value.componentSlots.find(s => s.slotId.includes('corpus'));
-    if (corpus) newSlot.attachToSlot = corpus.slotId;
+    if (corpus) {
+      newSlot.attachToSlot = corpus.slotId;
+    }
   }
 
   editableFurniture.value.componentSlots.push(newSlot);
+
+  // Trigger update
+  editableFurniture.value = { ...editableFurniture.value };
 }
 
 function handleSlotUpdate(payloadOrId: SimpleSlotUpdate | NestedSlotUpdate | string, updateOrTopLevelId?: string | Partial<ComponentSlotConfig>) {
@@ -282,13 +300,18 @@ function handleSlotUpdate(payloadOrId: SimpleSlotUpdate | NestedSlotUpdate | str
     } else {
       Object.assign(slot, updateData);
     }
+    // Trigger reactivity
+    editableFurniture.value = { ...editableFurniture.value };
   }
 }
 
 function handleSlotRemove(slotId: string) {
   if (!editableFurniture.value?.componentSlots) return;
   const index = editableFurniture.value.componentSlots.findIndex(s => s.slotId === slotId);
-  if (index !== -1) editableFurniture.value.componentSlots.splice(index, 1);
+  if (index !== -1) {
+    editableFurniture.value.componentSlots.splice(index, 1);
+    editableFurniture.value = { ...editableFurniture.value };
+  }
 }
 
 // --- VIZUÁLIS CSOPORTOSÍTÁS ---
@@ -433,22 +456,18 @@ function scrollToSlot(slotId: string) {
 }
 
 function setDefaultSchema(schemaId: string) {
-  if (!layoutGroup.value) return; // Használjuk a computed-et itt is
+  if (!layoutGroup.value) return;
 
   layoutGroup.value.defaultSchemaId = schemaId;
-
-  // Trigger update
   editableFurniture.value = { ...editableFurniture.value } as FurnitureConfig;
 }
 
 // Polc config frissítése
 function updateShelfConfig(schema: Schema, key: string, value: any) {
   if (!schema.shelfConfig) {
-    schema.shelfConfig = { mode: 'auto', count: 0, componentId: null };
+    schema.shelfConfig = { mode: 'auto', count: getRootComponentMaxShelves(), componentId: null };
   }
   (schema.shelfConfig as any)[key] = value;
-
-  // Trigger update
   editableFurniture.value = { ...editableFurniture.value } as FurnitureConfig;
 }
 
@@ -466,7 +485,7 @@ function getComponentName(id: string | null | undefined) {
   return configStore.getComponentById(id)?.name;
 }
 
-// Polc választó modal kezelése (ehhez kell egy új state változó)
+// Polc választó modal kezelése
 const showShelfSelector = ref(false);
 const activeShelfSchema = ref<Schema | null>(null);
 
@@ -525,7 +544,6 @@ const PencilIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewB
 
     <!-- TAB 1: GENERAL -->
     <div v-show="activeTab === 'general'" class="flex-1 overflow-y-auto space-y-6 pb-10">
-      <!-- ... (A tartalom változatlan, csak a switchTab miatt működik jobban) ... -->
 
       <!-- ALAP ADATOK -->
       <div class="grid grid-cols-2 gap-4 mb-4">
@@ -649,7 +667,7 @@ const PencilIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewB
           <!-- SÉMA FEJLÉC -->
           <div class="bg-gray-900 p-3 flex justify-between items-center border-b border-gray-700">
 
-            <!-- BAL OLDAL: Név szerkesztés (Most már csak ez van itt) -->
+            <!-- BAL OLDAL: Név szerkesztés -->
             <div class="flex items-center gap-2 flex-grow">
               <span class="text-gray-500" v-html="PencilIcon"></span>
               <input type="text" v-model="schema.name"
@@ -660,14 +678,11 @@ const PencilIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewB
             <div class="flex items-center gap-2">
 
               <!-- 1. ÁLLAPOT JELZŐ / GOMB -->
-
-              <!-- A) Ha ez az Alapértelmezett (Zöld Badge) -->
               <span v-if="layoutGroup?.defaultSchemaId === schema.id"
                 class="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-green-400 bg-green-900/30 border border-green-800 rounded mr-2 cursor-default select-none">
                 Alapértelmezett
               </span>
 
-              <!-- B) Ha NEM ez az Alapértelmezett (Kék Gomb) -->
               <button v-else @click="setDefaultSchema(schema.id)"
                 class="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-blue-300 bg-blue-900/30 border border-blue-800 rounded hover:bg-blue-800/50 hover:text-white hover:border-blue-600 transition-all mr-2"
                 title="Beállítás alapértelmezettként">
@@ -753,7 +768,6 @@ const PencilIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewB
                 <div class="text-xs text-yellow-500 mb-2">
                   ⚠️ Egyedi módban a 3D modellben lévő csatlakozási pontokat (attach_shelf_...) használjuk.
                 </div>
-                <!-- Itt majd megjelenik a lenti fa nézet, mert a feltétel engedi -->
               </div>
 
             </div>

@@ -320,12 +320,10 @@ function handleSaveComponentsToServer() {
               :selected-furniture="editingFurniture" @update:selected-furniture="handleSelectFurniture"
               @create-new="handleCreateNewFurniture" @save-changes="handleSaveChanges" @slot-clicked="handleSlotClicked"
               @attachment-clicked="handleAttachmentClicked" />
-            <ComponentSidePanel v-if="activeTab === 'components'"
-              :key="selectedComponent ? selectedComponent.id : 'no-component-selected'"
-              :component-database="allComponents" :selected-component="selectedComponent"
-              :preview-config="componentPreviewConfig" @select-component="handleSelectComponent"
-              @create-new="handleCreateNewComponent" @save-to-server="handleSaveComponentsToServer"
-              @create-category="handleCreateCategory" />
+            <ComponentSidePanel v-if="activeTab === 'components'" :component-database="allComponents"
+              :selected-component="selectedComponent" :preview-config="componentPreviewConfig"
+              @select-component="handleSelectComponent" @create-new="handleCreateNewComponent"
+              @save-to-server="handleSaveComponentsToServer" @create-category="handleCreateCategory" />
           </div>
 
           <!-- Jobb oldali sáv (Editor) -->

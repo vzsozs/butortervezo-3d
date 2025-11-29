@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'; // Watch nem kell
+import { computed, ref, onBeforeUpdate, onUpdated } from 'vue';
 import type { ComponentConfig, ComponentDatabase, FurnitureConfig } from '@/config/furniture';
 import AdminPreviewCanvas from './AdminPreviewCanvas.vue';
 import CollapsibleCategory from './CollapsibleCategory.vue';
@@ -13,15 +13,32 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'select-component', component: ComponentConfig, type: string): void;
   (e: 'create-new', type: string): void;
-  (e: 'save-to-server'): void; // Ez eddig nem volt bekötve!
+  (e: 'save-to-server'): void;
   (e: 'create-category', categoryName: string): void;
 }>();
 
 const componentTypes = computed(() => Object.keys(props.componentDatabase));
 const newCategoryName = ref('');
+const scrollContainer = ref<HTMLElement | null>(null);
+
+// --- GÖRGETÉS POZÍCIÓ MEGŐRZÉSE ---
+let savedScrollTop = 0;
+
+onBeforeUpdate(() => {
+  if (scrollContainer.value) {
+    savedScrollTop = scrollContainer.value.scrollTop;
+  }
+});
+
+onUpdated(() => {
+  if (scrollContainer.value) {
+    scrollContainer.value.scrollTop = savedScrollTop;
+  }
+});
 
 // --- LOGIKA ---
 function selectComponent(component: ComponentConfig, type: string) {
+  if (props.selectedComponent?.id === component.id) return;
   emit('select-component', component, type);
 }
 
@@ -34,10 +51,11 @@ function createCategory() {
   }
 }
 </script>
+
 <template>
   <div class="admin-panel flex flex-col p-4 max-h-[calc(100vh-4rem)]">
 
-    <!-- 1. FELSŐ SZEKCIÓ: PREVIEW (Fix) -->
+    <!-- 1. FELSŐ SZEKCIÓ: PREVIEW -->
     <div class="flex-shrink-0 mb-4">
       <h2 class="section-header">3D Előnézet</h2>
       <div class="bg-gray-900 p-1 rounded-lg h-72 shadow-inner border border-gray-700">
@@ -50,13 +68,12 @@ function createCategory() {
       </div>
     </div>
 
-    <!-- 2. KÖZÉPSŐ SZEKCIÓ: LISTA (Görgethető) -->
+    <!-- 2. KÖZÉPSŐ SZEKCIÓ: LISTA -->
     <div class="flex-1 min-h-0 flex flex-col overflow-hidden">
       <h2 class="section-header flex-shrink-0">Adatbázis</h2>
 
-      <div class="overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+      <div ref="scrollContainer" class="overflow-y-auto space-y-2 pr-2 custom-scrollbar">
         <CollapsibleCategory v-for="type in componentTypes" :key="type" :title="type" start-open>
-          <!-- Kategória fejléc gomb -->
           <div class="w-full text-right mb-2">
             <button @click="emit('create-new', type)"
               class="text-xs bg-blue-900/30 hover:bg-blue-900/50 text-blue-300 py-1 px-2 rounded transition-colors border border-blue-800">
@@ -64,7 +81,6 @@ function createCategory() {
             </button>
           </div>
 
-          <!-- Elemek listája -->
           <div v-for="component in props.componentDatabase[type]" :key="component.id"
             @click="selectComponent(component, type)" class="p-2 rounded cursor-pointer border-l-4 transition-all mb-1"
             :class="[
@@ -80,17 +96,14 @@ function createCategory() {
           </div>
         </CollapsibleCategory>
 
-        <!-- Üres állapot -->
         <div v-if="componentTypes.length === 0" class="text-center text-gray-500 py-4 text-sm">
           Nincsenek kategóriák. Hozz létre egyet lent!
         </div>
       </div>
     </div>
 
-    <!-- 3. ALSÓ SZEKCIÓ: ADMINISZTRÁCIÓ (Fix) -->
+    <!-- 3. ALSÓ SZEKCIÓ: ADMINISZTRÁCIÓ -->
     <div class="flex-shrink-0 mt-4 pt-4 border-t border-gray-700 space-y-4">
-
-      <!-- Új kategória -->
       <div>
         <h3 class="font-semibold text-xs text-gray-400 uppercase tracking-wider mb-2">Kategória Kezelés</h3>
         <form @submit.prevent="createCategory" class="flex gap-2">
@@ -100,7 +113,6 @@ function createCategory() {
         </form>
       </div>
 
-      <!-- Mentés gomb (EZ HIÁNYZOTT!) -->
       <button @click="emit('save-to-server')" class="w-full admin-btn flex justify-center items-center gap-2 py-3">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -108,13 +120,11 @@ function createCategory() {
         </svg>
         Adatbázis Mentése (JSON)
       </button>
-
     </div>
   </div>
 </template>
 
 <style scoped>
-/* Opcionális: vékonyabb görgetősáv */
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;
 }

@@ -1,7 +1,7 @@
 [
   {
-    "id": "teszt",
-    "name": "teszt",
+    "id": "teszt_btor",
+    "name": "Teszt bútor",
     "category": "bottom_cabinets",
     "componentSlots": [
       {
@@ -11,7 +11,7 @@
         "allowedComponents": [
           "corpus_bottom_60"
         ],
-        "defaultComponent": null,
+        "defaultComponent": "corpus_bottom_60",
         "position": {
           "x": 0,
           "y": 0,
@@ -54,7 +54,12 @@
           "z": 1
         },
         "attachToSlot": "corpus_1",
-        "useAttachmentPoint": ""
+        "useAttachmentPoint": "attach_front_full_L",
+        "attachmentMapping": {
+          "front_bottom_keretes_60_l": [
+            "attach_front_full_L"
+          ]
+        }
       },
       {
         "slotId": "handle_1",
@@ -92,9 +97,47 @@
         "name": "Láb 1",
         "componentType": "legs",
         "allowedComponents": [
-          "leg_standard"
+          "leg_standard",
+          "leg_design"
         ],
         "defaultComponent": "leg_standard",
+        "position": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "rotation": {
+          "x": 1.5707963267948966,
+          "y": 4.71238898038469,
+          "z": 0
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        },
+        "attachToSlot": "corpus_1",
+        "useAttachmentPoint": "attach_leg_frontLeft",
+        "attachmentMapping": {
+          "leg_design": [
+            "attach_leg_backRight",
+            "attach_leg_frontLeft",
+            "attach_leg_backLeft",
+            "attach_leg_frontRight"
+          ],
+          "leg_standard": [
+            "attach_leg_frontLeft"
+          ]
+        }
+      },
+      {
+        "slotId": "shelf_1",
+        "name": "Polc 1",
+        "componentType": "shelves",
+        "allowedComponents": [
+          "shelf_bottom-1_standard_60"
+        ],
+        "defaultComponent": "shelf_bottom-1_standard_60",
         "position": {
           "x": 0,
           "y": 0,
@@ -112,6 +155,27 @@
         },
         "attachToSlot": "corpus_1",
         "useAttachmentPoint": ""
+      }
+    ],
+    "slotGroups": [
+      {
+        "groupId": "layouts",
+        "name": "Layouts",
+        "controlType": "schema_select",
+        "schemas": [
+          {
+            "id": "schema_1764399197456",
+            "name": "Polc Elrendezés 1",
+            "type": "shelf",
+            "apply": {},
+            "shelfConfig": {
+              "mode": "auto",
+              "count": 2,
+              "componentId": "shelf_bottom-1_standard_60"
+            }
+          }
+        ],
+        "controlledSlots": []
       }
     ]
   }

@@ -46,7 +46,6 @@ const availableMaterialCategories = computed(() => {
 watch(() => props.component, (newComponent) => {
   const comp = newComponent ? JSON.parse(JSON.stringify(newComponent)) : {};
 
-  // Biztosítjuk, hogy a properties objektum létezzen
   if (!comp.properties) {
     comp.properties = {};
   }
@@ -93,7 +92,11 @@ async function handleFileChange(event: Event) {
 
       properties: {
         ...editableComponent.value.properties,
-        height: analysis.height,
+        // JAVÍTÁS: Mivel a 3D modell méterben van, itt szorozzuk 1000-rel,
+        // hogy az UI-n és a DB-ben mm-ben legyen.
+        height: analysis.height ? Math.round(analysis.height * 1000) : 0,
+        width: analysis.width ? Math.round(analysis.width * 1000) : 0,
+        depth: analysis.depth ? Math.round(analysis.depth * 1000) : 0,
       },
 
       attachmentPoints: analysis.attachmentPointNames.map(name => {
