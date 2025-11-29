@@ -84,11 +84,10 @@ function handleSaveToServer() {
     <div class="flex justify-between items-center mb-6 pb-4 border-b border-gray-700">
       <h2 class="text-2xl font-bold text-white">Globális Beállítások Szerkesztője</h2>
       <div class="flex gap-3">
-        <button @click="createNew" class="admin-btn px-4 py-2 flex items-center gap-2">
+        <button @click="createNew" class="admin-btn flex items-center gap-2">
           <span>+</span> Új Szabály
         </button>
-        <button @click="handleSaveToServer"
-          class="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded font-bold transition-colors flex items-center gap-2">
+        <button @click="handleSaveToServer" class="admin-btn flex items-center gap-2">
           💾 Mentés Szerverre
         </button>
       </div>
@@ -144,7 +143,7 @@ function handleSaveToServer() {
             <label v-for="cat in availableMaterialCategories" :key="cat"
               class="cursor-pointer select-none px-3 py-1 rounded-full text-xs font-medium border transition-all"
               :class="(editingData.allowedMaterialCategories || []).includes(cat)
-                ? 'bg-green-600 border-green-500 text-white shadow-lg shadow-green-900/50'
+                ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-900/50'
                 : 'bg-gray-800 border-gray-600 text-gray-400 hover:border-gray-500 hover:text-gray-300'">
               <input type="checkbox" :value="cat" v-model="editingData.allowedMaterialCategories" class="hidden" />
               {{ cat }}
@@ -155,7 +154,7 @@ function handleSaveToServer() {
 
         <!-- Gombok -->
         <div class="flex justify-between pt-4 border-t border-gray-700">
-          <button @click="deleteItem(editingData.id!)" class="text-red-400 hover:text-red-300 text-sm">Törlés</button>
+          <button @click="deleteItem(editingData.id!)" class="admin-btn-danger">Törlés</button>
           <div class="flex gap-3">
             <button @click="cancelEditing" class="admin-btn-secondary">Mégse</button>
             <button @click="saveEditing" class="admin-btn">Módosítások Mentése</button>
