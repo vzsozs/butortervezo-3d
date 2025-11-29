@@ -415,6 +415,29 @@ const hasAnyLayouts = computed(() => {
   return (layoutGroup?.schemas.length || 0) > 0;
 });
 
+// --- SÉMA CSOPORTOSÍTÁS ---
+const groupedSchemas = computed(() => {
+  const layoutGroup = editableFurniture.value?.slotGroups?.find(g => g.name === 'Layouts');
+  if (!layoutGroup) return {};
+
+  const groups = {
+    'Ajtók (Fronts)': [] as Schema[],
+    'Fiókok (Drawers)': [] as Schema[],
+    'Polcok (Shelves)': [] as Schema[],
+    'Egyéb': [] as Schema[]
+  };
+
+  layoutGroup.schemas.forEach(schema => {
+    if (schema.type === 'front') groups['Ajtók (Fronts)'].push(schema);
+    else if (schema.type === 'drawer') groups['Fiókok (Drawers)'].push(schema);
+    else if (schema.type === 'shelf') groups['Polcok (Shelves)'].push(schema);
+    else groups['Egyéb'].push(schema);
+  });
+
+  // Csak azokat a csoportokat adjuk vissza, amikben van elem
+  return Object.fromEntries(Object.entries(groups).filter(([_, list]) => list.length > 0));
+});
+
 function updateMarkers() {
   if (!openSchemaId.value || !editableFurniture.value) return;
   const schema = editableFurniture.value.slotGroups?.find(g => g.name === 'Layouts')?.schemas.find(s => s.id === openSchemaId.value);
@@ -659,140 +682,145 @@ const PencilIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewB
           Még nincsenek sémák létrehozva.
         </div>
 
-        <!-- SÉMA LISTA -->
-        <div v-for="(schema, idx) in editableFurniture?.slotGroups?.find(g => g.name === 'Layouts')?.schemas || []"
-          :key="schema.id" class="bg-gray-800 border border-gray-700 rounded-lg overflow-hidden transition-all"
-          :class="{ 'ring-2 ring-blue-500': openSchemaId === schema.id }">
+        <!-- SÉMA LISTA CSOPORTOSÍTVA -->
+        <div v-for="(schemas, groupName) in groupedSchemas" :key="groupName" class="mb-6">
+          <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 pl-1">{{ groupName }}</h4>
 
-          <!-- SÉMA FEJLÉC -->
-          <div class="bg-gray-900 p-3 flex justify-between items-center border-b border-gray-700">
+          <div class="space-y-4">
+            <div v-for="schema in schemas" :key="schema.id"
+              class="bg-gray-800 border border-gray-700 rounded-lg overflow-hidden transition-all"
+              :class="{ 'ring-2 ring-blue-500': openSchemaId === schema.id }">
 
-            <!-- BAL OLDAL: Név szerkesztés -->
-            <div class="flex items-center gap-2 flex-grow">
-              <span class="text-gray-500" v-html="PencilIcon"></span>
-              <input type="text" v-model="schema.name"
-                class="bg-transparent text-white font-bold focus:outline-none focus:border-b border-blue-500 w-full max-w-xs" />
-            </div>
+              <!-- SÉMA FEJLÉC -->
+              <div class="bg-gray-900 p-3 flex justify-between items-center border-b border-gray-700">
 
-            <!-- JOBB OLDAL: Státuszok és Gombok -->
-            <div class="flex items-center gap-2">
+                <!-- BAL OLDAL: Név szerkesztés -->
+                <div class="flex items-center gap-2 flex-grow">
+                  <span class="text-gray-500" v-html="PencilIcon"></span>
+                  <input type="text" v-model="schema.name"
+                    class="bg-transparent text-white font-bold focus:outline-none focus:border-b border-blue-500 w-full max-w-xs" />
+                </div>
 
-              <!-- 1. ÁLLAPOT JELZŐ / GOMB -->
-              <span v-if="layoutGroup?.defaultSchemaId === schema.id"
-                class="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-green-400 bg-green-900/30 border border-green-800 rounded mr-2 cursor-default select-none">
-                Alapértelmezett
-              </span>
+                <!-- JOBB OLDAL: Státuszok és Gombok -->
+                <div class="flex items-center gap-2">
 
-              <button v-else @click="setDefaultSchema(schema.id)"
-                class="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-blue-300 bg-blue-900/30 border border-blue-800 rounded hover:bg-blue-800/50 hover:text-white hover:border-blue-600 transition-all mr-2"
-                title="Beállítás alapértelmezettként">
-                Legyen Default
-              </button>
+                  <!-- 1. ÁLLAPOT JELZŐ / GOMB -->
+                  <span v-if="layoutGroup?.defaultSchemaId === schema.id"
+                    class="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-green-400 bg-green-900/30 border border-green-800 rounded mr-2 cursor-default select-none">
+                    Alapértelmezett
+                  </span>
 
-              <!-- 2. SZERKESZTÉS / MEGNYITÁS GOMB -->
-              <button @click="toggleSchema(schema.id)" class="p-1.5 rounded transition-colors flex items-center gap-1"
-                :class="openSchemaId === schema.id ? 'bg-blue-900/50 text-blue-400' : 'bg-gray-700 hover:bg-gray-600 text-gray-400'">
-                <span v-if="openSchemaId === schema.id" class="text-xs font-bold uppercase">Szerkesztés</span>
-                <span v-else class="text-xs font-bold uppercase">Megnyitás</span>
-              </button>
-
-              <!-- 3. TÖRLÉS GOMB -->
-              <button @click="deleteSchema(idx)"
-                class="text-red-400 hover:text-red-300 text-xs bg-red-900/20 hover:bg-red-900/40 px-2 py-1.5 rounded ml-2">Törlés</button>
-            </div>
-          </div>
-
-          <!-- REKURZÍV FA NÉZET (Csak ha nyitva van) -->
-          <div v-if="openSchemaId === schema.id" class="p-4 bg-gray-800/50">
-
-            <div class="text-sm text-gray-400 mb-4">
-              Itt szerkesztheted a bútor felépítését.
-            </div>
-
-            <!-- A) SPECIÁLIS POLC VEZÉRLŐ (Ha type === 'shelf') -->
-            <div v-if="schema.type === 'shelf'" class="space-y-6">
-
-              <!-- 1. MÓD VÁLASZTÓ -->
-              <div class="flex bg-gray-900 p-1 rounded-lg border border-gray-700">
-                <button @click="updateShelfConfig(schema, 'mode', 'auto')"
-                  class="flex-1 py-2 text-sm font-bold rounded transition-colors"
-                  :class="schema.shelfConfig?.mode === 'auto' ? 'bg-blue-600 text-white shadow' : 'text-gray-400 hover:text-white'">
-                  🧮 Automatikus (Osztott)
-                </button>
-                <button @click="updateShelfConfig(schema, 'mode', 'custom')"
-                  class="flex-1 py-2 text-sm font-bold rounded transition-colors"
-                  :class="schema.shelfConfig?.mode === 'custom' ? 'bg-blue-600 text-white shadow' : 'text-gray-400 hover:text-white'">
-                  📍 Egyedi (Fix Pontok)
-                </button>
-              </div>
-
-              <!-- 2. AUTOMATA MÓD BEÁLLÍTÁSOK -->
-              <div v-if="schema.shelfConfig?.mode === 'auto'"
-                class="space-y-4 bg-gray-800 p-4 rounded border border-gray-700">
-
-                <!-- Polc Típus Választó -->
-                <div>
-                  <label class="text-xs font-bold text-gray-500 uppercase mb-2 block">Polc Típusa</label>
-                  <button @click="openShelfSelector(schema)"
-                    class="w-full flex justify-between items-center px-3 py-2 bg-gray-700 hover:bg-gray-600 border border-gray-600 rounded text-sm text-white">
-                    <span>{{ getComponentName(schema.shelfConfig?.componentId) || 'Válassz polcot...' }}</span>
-                    <span class="text-gray-400">▼</span>
+                  <button v-else @click="setDefaultSchema(schema.id)"
+                    class="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-blue-300 bg-blue-900/30 border border-blue-800 rounded hover:bg-blue-800/50 hover:text-white hover:border-blue-600 transition-all mr-2"
+                    title="Beállítás alapértelmezettként">
+                    Legyen Default
                   </button>
+
+                  <!-- 2. SZERKESZTÉS / MEGNYITÁS GOMB -->
+                  <button @click="toggleSchema(schema.id)"
+                    class="p-1.5 rounded transition-colors flex items-center gap-1"
+                    :class="openSchemaId === schema.id ? 'bg-blue-900/50 text-blue-400' : 'bg-gray-700 hover:bg-gray-600 text-gray-400'">
+                    <span v-if="openSchemaId === schema.id" class="text-xs font-bold uppercase">Szerkesztés</span>
+                    <span v-else class="text-xs font-bold uppercase">Megnyitás</span>
+                  </button>
+
+                  <!-- 3. TÖRLÉS GOMB -->
+                  <button
+                    @click="deleteSchema(editableFurniture?.slotGroups?.find(g => g.name === 'Layouts')?.schemas.indexOf(schema) || 0)"
+                    class="text-red-400 hover:text-red-300 text-xs bg-red-900/20 hover:bg-red-900/40 px-2 py-1.5 rounded ml-2">Törlés</button>
+                </div>
+              </div>
+
+              <!-- REKURZÍV FA NÉZET (Csak ha nyitva van) -->
+              <div v-if="openSchemaId === schema.id" class="p-4 bg-gray-800/50">
+
+                <div class="text-sm text-gray-400 mb-4">
+                  Itt szerkesztheted a bútor felépítését.
                 </div>
 
-                <!-- Darabszám Slider -->
-                <div>
-                  <div class="flex justify-between mb-2">
-                    <label class="text-xs font-bold text-gray-500 uppercase">Polcok Száma</label>
-                    <span class="text-sm font-bold text-blue-400">{{ schema.shelfConfig?.count || 0 }} db</span>
+                <!-- A) SPECIÁLIS POLC VEZÉRLŐ (Ha type === 'shelf') -->
+                <div v-if="schema.type === 'shelf'" class="space-y-6">
+
+                  <!-- 1. MÓD VÁLASZTÓ -->
+                  <div class="flex bg-gray-900 p-1 rounded-lg border border-gray-700">
+                    <button @click="updateShelfConfig(schema, 'mode', 'auto')"
+                      class="flex-1 py-2 text-sm font-bold rounded transition-colors"
+                      :class="schema.shelfConfig?.mode === 'auto' ? 'bg-blue-600 text-white shadow' : 'text-gray-400 hover:text-white'">
+                      🧮 Automatikus (Osztott)
+                    </button>
+                    <button @click="updateShelfConfig(schema, 'mode', 'custom')"
+                      class="flex-1 py-2 text-sm font-bold rounded transition-colors"
+                      :class="schema.shelfConfig?.mode === 'custom' ? 'bg-blue-600 text-white shadow' : 'text-gray-400 hover:text-white'">
+                      📍 Egyedi (Fix Pontok)
+                    </button>
                   </div>
-                  <input type="range" min="0" :max="getRootComponentMaxShelves() || 5" step="1"
-                    :value="schema.shelfConfig?.count || 0"
-                    @input="updateShelfConfig(schema, 'count', parseInt(($event.target as HTMLInputElement).value))"
-                    class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500" />
-                  <div class="flex justify-between text-xs text-gray-500 mt-1">
-                    <span>0</span>
-                    <span>Max: {{ getRootComponentMaxShelves() || 5 }}</span>
+
+                  <!-- 2. AUTOMATA MÓD BEÁLLÍTÁSOK -->
+                  <div v-if="schema.shelfConfig?.mode === 'auto'"
+                    class="space-y-4 bg-gray-800 p-4 rounded border border-gray-700">
+
+                    <!-- Polc Típus Választó -->
+                    <div>
+                      <label class="text-xs font-bold text-gray-500 uppercase mb-2 block">Polc Típusa</label>
+                      <button @click="openShelfSelector(schema)"
+                        class="w-full flex justify-between items-center px-3 py-2 bg-gray-700 hover:bg-gray-600 border border-gray-600 rounded text-sm text-white">
+                        <span>{{ getComponentName(schema.shelfConfig?.componentId) || 'Válassz polcot...' }}</span>
+                        <span class="text-gray-400">▼</span>
+                      </button>
+                    </div>
+                    <div class="flex justify-between mb-2">
+                      <label class="text-xs font-bold text-gray-500 uppercase">Polcok Száma</label>
+                      <span class="text-sm font-bold text-blue-400">{{ schema.shelfConfig?.count || 0 }} db</span>
+                    </div>
+                    <input type="range" min="0" :max="getRootComponentMaxShelves() || 5" step="1"
+                      :value="schema.shelfConfig?.count || 0"
+                      @input="updateShelfConfig(schema, 'count', parseInt(($event.target as HTMLInputElement).value))"
+                      class="slider-styled" />
+                    <div class="flex justify-between text-xs text-gray-500 mt-1">
+                      <span>0</span>
+                      <span>Max: {{ getRootComponentMaxShelves() || 5 }}</span>
+                    </div>
                   </div>
+
+                  <!-- Info -->
+                  <div class="text-xs text-gray-400 italic bg-gray-900/50 p-2 rounded">
+                    ℹ️ A polcok egyenletesen lesznek elosztva a korpusz belső magasságában.
+                  </div>
+
                 </div>
 
-                <!-- Info -->
-                <div class="text-xs text-gray-400 italic bg-gray-900/50 p-2 rounded">
-                  ℹ️ A polcok egyenletesen lesznek elosztva a korpusz belső magasságában.
+                <!-- 3. EGYEDI MÓD (Visszaesik a Fa nézetre) -->
+                <div v-else>
+                  <div class="text-xs text-yellow-500 mb-2">
+                    ⚠️ Egyedi módban a 3D modellben lévő csatlakozási pontokat (attach_shelf_...) használjuk.
+                  </div>
                 </div>
 
               </div>
 
-              <!-- 3. EGYEDI MÓD (Visszaesik a Fa nézetre) -->
-              <div v-else>
-                <div class="text-xs text-yellow-500 mb-2">
-                  ⚠️ Egyedi módban a 3D modellben lévő csatlakozási pontokat (attach_shelf_...) használjuk.
-                </div>
+              <!-- B) HAGYOMÁNYOS FA NÉZET (Minden másra, VAGY ha shelf=custom) -->
+              <div v-if="schema.type !== 'shelf' || schema.shelfConfig?.mode === 'custom'" class="space-y-4">
+                <SchemaSlotCard v-for="point in getRootAttachmentPoints()" :key="point.id" :pointId="point.id"
+                  parentPath="root" :schema="schema.apply" :allowedTypes="point.allowedComponentTypes"
+                  :getSlot="getSlotForPath" @update:schema="handleSchemaUpdate" @update:slot="handleSlotUpdate"
+                  @update:schema-property="handleSchemaPropertyUpdate" />
               </div>
 
             </div>
-
-            <!-- B) HAGYOMÁNYOS FA NÉZET (Minden másra, VAGY ha shelf=custom) -->
-            <div v-if="schema.type !== 'shelf' || schema.shelfConfig?.mode === 'custom'" class="space-y-4">
-              <SchemaSlotCard v-for="point in getRootAttachmentPoints()" :key="point.id" :pointId="point.id"
-                parentPath="root" :schema="schema.apply" :allowedTypes="point.allowedComponentTypes"
-                :getSlot="getSlotForPath" @update:schema="handleSchemaUpdate" @update:slot="handleSlotUpdate"
-                @update:schema-property="handleSchemaPropertyUpdate" />
-            </div>
-
           </div>
         </div>
-
       </div>
+
     </div>
-
-    <!-- WIZARD MODAL -->
-    <SchemaWizard v-if="showWizard" @select="handleSchemaCreate" @cancel="showWizard = false" />
-
-    <!-- POLC VÁLASZTÓ MODAL -->
-    <ComponentSelectorModal v-if="showShelfSelector" :allowedTypes="['shelves']"
-      :currentValue="activeShelfSchema?.shelfConfig?.componentId || null" :selectedValues="[]" :multiple="false"
-      @select="handleShelfSelect" @close="showShelfSelector = false" />
-
   </div>
+
+  <!-- WIZARD MODAL -->
+  <SchemaWizard v-if="showWizard" @select="handleSchemaCreate" @cancel="showWizard = false" />
+
+  <!-- POLC VÁLASZTÓ MODAL -->
+  <ComponentSelectorModal v-if="showShelfSelector" :allowedTypes="['shelves']"
+    :currentValue="activeShelfSchema?.shelfConfig?.componentId || null" :selectedValues="[]" :multiple="false"
+    @select="handleShelfSelect" @close="showShelfSelector = false" />
+
+
 </template>

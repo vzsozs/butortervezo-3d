@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { } from 'vue';
 
 const emit = defineEmits<{
     (e: 'select', type: 'front' | 'shelf' | 'drawer'): void;

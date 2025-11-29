@@ -161,7 +161,8 @@ function saveMultiple() {
                             <div class="font-bold text-gray-200 truncate group-hover:text-blue-300">{{ comp.name }}
                             </div>
                             <div class="text-xs text-gray-500 truncate">{{ comp.id }}</div>
-                            <div v-if="comp.width" class="text-xs text-gray-400 mt-1">{{ comp.width }} cm</div>
+                            <div v-if="comp.properties?.width" class="text-xs text-gray-400 mt-1">{{
+                                comp.properties.width }} cm</div>
                         </div>
                     </button>
                 </div>

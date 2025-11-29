@@ -207,21 +207,21 @@ function deleteItem() {
 
         <!-- Szélesség -->
         <div class="flex flex-col gap-1">
-          <label class="admin-label text-xs uppercase tracking-wider text-gray-400">Szélesség (mm)</label>
+          <label class="admin-label text-xs tracking-wider text-gray-400">SZÉLESSÉG (mm)</label>
           <input type="number" v-model.number="editableComponent.properties!.width" placeholder="pl. 600"
             class="admin-input" />
         </div>
 
         <!-- Magasság -->
         <div class="flex flex-col gap-1">
-          <label class="admin-label text-xs uppercase tracking-wider text-gray-400">Magasság (mm)</label>
+          <label class="admin-label text-xs tracking-wider text-gray-400">MAGASSÁG (mm)</label>
           <input type="number" v-model.number="editableComponent.properties!.height" placeholder="pl. 720"
             class="admin-input" />
         </div>
 
         <!-- Mélység -->
         <div class="flex flex-col gap-1">
-          <label class="admin-label text-xs uppercase tracking-wider text-gray-400">Mélység (mm)</label>
+          <label class="admin-label text-xs tracking-wider text-gray-400">MÉLYSÉG (mm)</label>
           <input type="number" v-model.number="editableComponent.properties!.depth" placeholder="pl. 510"
             class="admin-input" />
         </div>
@@ -260,7 +260,7 @@ function deleteItem() {
           <!-- 1. Falvastagság -->
           <div class="flex flex-col h-full justify-between gap-1">
             <div>
-              <label class="admin-label text-xs uppercase tracking-wider text-yellow-500">Falvastagság (mm)</label>
+              <label class="admin-label text-xs tracking-wider text-yellow-500">FALVASTAGSÁG (mm)</label>
               <p class="text-[10px] text-gray-400 mb-1">Korpusz esetén: Ezt vonjuk le a belső magasság számításához.</p>
             </div>
             <input type="number" v-model.number="editableComponent.properties!.wallThickness" placeholder="pl. 18"
@@ -282,8 +282,7 @@ function deleteItem() {
             <div>
               <label
                 class="flex items-center gap-2 cursor-pointer admin-label text-xs uppercase tracking-wider text-yellow-500">
-                <input type="checkbox" v-model="useMaterialSource"
-                  class="form-checkbox rounded text-blue-500 w-3 h-3" />
+                <input type="checkbox" v-model="useMaterialSource" class="checkbox-styled" />
                 Anyag Öröklés
               </label>
               <p class="text-[10px] text-gray-400 mb-1">Ha az anyagot a szülőtől örökli (pl. korpusz szín).</p>

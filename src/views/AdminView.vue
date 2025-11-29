@@ -297,7 +297,8 @@ function handleSaveComponentsToServer() {
             :class="['px-4 py-2 font-semibold', activeTab === 'global' ? 'border-b-2 border-blue-500 text-white' : 'text-gray-400']">Globális
             Beállítások</button>
           <button @click="changeTab('materials')"
-            :class="['px-4 py-2 font-semibold', activeTab === 'materials' ? 'border-b-2 border-blue-500 text-white' : 'text-gray-400']">Anyagok</button>
+            :class="['px-4 py-2 font-semibold', activeTab === 'materials' ? 'border-b-2 border-blue-500 text-white' : 'text-gray-400']">Anyag
+            Szerkesztő</button>
         </div>
       </div>
       <div class="flex-1 min-h-0 pt-8">

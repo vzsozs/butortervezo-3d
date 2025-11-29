@@ -85,13 +85,10 @@ defineExpose({
   <div class="flex flex-col h-full bg-gray-900 rounded-lg shadow-lg overflow-hidden border border-gray-700 p-4">
 
     <!-- 1. FELSŐ SZEKCIÓ: 3D PREVIEW -->
-    <div class="h-96 bg-black relative border border-gray-700 rounded-lg flex-shrink-0 mb-4 overflow-hidden">
+    <!-- 1. FELSŐ SZEKCIÓ: 3D PREVIEW -->
+    <div class="h-96 bg-gray-900 p-1 rounded-lg shadow-inner border border-gray-700 flex-shrink-0 mb-4 overflow-hidden">
       <AdminPreviewCanvas ref="previewCanvasRef" :furniture-config="selectedFurniture"
         @slot-clicked="(id) => emit('slot-clicked', id)" @attachment-clicked="(id) => emit('attachment-clicked', id)" />
-
-      <div class="absolute top-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded pointer-events-none">
-        Preview
-      </div>
     </div>
 
     <!-- 2. KÖZÉPSŐ SZEKCIÓ: LISTA -->

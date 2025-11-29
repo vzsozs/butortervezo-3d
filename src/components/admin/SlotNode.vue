@@ -242,8 +242,7 @@ function rotate(axis: 'x' | 'y' | 'z', degrees: number) {
             <label
               class="flex items-center gap-2 cursor-pointer select-none bg-gray-700 hover:bg-gray-600 border border-gray-600 rounded px-2 py-1 transition-colors"
               :class="{ 'bg-blue-900/30 border-blue-800': !ignoreWidthFilter }">
-              <input type="checkbox" v-model="ignoreWidthFilter"
-                class="form-checkbox w-3 h-3 text-blue-500 bg-gray-800 border-gray-500 rounded focus:ring-0">
+              <input type="checkbox" v-model="ignoreWidthFilter" class="checkbox-styled">
               <span class="text-[10px] text-gray-300 uppercase font-bold tracking-wider">Minden méret</span>
             </label>
 
@@ -265,7 +264,7 @@ function rotate(axis: 'x' | 'y' | 'z', degrees: number) {
             class="flex items-center gap-2 cursor-pointer p-1 rounded hover:bg-gray-700/50 transition-colors">
             <input type="checkbox" :checked="node.allowedComponents?.includes(comp.id)"
               @change="updateAllowedComponent(comp.id, ($event.target as HTMLInputElement).checked)"
-              class="form-checkbox bg-gray-700 border-gray-600 text-blue-500 focus:ring-blue-500" />
+              class="checkbox-styled" />
             <span class="text-gray-300">{{ comp.name }}</span>
             <!-- JAVÍTÁS: properties.width használata -->
             <span v-if="comp.properties?.width" class="text-xs text-gray-500">({{ comp.properties.width }} mm)</span>
@@ -324,7 +323,7 @@ function rotate(axis: 'x' | 'y' | 'z', degrees: number) {
                   class="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-800/50 rounded p-0.5">
                   <input type="checkbox" :checked="node.attachmentMapping?.[component.id]?.includes(pointId)"
                     @change="updateAttachmentMapping(component.id, pointId, ($event.target as HTMLInputElement).checked)"
-                    class="form-checkbox bg-gray-700 border-gray-600 text-blue-500 focus:ring-blue-500" />
+                    class="checkbox-styled" />
                   <span class="font-mono text-gray-300">{{ pointId }}</span>
                 </label>
               </div>

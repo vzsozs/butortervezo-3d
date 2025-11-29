@@ -281,7 +281,7 @@ function handleCancel() {
                             class="bg-gray-800 border border-gray-700 rounded p-3 max-h-32 overflow-y-auto custom-scrollbar">
                             <div v-for="cat in availableCategories" :key="cat" class="flex items-center mb-2 last:mb-0">
                                 <input type="checkbox" :value="cat" v-model="selectedCategories"
-                                    class="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 focus:ring-2" />
+                                    class="checkbox-styled" />
                                 <label class="ml-2 text-sm text-gray-300">{{ cat }}</label>
                             </div>
                             <!-- Új kategória hozzáadása -->
@@ -353,29 +353,26 @@ function handleCancel() {
                                 <label class="block text-xs text-gray-500 mb-1">Érdesség (Roughness): {{
                                     selectedMaterial.properties?.roughness }}</label>
                                 <input type="range" min="0" max="1" step="0.05"
-                                    v-model.number="selectedMaterial.properties!.roughness" class="w-full" />
+                                    v-model.number="selectedMaterial.properties!.roughness" class="slider-styled" />
                             </div>
                             <div>
                                 <label class="block text-xs text-gray-500 mb-1">Fémesség (Metalness): {{
                                     selectedMaterial.properties?.metalness }}</label>
                                 <input type="range" min="0" max="1" step="0.05"
-                                    v-model.number="selectedMaterial.properties!.metalness" class="w-full" />
+                                    v-model.number="selectedMaterial.properties!.metalness" class="slider-styled" />
                             </div>
                         </div>
                     </div>
 
                     <!-- Gombok -->
                     <div class="flex justify-end gap-3 pt-4 border-t border-gray-700">
-                        <button @click="handleDelete" v-if="!isNewMaterial"
-                            class="px-4 py-2 bg-red-900/50 text-red-200 hover:bg-red-900 rounded text-sm border border-red-800 transition-colors mr-auto">
+                        <button @click="handleDelete" v-if="!isNewMaterial" class="admin-btn-danger mr-auto">
                             Törlés
                         </button>
-                        <button @click="handleCancel"
-                            class="px-4 py-2 text-gray-300 hover:text-white text-sm transition-colors">
+                        <button @click="handleCancel" class="admin-btn-secondary">
                             Mégse
                         </button>
-                        <button @click="handleSave"
-                            class="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded text-sm font-medium shadow-lg shadow-blue-900/20 transition-all">
+                        <button @click="handleSave" class="admin-btn">
                             Mentés
                         </button>
                     </div>
