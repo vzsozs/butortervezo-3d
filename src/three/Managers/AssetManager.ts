@@ -195,7 +195,23 @@ export default class AssetManager {
       } else if (slot.useAttachmentPoint) {
         applyAttachment(model, slot.useAttachmentPoint)
       } else {
-        // Ha nincs attachment point, csak simán hozzáadjuk (pl. relatív pozíció)
+        // --- JAVÍTÁS: KÉZI POZICIONÁLÁS (FALLBACK) ---
+
+        // Csak akkor állítunk pozíciót, ha a slot configban benne van!
+        // A régi elemeknél ez undefined, így azok maradnak 0,0,0-án, ahogy eddig.
+        if (slot.position) {
+          model.position.set(slot.position.x, slot.position.y, slot.position.z)
+        }
+
+        if (slot.rotation) {
+          model.rotation.set(slot.rotation.x, slot.rotation.y, slot.rotation.z)
+        }
+
+        // Skálázásnál figyelni kell, mert a default az 1,1,1, nem a 0,0,0
+        if (slot.scale) {
+          model.scale.set(slot.scale.x, slot.scale.y, slot.scale.z)
+        }
+
         parentModel.add(model)
       }
 

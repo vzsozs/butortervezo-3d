@@ -146,11 +146,18 @@ async function handleCreateCategory(categoryName: string) {
 
 // JAVÍTOTT X-RAY KEZELÉS
 function handleToggleXRay(enabled: boolean) {
-  // Csak a SidePanel-en keresztül kommunikálunk, mert ott van a 3D motor
-  if (adminSidePanelRef.value && typeof adminSidePanelRef.value.setXRayMode === 'function') {
-    adminSidePanelRef.value.setXRayMode(enabled);
+  console.log('📡 AdminView FOGADTA:', enabled); // <--- EZT FIGYELD
+
+  if (adminSidePanelRef.value) {
+    console.log('   ➡️ Továbbítás a SidePanelnek...');
+    // Ellenőrizzük, hogy létezik-e a függvény
+    if (typeof adminSidePanelRef.value.setXRayMode === 'function') {
+      adminSidePanelRef.value.setXRayMode(enabled);
+    } else {
+      console.error('❌ HIBA: A SidePanelnek nincs setXRayMode függvénye!');
+    }
   } else {
-    console.warn('AdminSidePanel ref is missing or setXRayMode is not available.');
+    console.error('❌ HIBA: adminSidePanelRef értéke null!');
   }
 }
 

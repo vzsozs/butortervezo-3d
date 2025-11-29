@@ -1,96 +1,11 @@
 {
   "corpuses": [
     {
-      "name": "Alsó korpusz (15cm)",
-      "id": "also_korpusz_15cm",
-      "model": "/models/corpuses/also_korpusz_15cm.glb",
-      "materialTarget": "MAT_Korpusz",
-      "materialOptions": [
-        "MAT_Korpusz"
-      ],
-      "attachmentPoints": [
-        {
-          "id": "attach_leg_backLeft",
-          "allowedComponentTypes": [
-            "legs"
-          ]
-        },
-        {
-          "id": "attach_front",
-          "allowedComponentTypes": [
-            "fronts"
-          ]
-        },
-        {
-          "id": "attach_leg_frontLeft",
-          "allowedComponentTypes": [
-            "legs"
-          ]
-        },
-        {
-          "id": "attach_shelf_1",
-          "allowedComponentTypes": [
-            "shelves"
-          ]
-        },
-        {
-          "id": "attach_shelf_2",
-          "allowedComponentTypes": [
-            "shelves"
-          ]
-        }
-      ],
-      "price": 35000,
-      "allowedMaterialCategories": [],
-      "width": 15
-    },
-    {
-      "name": "Alsó korpusz (60cm)",
-      "id": "also_korpusz_60cm",
-      "model": "/models/corpuses/also_korpusz_60cm.glb",
-      "materialTarget": "MAT_Korpusz",
-      "materialOptions": [
-        "MAT_Korpusz"
-      ],
-      "attachmentPoints": [
-        {
-          "id": "attach_front",
-          "allowedComponentTypes": [
-            "fronts"
-          ]
-        },
-        {
-          "id": "attach_leg_frontRight",
-          "allowedComponentTypes": [
-            "legs"
-          ]
-        },
-        {
-          "id": "attach_leg_backLeft",
-          "allowedComponentTypes": [
-            "legs"
-          ]
-        },
-        {
-          "id": "attach_leg_frontLeft",
-          "allowedComponentTypes": [
-            "legs"
-          ]
-        },
-        {
-          "id": "attach_leg_backRight",
-          "allowedComponentTypes": [
-            "legs"
-          ]
-        }
-      ],
-      "price": 52000,
-      "allowedMaterialCategories": [],
-      "width": 60
-    },
-    {
       "name": "corpus bottom 60",
       "id": "corpus_bottom_60",
+      "properties": {
+        "height": 0.747
+      },
       "allowedMaterialCategories": [],
       "model": "/models/corpuses/corpus_bottom_60.glb",
       "materialTarget": "MAT_Korpusz",
@@ -140,100 +55,16 @@
             "legs"
           ]
         }
-      ],
-      "width": 60,
-      "price": 22000,
-      "properties": {
-        "height": 720,
-        "wallThickness": 19,
-        "maxShelves": 3
-      }
+      ]
     }
   ],
   "fronts": [
     {
-      "name": "Ajtó alsó Keretes (60cm)",
-      "id": "ajto_also_keretes_60cm",
-      "model": "/models/fronts/ajto_also_keretes_60cm.glb",
-      "materialTarget": "MAT_Frontok",
-      "materialOptions": [
-        "MAT_Frontok"
-      ],
-      "attachmentPoints": [
-        {
-          "id": "attach_handle_vertical",
-          "allowedComponentTypes": [
-            "handles"
-          ]
-        }
-      ],
-      "price": 28000,
-      "allowedMaterialCategories": [],
-      "width": 60
-    },
-    {
-      "name": "Ajtó alsó Sima (60cm)",
-      "id": "ajto_also_sima_60cm",
-      "model": "/models/fronts/ajto_also_sima_60cm.glb",
-      "materialTarget": "MAT_Frontok",
-      "materialOptions": [
-        "MAT_Frontok"
-      ],
-      "attachmentPoints": [
-        {
-          "id": "attach_handle_vertical",
-          "allowedComponentTypes": [
-            "handles"
-          ]
-        }
-      ],
-      "price": 19000,
-      "allowedMaterialCategories": [],
-      "width": 60
-    },
-    {
-      "name": "Ajtó alsó Sima (15cm)",
-      "id": "ajto_also_sima_15cm",
-      "model": "/models/fronts/ajto_also_sima_15cm.glb",
-      "materialTarget": "MAT_Frontok",
-      "materialOptions": [
-        "MAT_Frontok"
-      ],
-      "attachmentPoints": [
-        {
-          "id": "attach_handle_vertical",
-          "allowedComponentTypes": [
-            "handles"
-          ]
-        }
-      ],
-      "price": 9000,
-      "allowedMaterialCategories": [],
-      "width": 15
-    },
-    {
-      "name": "front bottom keretes 30 L",
-      "id": "front_bottom_keretes_30_l",
-      "allowedMaterialCategories": [],
-      "model": "/models/fronts/front_bottom_keretes_30_l.glb",
-      "materialTarget": "MAT_Frontok",
-      "materialOptions": [
-        "MAT_Frontok"
-      ],
-      "attachmentPoints": [
-        {
-          "id": "attach_handle_verticall_L",
-          "allowedComponentTypes": [
-            "handles"
-          ]
-        }
-      ],
-      "width": 30,
-      "price": 15000
-    },
-    {
       "name": "front bottom keretes 60 L",
       "id": "front_bottom_keretes_60_l",
+      "properties": {
+        "height": 0.711
+      },
       "allowedMaterialCategories": [],
       "model": "/models/fronts/front_bottom_keretes_60_l.glb",
       "materialTarget": "MAT_Frontok",
@@ -247,240 +78,55 @@
             "handles"
           ]
         }
-      ],
-      "price": 25000,
-      "width": 60
-    },
-    {
-      "name": "front bottom sima 60 L",
-      "id": "front_bottom_sima_60_l",
-      "allowedMaterialCategories": [],
-      "model": "/models/fronts/front_bottom_sima_60_l.glb",
-      "materialTarget": "MAT_Frontok",
-      "materialOptions": [
-        "MAT_Frontok"
-      ],
-      "attachmentPoints": [
-        {
-          "id": "attach_handle_vertical_L",
-          "allowedComponentTypes": [
-            "handles"
-          ]
-        }
-      ],
-      "price": 25000,
-      "width": 60
-    },
-    {
-      "name": "front bottom keretes 30 R",
-      "id": "front_bottom_keretes_30_r",
-      "allowedMaterialCategories": [],
-      "model": "/models/fronts/front_bottom_keretes_30_r.glb",
-      "materialTarget": "MAT_Frontok",
-      "materialOptions": [
-        "MAT_Frontok"
-      ],
-      "attachmentPoints": [
-        {
-          "id": "attach_handle_vertical_R",
-          "allowedComponentTypes": [
-            "handles"
-          ]
-        }
-      ],
-      "price": 15000,
-      "width": 30
-    },
-    {
-      "name": "front bottom keretes 60 R",
-      "id": "front_bottom_keretes_60_r",
-      "allowedMaterialCategories": [],
-      "model": "/models/fronts/front_bottom_keretes_60_r.glb",
-      "materialTarget": "MAT_Frontok",
-      "materialOptions": [
-        "MAT_Frontok"
-      ],
-      "attachmentPoints": [
-        {
-          "id": "attach_handle_vertical_R",
-          "allowedComponentTypes": [
-            "handles"
-          ]
-        }
-      ],
-      "price": 30000,
-      "width": 60
-    },
-    {
-      "name": "front bottom sima 60 R",
-      "id": "front_bottom_sima_60_r",
-      "allowedMaterialCategories": [],
-      "model": "/models/fronts/front_bottom_sima_60_r.glb",
-      "materialTarget": "MAT_Frontok",
-      "materialOptions": [
-        "MAT_Frontok"
-      ],
-      "attachmentPoints": [
-        {
-          "id": "attach_handle_vertical_R",
-          "allowedComponentTypes": [
-            "handles"
-          ]
-        }
-      ],
-      "price": 20000,
-      "width": 60
-    },
-    {
-      "name": "front bottom sima 30 L",
-      "id": "front_bottom_sima_30_l",
-      "allowedMaterialCategories": [],
-      "model": "/models/fronts/front_bottom_sima_30_l.glb",
-      "materialTarget": "MAT_Frontok",
-      "materialOptions": [
-        "MAT_Frontok"
-      ],
-      "attachmentPoints": [
-        {
-          "id": "attach_handle_verticall_L",
-          "allowedComponentTypes": [
-            "handles"
-          ]
-        }
-      ],
-      "price": 10000,
-      "width": 30
-    },
-    {
-      "name": "front bottom sima 30 R",
-      "id": "front_bottom_sima_30_r",
-      "allowedMaterialCategories": [],
-      "model": "/models/fronts/front_bottom_sima_30_r.glb",
-      "materialTarget": "MAT_Frontok",
-      "materialOptions": [
-        "MAT_Frontok"
-      ],
-      "attachmentPoints": [
-        {
-          "id": "attach_handle_verticall_R",
-          "allowedComponentTypes": [
-            "handles"
-          ]
-        }
-      ],
-      "price": 10000,
-      "width": 30
+      ]
     }
   ],
   "handles": [
     {
-      "name": "Fogantyú Hosszúkás",
-      "id": "fogantyu_hosszukas",
-      "model": "/models/handles/fogantyu_hosszukas.glb",
-      "materialTarget": "MAT_Fem_Kiegeszitok",
-      "materialOptions": [
-        "MAT_Fem_Kiegeszitok"
-      ],
-      "attachmentPoints": [],
-      "price": 5200,
+      "name": "handle standard",
+      "id": "handle_standard",
+      "properties": {
+        "height": 0.025
+      },
       "allowedMaterialCategories": [],
-      "width": 10
-    },
-    {
-      "name": "Fogantyú Design",
-      "id": "fogantyu_design",
-      "model": "/models/handles/fogantyu_design.glb",
+      "model": "/models/handles/handle_standard.glb",
       "materialTarget": "MAT_Fem_Kiegeszitok",
       "materialOptions": [
         "MAT_Fem_Kiegeszitok"
       ],
-      "attachmentPoints": [],
-      "price": 4200,
-      "allowedMaterialCategories": []
+      "attachmentPoints": []
     }
   ],
   "legs": [
     {
-      "name": "Láb Bútorlapláb (60cm)",
-      "id": "lab_butorlaplab_60cm",
-      "model": "/models/legs/lab_butorlaplab_60cm.glb",
-      "height": 0.1,
+      "name": "leg standard",
+      "id": "leg_standard",
+      "properties": {
+        "height": 0.1
+      },
+      "allowedMaterialCategories": [],
+      "model": "/models/legs/leg_standard.glb",
       "materialTarget": "MAT_Korpusz",
       "materialOptions": [
         "MAT_Korpusz"
       ],
-      "attachmentPoints": [],
-      "price": 5600,
-      "materialSource": "corpus"
-    },
-    {
-      "name": "Láb Bútorlapláb (15cm)",
-      "id": "lab_butorlaplab_15cm",
-      "model": "/models/legs/lab_butorlaplab_15cm.glb",
-      "height": 0.1,
-      "materialTarget": "MAT_Korpusz",
-      "materialOptions": [
-        "MAT_Korpusz"
-      ],
-      "attachmentPoints": [],
-      "price": 3200,
-      "materialSource": "corpus"
-    },
-    {
-      "name": "Láb Csőláb",
-      "id": "lab_csolab",
-      "model": "/models/legs/lab_csolab.glb",
-      "height": 0.1,
-      "materialTarget": "MAT_Lab_Fem",
-      "materialOptions": [
-        "MAT_Lab_Fem"
-      ],
-      "attachmentPoints": [],
-      "price": 1800,
-      "allowedMaterialCategories": []
+      "attachmentPoints": []
     }
   ],
   "shelves": [
     {
-      "name": "Polc alsó -1 (15cm)",
-      "id": "polc_also_-1_15cm",
-      "model": "/models/shelves/polc_also_-1_15cm.glb",
-      "materialTarget": "Material",
-      "materialOptions": [
-        "Material"
-      ],
-      "attachmentPoints": [],
-      "price": 3200,
-      "materialSource": "corpus",
-      "allowedMaterialCategories": [],
-      "width": 15
-    },
-    {
-      "name": "Polc alsó -2 (15cm)",
-      "id": "polc_also_-2_15cm",
-      "model": "/models/shelves/polc_also_-2_15cm.glb",
-      "materialTarget": "Material",
-      "materialOptions": [
-        "Material"
-      ],
-      "attachmentPoints": [],
-      "price": 6400,
-      "materialSource": "corpus",
-      "allowedMaterialCategories": [],
-      "width": 15
-    },
-    {
       "name": "shelf bottom-1 standard 60",
       "id": "shelf_bottom-1_standard_60",
+      "properties": {
+        "height": 0.019
+      },
       "allowedMaterialCategories": [],
       "model": "/models/shelves/shelf_bottom-1_standard_60.glb",
       "materialTarget": "Material",
       "materialOptions": [
         "Material"
       ],
-      "attachmentPoints": [],
-      "price": 12000,
-      "width": 60
+      "attachmentPoints": []
     }
   ]
 }

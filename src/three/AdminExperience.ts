@@ -42,6 +42,8 @@ export default class AdminExperience extends EventTarget {
   private hoveredObject: Mesh | null = null
   private originalHoverMaterial: Material | null = null
 
+  private isXRayEnabled: boolean = false
+
   constructor(container: HTMLDivElement) {
     super()
     this.container = container
@@ -204,6 +206,12 @@ export default class AdminExperience extends EventTarget {
     this.scene.add(this.currentObject)
 
     console.log('✅ New object added to scene.')
+
+    // --- ÚJ: X-RAY ÚJRA-ALKALMAZÁSA ---
+    if (this.isXRayEnabled) {
+      console.log('🔄 Re-applying X-Ray mode after update')
+      this.setXRayMode(true) // Újra alkalmazzuk az újraépített objektumon
+    }
 
     if (resetCamera) {
       this.frameObject(this.currentObject)
@@ -406,50 +414,86 @@ export default class AdminExperience extends EventTarget {
     }
   }
 
-  // --- X-RAY MÓD (Átlátszó ajtók) ---
+  // --- X-RAY MÓD (Pro Verzió: Wireframe + Szín) ---
   public setXRayMode(enabled: boolean) {
+    this.isXRayEnabled = enabled // Állapot mentése
+
     if (!this.currentObject) return
 
     this.currentObject.traverse((child) => {
-      // Megkeressük a frontokat (ajtók, fiókelők)
-      // A slotId-t az AssetManager mentette el a userData-ba, ez a legbiztosabb pont.
-      const slotId = child.userData.slotId || child.name
-      const isFront =
-        slotId.includes('front') || slotId.includes('door') || slotId.includes('drawer_front')
+      // 1. Megkeressük a frontokat (Ajtó, Fiók)
+      const meshName = child.name.toLowerCase()
+      const parentName = child.parent?.name.toLowerCase() || ''
+      const slotId = (child.userData.slotId || child.parent?.userData.slotId || '').toLowerCase()
+
+      const keywords = ['front', 'door', 'drawer_front', 'ajtó', 'fiok']
+      const isFront = keywords.some(
+        (k) => meshName.includes(k) || parentName.includes(k) || slotId.includes(k),
+      )
 
       if (isFront && child instanceof Mesh) {
+        // --- A) A TEST (MESH) KEZELÉSE ---
         if (enabled) {
-          // BEKAPCSOLÁS: Átlátszóvá tesszük
-
-          // 1. Elmentjük az eredeti anyagot (ha még nincs mentve)
+          // BEKAPCSOLÁS
           if (!child.userData.originalMaterial) {
             child.userData.originalMaterial = child.material
           }
 
-          // 2. Klónozzuk és módosítjuk
-          // Fontos: A klónozás kell, különben minden ilyen anyagú tárgy átlátszó lenne a világban
-          const xrayMaterial = (child.userData.originalMaterial as Material).clone()
-          xrayMaterial.transparent = true
-          xrayMaterial.opacity = 0.15 // 15% láthatóság (kicsit több mint 10, hogy jobban érzékelhető legyen)
-          xrayMaterial.depthWrite = false // Hogy átlássunk rajta rendesen
+          const originalMat = Array.isArray(child.userData.originalMaterial)
+            ? child.userData.originalMaterial[0]
+            : child.userData.originalMaterial
 
-          // Ha StandardMaterial, akkor a roughness-t is felvesszük, hogy ne csillogjon annyira
-          if ('roughness' in xrayMaterial) {
-            ;(xrayMaterial as any).roughness = 0.8
+          if (originalMat) {
+            const xrayMat = originalMat.clone()
+            xrayMat.transparent = true
+            xrayMat.opacity = 0.2 // 10% láthatóság
+            xrayMat.depthWrite = false
+            xrayMat.roughness = 1
+            xrayMat.metalness = 0
+
+            // SZÍN VÁLTOZTATÁS: Itt adhatsz neki árnyalatot!
+            // Ha azt akarod, hogy fehéres/szürkés legyen:
+            // xrayMat.color.setHex(0xaaaaaa)
+            // Ha azt akarod, hogy kékes "hologram" legyen:
+            xrayMat.color.setHex(0x00aaff)
+
+            child.material = xrayMat
           }
-
-          child.material = xrayMaterial
         } else {
-          // KIKAPCSOLÁS: Visszaállítjuk az eredetit
+          // KIKAPCSOLÁS
           if (child.userData.originalMaterial) {
             child.material = child.userData.originalMaterial
-
-            // Opcionális: A klónozott xray anyagot takaríthatjuk, de a GC megoldja
-            child.userData.originalMaterial = null // Töröljük a referenciát
           }
         }
+
+        // --- B) A WIREFRAME (KERET) KEZELÉSE ---
+        // Megkeressük a Mesh gyerekei között a vonalakat
+        child.children.forEach((subChild) => {
+          if (subChild instanceof LineSegments) {
+            const lineMat = subChild.material as LineBasicMaterial
+
+            if (enabled) {
+              // Halványítjuk a keretet is
+              if (!subChild.userData.originalOpacity) {
+                subChild.userData.originalOpacity = lineMat.opacity
+                subChild.userData.originalTransparent = lineMat.transparent
+              }
+              lineMat.transparent = true
+              lineMat.opacity = 0.05 // Nagyon halvány, épp csak látszódjon
+              // lineMat.visible = false; // Vagy teljesen el is rejtheted, ha zavaró
+            } else {
+              // Visszaállítás
+              if (subChild.userData.originalOpacity !== undefined) {
+                lineMat.opacity = subChild.userData.originalOpacity
+                lineMat.transparent = subChild.userData.originalTransparent
+              }
+            }
+          }
+        })
       }
     })
+
+    this.renderer.render(this.scene, this.camera)
   }
 
   private animate = () => {

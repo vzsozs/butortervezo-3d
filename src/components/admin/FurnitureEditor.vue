@@ -92,9 +92,14 @@ function switchTab(tab: 'general' | 'layouts') {
 // --- SÉMA KEZELÉS ---
 
 function toggleSchema(schemaId: string) {
+  console.log('🖱️ KATTINTÁS TÖRTÉNT! SchemaID:', schemaId);
+  console.log('   Jelenlegi openSchemaId:', openSchemaId.value);
+
   if (openSchemaId.value === schemaId) {
+    console.log('   Döntés: BEZÁRÁS');
     openSchemaId.value = null;
   } else {
+    console.log('   Döntés: MEGNYITÁS');
     openSchemaId.value = schemaId;
   }
 }
@@ -134,23 +139,30 @@ async function handleSchemaCreate(type: 'front' | 'shelf' | 'drawer') {
 
 // Markerek kezelése
 watch(openSchemaId, (newId) => {
+  console.log('👀 WATCHER LEFUTOTT! Új ID:', newId);
+
   if (newId) {
-    // 1. Markerek frissítése (ez volt eddig is)
+    // Markerek frissítése
     setTimeout(() => updateMarkers(), 100);
 
-    // 2. X-RAY MÓD KEZELÉSE (ÚJ)
+    // X-RAY LOGIKA
     const layoutGroup = editableFurniture.value?.slotGroups?.find(g => g.name === 'Layouts');
     const schema = layoutGroup?.schemas.find(s => s.id === newId);
 
-    // Ha a séma típusa 'shelf' vagy 'internal', akkor kapcsoljuk be a röntgent
+    console.log('   Megtalált séma:', schema?.name);
+    console.log('   Séma típusa:', schema?.type);
+
+    // Ellenőrizzük a típust
     if (schema && (schema.type === 'shelf' || schema.type === 'internal')) {
+      console.log('   ✅ FELTÉTEL IGAZ -> EMIT toggle-xray TRUE');
       emit('toggle-xray', true);
     } else {
+      console.log('   ❌ FELTÉTEL HAMIS (Nem shelf/internal) -> EMIT toggle-xray FALSE');
       emit('toggle-xray', false);
     }
 
   } else {
-    // Ha bezárjuk a sémát, mindent lekapcsolunk
+    console.log('   Nincs ID (Bezárva) -> Minden kikapcsolása');
     emit('toggle-markers', false, []);
     emit('toggle-xray', false);
   }

@@ -54,7 +54,12 @@ function toggleAttachmentMarkers(visible: boolean, activePoints: string[]) {
 
 // JAVÍTÁS: Továbbítjuk a kérést a gyerek komponensnek (AdminPreviewCanvas)
 function setXRayMode(enabled: boolean) {
-  previewCanvasRef.value?.setXRayMode(enabled);
+  console.log('bridge SidePanel FOGADTA:', enabled); // <--- EZT FIGYELD
+  if (previewCanvasRef.value) {
+    previewCanvasRef.value.setXRayMode(enabled);
+  } else {
+    console.error('❌ HIBA: previewCanvasRef értéke null!');
+  }
 }
 
 defineExpose({
