@@ -1,6 +1,6 @@
 // src/config/furniture.ts
 
-// --- ÚJ: FIZIKAI TULAJDONSÁGOK ---
+// --- FIZIKAI TULAJDONSÁGOK ---
 export interface ComponentProperties {
   width?: number
   height?: number
@@ -23,6 +23,7 @@ export interface ComponentConfig {
   name: string
   price?: number
   componentType: string
+  styleId?: string
   model: string
 
   materialTarget?: string
@@ -31,7 +32,6 @@ export interface ComponentConfig {
   attachmentPoints?: AttachmentPoint[]
   allowedMaterialCategories?: string[]
 
-  // JAVÍTÁS: Itt használjuk az új interface-t!
   properties?: ComponentProperties
 }
 
@@ -122,6 +122,13 @@ export interface GlobalSettingConfig {
   allowedMaterialCategories?: string[]
   allowedComponentIds?: string[] // ÚJ
   // targetSlotId és options mezők törölhetők, ha már nem használod a régi logikát
+}
+
+// --- STÍLUS DEFINÍCIÓ ---
+export interface FurnitureStyle {
+  id: string
+  name: string
+  description?: string
 }
 
 export interface MaterialConfig {

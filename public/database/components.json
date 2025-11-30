@@ -68,8 +68,8 @@
       "id": "front_bottom_keretes_60_l",
       "properties": {
         "height": 711,
-        "width": 19,
-        "depth": 596
+        "width": 596,
+        "depth": 19
       },
       "allowedMaterialCategories": [
         "Bútorlap",
@@ -90,15 +90,16 @@
           ]
         }
       ],
-      "price": 14800
+      "price": 14800,
+      "styleId": "style_1764511063484_bfvs0"
     },
     {
       "name": "front bottom sima 60 L",
       "id": "front_bottom_sima_60_l",
       "properties": {
         "height": 711,
-        "width": 19,
-        "depth": 596
+        "width": 596,
+        "depth": 19
       },
       "allowedMaterialCategories": [
         "Bútorlap",
@@ -119,7 +120,8 @@
           ]
         }
       ],
-      "price": 10800
+      "price": 10800,
+      "styleId": "style_1764511122132_n8uao"
     },
     {
       "name": "front bottom keretes 30 L",
@@ -147,15 +149,16 @@
           ]
         }
       ],
-      "price": 9800
+      "price": 9800,
+      "styleId": "style_1764511063484_bfvs0"
     },
     {
       "name": "front bottom keretes 30 R",
       "id": "front_bottom_keretes_30_r",
       "properties": {
         "height": 711,
-        "width": 19,
-        "depth": 294
+        "width": 294,
+        "depth": 19
       },
       "allowedMaterialCategories": [
         "Bútorlap",
@@ -176,15 +179,16 @@
           ]
         }
       ],
-      "price": 9800
+      "price": 9800,
+      "styleId": "style_1764511063484_bfvs0"
     },
     {
       "name": "front bottom keretes 60 R",
       "id": "front_bottom_keretes_60_r",
       "properties": {
         "height": 711,
-        "width": 19,
-        "depth": 596
+        "width": 596,
+        "depth": 19
       },
       "allowedMaterialCategories": [
         "Bútorlap",
@@ -205,7 +209,8 @@
           ]
         }
       ],
-      "price": 14800
+      "price": 14800,
+      "styleId": "style_1764511063484_bfvs0"
     },
     {
       "name": "front bottom sima 60 R",
@@ -234,7 +239,8 @@
           ]
         }
       ],
-      "price": 10800
+      "price": 10800,
+      "styleId": "style_1764511122132_n8uao"
     }
   ],
   "handles": [

@@ -119,6 +119,7 @@ export default defineConfig({
               'components.json',
               'globalSettings.json',
               'materials.json',
+              'styles.json',
             ]
 
             if (!filename || !data || !allowedFiles.includes(filename)) {

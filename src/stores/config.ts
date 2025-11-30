@@ -1,22 +1,24 @@
 // src/stores/config.ts
+
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import type {
   FurnitureConfig,
   ComponentConfig,
-  GlobalGroupConfig, // ÚJ TÍPUS
+  GlobalGroupConfig,
   ComponentDatabase,
   MaterialConfig,
+  FurnitureStyle, // <--- ÚJ IMPORT
 } from '@/config/furniture'
 
 export const useConfigStore = defineStore('config', () => {
   const furnitureList = ref<FurnitureConfig[]>([])
   const components = ref<ComponentDatabase>({})
-
-  // JAVÍTÁS: globalSettings helyett globalGroups
   const globalGroups = ref<GlobalGroupConfig[]>([])
-
   const materials = ref<MaterialConfig[]>([])
+
+  // --- ÚJ STATE: STÍLUSOK ---
+  const styles = ref<FurnitureStyle[]>([])
 
   const furnitureCategories = computed(() => {
     const categories: Record<string, { name: string; items: FurnitureConfig[] }> = {
@@ -32,7 +34,60 @@ export const useConfigStore = defineStore('config', () => {
     return Object.values(categories).filter((c) => c.items.length > 0)
   })
 
-  // --- ÚJ ACTIONS: Global Group Kezelés ---
+  // --- ÚJ ACTIONS: STÍLUS KEZELÉS (Style System) ---
+
+  function addStyle(name: string) {
+    const newStyle: FurnitureStyle = {
+      id: `style_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+      name: name,
+    }
+    styles.value.push(newStyle)
+    // Itt hívhatsz mentést, ha van (pl. saveToLocalStorage)
+  }
+
+  function updateStyle(id: string, updates: Partial<FurnitureStyle>) {
+    const style = styles.value.find((s) => s.id === id)
+    if (style) {
+      Object.assign(style, updates)
+    }
+  }
+
+  function removeStyle(id: string) {
+    // 1. Töröljük magát a stílust
+    const index = styles.value.findIndex((s) => s.id === id)
+    if (index !== -1) {
+      styles.value.splice(index, 1)
+    }
+
+    // 2. "Árvátlanítás": Levesszük a stílust azokról a komponensekről, amik ehhez tartoztak
+    Object.values(components.value).forEach((category) => {
+      category.forEach((comp) => {
+        if (comp.styleId === id) {
+          comp.styleId = undefined
+        }
+      })
+    })
+  }
+
+  // A LEGONTOSABB: Tömeges hozzárendelés
+  function assignStyleToComponents(styleId: string | undefined, componentIds: string[]) {
+    // Végigmegyünk az összes kategórián
+    Object.values(components.value).forEach((category) => {
+      category.forEach((comp) => {
+        // Ha a komponens ID-ja benne van a kijelöltekben
+        if (componentIds.includes(comp.id)) {
+          comp.styleId = styleId // Beállítjuk az új stílust (vagy undefined-et leválasztáskor)
+        }
+      })
+    })
+    console.log(`[ConfigStore] Stílus (${styleId}) frissítve ${componentIds.length} elemen.`)
+  }
+
+  function getStyleById(id: string): FurnitureStyle | undefined {
+    return styles.value.find((s) => s.id === id)
+  }
+
+  // --- Global Group Kezelés ---
 
   function addGlobalGroup(group: GlobalGroupConfig) {
     globalGroups.value.push(group)
@@ -55,7 +110,7 @@ export const useConfigStore = defineStore('config', () => {
   // --- SORRENDEZÉS (NYILAK) ---
   function moveGroupUp(index: number) {
     if (index > 0 && globalGroups.value[index] && globalGroups.value[index - 1]) {
-      const temp = globalGroups.value[index]! // ! = biztosan nem undefined
+      const temp = globalGroups.value[index]!
       globalGroups.value[index] = globalGroups.value[index - 1]!
       globalGroups.value[index - 1] = temp
     }
@@ -67,13 +122,13 @@ export const useConfigStore = defineStore('config', () => {
       globalGroups.value[index] &&
       globalGroups.value[index + 1]
     ) {
-      const temp = globalGroups.value[index]! // ! = biztosan nem undefined
+      const temp = globalGroups.value[index]!
       globalGroups.value[index] = globalGroups.value[index + 1]!
       globalGroups.value[index + 1] = temp
     }
   }
 
-  // --- Material Kezelés (Változatlan) ---
+  // --- Material Kezelés ---
   function addMaterial(material: MaterialConfig) {
     materials.value.push(material)
   }
@@ -92,19 +147,21 @@ export const useConfigStore = defineStore('config', () => {
     }
   }
 
-  // Betöltés
+  // --- BETÖLTÉS ---
   async function loadAllData() {
     try {
-      const [furnitureRes, componentsRes, globalSettingsRes, materialsRes] = await Promise.all([
-        fetch('/database/furniture.json'),
-        fetch('/database/components.json'),
-        fetch('/database/globalSettings.json'),
-        fetch('/database/materials.json'),
-      ])
+      // Hozzáadtuk a styles.json-t is a betöltéshez
+      const [furnitureRes, componentsRes, globalSettingsRes, materialsRes, stylesRes] =
+        await Promise.all([
+          fetch('/database/furniture.json'),
+          fetch('/database/components.json'),
+          fetch('/database/globalSettings.json'),
+          fetch('/database/materials.json'),
+          fetch('/database/styles.json').catch(() => null), // Ha nincs még file, ne haljon meg
+        ])
+
       furnitureList.value = await furnitureRes.json()
       components.value = await componentsRes.json()
-
-      // JAVÍTÁS: Itt is globalGroups-ba töltünk
       globalGroups.value = await globalSettingsRes.json()
 
       if (materialsRes.ok) {
@@ -112,13 +169,22 @@ export const useConfigStore = defineStore('config', () => {
       } else {
         materials.value = []
       }
+
+      // Stílusok betöltése
+      if (stylesRes && stylesRes.ok) {
+        styles.value = await stylesRes.json()
+      } else {
+        // Alapértelmezett, ha nincs fájl
+        styles.value = []
+      }
+
       console.log('Adatbázis sikeresen betöltve.')
     } catch (error) {
       console.error('Hiba a központi adatbázis betöltése közben:', error)
     }
   }
 
-  // Getterek (Változatlan)
+  // --- GETTERS ---
   function getComponentById(id: string): ComponentConfig | undefined {
     for (const categoryKey in components.value) {
       const categoryComponents = components.value[categoryKey]
@@ -138,7 +204,7 @@ export const useConfigStore = defineStore('config', () => {
     return materials.value.find((m) => m.id === id)
   }
 
-  // Admin Actions (Változatlan)
+  // --- ADMIN ACTIONS (CRUD) ---
   function addComponent(type: string, component: ComponentConfig) {
     if (!components.value[type]) components.value[type] = []
     components.value[type].push(component)
@@ -175,17 +241,25 @@ export const useConfigStore = defineStore('config', () => {
   return {
     furnitureList,
     components,
-    globalGroups, // ÚJ EXPORT
+    globalGroups,
     materials,
+    styles, // ÚJ EXPORT
     furnitureCategories,
     addGlobalGroup,
     updateGlobalGroup,
     deleteGlobalGroup,
-    moveGroupUp, // ÚJ
-    moveGroupDown, // ÚJ
+    moveGroupUp,
+    moveGroupDown,
     addMaterial,
     updateMaterial,
     deleteMaterial,
+    // Style Actions
+    addStyle,
+    removeStyle,
+    updateStyle,
+    assignStyleToComponents,
+    getStyleById,
+    // Common
     getComponentById,
     getFurnitureById,
     getMaterialById,

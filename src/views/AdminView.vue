@@ -10,6 +10,7 @@ import ComponentSidePanel from '@/components/admin/ComponentSidePanel.vue';
 import AssetManager from '@/three/Managers/AssetManager';
 import GlobalSettingsEditor from '@/components/admin/GlobalSettingsEditor.vue';
 import MaterialEditor from '@/components/admin/MaterialEditor.vue';
+import StyleManager from '@/components/admin/StyleManager.vue';
 
 const activeTab = ref('furniture');
 const appVersion = __APP_VERSION__;
@@ -70,6 +71,14 @@ const hasUnsavedChanges = computed(() => {
   return JSON.stringify(editingFurniture.value) !== JSON.stringify(originalFurniture.value);
 });
 
+// --- JAVÍTÁS: STÍLUS MENTÉS ---
+function handleSaveStyles() {
+  // Stílusok mentése
+  saveDatabase('styles.json', configStore.styles);
+  // ÉS a komponensek mentése is (mert ott van a styleId bekötve!)
+  saveDatabase('components.json', configStore.components);
+}
+
 function handleSaveGlobalSettings() {
   // Ellenőrizzük, hogy létezik-e az adat
   if (!configStore.globalGroups) {
@@ -93,7 +102,7 @@ function confirmAndProceed(action: () => void) {
 // --- ADATBÁZIS MENTÉSI FÜGGVÉNYEK ---
 
 async function saveDatabase(
-  filename: 'furniture.json' | 'components.json' | 'globalSettings.json',
+  filename: 'furniture.json' | 'components.json' | 'globalSettings.json' | 'styles.json',
   data: FurnitureConfig[] | ComponentDatabase | any
 ) {
   try {
@@ -194,7 +203,7 @@ function handleCreateNewFurniture() {
     furnitureEditorKey.value = tempId;
   });
 }
-function changeTab(tab: 'furniture' | 'components' | 'global' | 'materials') {
+function changeTab(tab: 'furniture' | 'components' | 'global' | 'styles' | 'materials') {
   confirmAndProceed(() => {
     activeTab.value = tab;
     handleCancelFurniture();
@@ -305,11 +314,16 @@ function handleSaveComponentsToServer() {
           <button @click="changeTab('global')"
             :class="['px-4 py-2 font-semibold', activeTab === 'global' ? 'border-b-2 border-blue-500 text-white' : 'text-gray-400']">Globális
             Beállítások</button>
+          <button @click="changeTab('styles')"
+            :class="['px-4 py-2 font-semibold', activeTab === 'styles' ? 'border-b-2 border-blue-500 text-white' : 'text-gray-400']">Stílus
+            Manager
+          </button>
           <button @click="changeTab('materials')"
             :class="['px-4 py-2 font-semibold', activeTab === 'materials' ? 'border-b-2 border-blue-500 text-white' : 'text-gray-400']">Anyag
             Szerkesztő</button>
         </div>
       </div>
+
       <div class="flex-1 min-h-0 pt-8">
         <!-- 1. ESET: GLOBÁLIS BEÁLLÍTÁSOK -->
         <div v-if="activeTab === 'global'" class="h-full p-4">
@@ -319,6 +333,11 @@ function handleSaveComponentsToServer() {
         <!-- 2. ESET: ANYAG SZERKESZTŐ -->
         <div v-else-if="activeTab === 'materials'" class="h-full p-4">
           <MaterialEditor />
+        </div>
+
+        <!-- 4. ESET: Stílus SZERKESZTŐ -->
+        <div v-else-if="activeTab === 'styles'" class="h-full p-4">
+          <StyleManager @save-changes="handleSaveStyles" />
         </div>
 
         <!-- 3. ESET: RÉGI NÉZET (Bútor vagy Komponens) -->
