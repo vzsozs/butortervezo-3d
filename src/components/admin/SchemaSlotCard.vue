@@ -67,9 +67,11 @@ function handleMultiSelect(componentIds: string[]) {
 }
 
 function updateSlotProperty(key: keyof ComponentSlotConfig, value: any) {
+  // Mindig mentsük a sémába a tulajdonságot, akkor is, ha a slot még nem létezik (pl. első kiválasztás)
+  emit('update:schema-property', currentPath.value, { [key]: value });
+
   if (slotConfig.value) {
     emit('update:slot', slotConfig.value.slotId, { [key]: value });
-    emit('update:schema-property', currentPath.value, { [key]: value });
   }
 }
 
@@ -104,6 +106,9 @@ function rotate(axis: 'x' | 'y' | 'z', degrees: number) {
         <!-- Slot Name / Point ID (BAL OLDAL) -->
         <div class="flex-grow font-bold text-gray-200">
           {{ pointId }}
+          <span v-if="(slotConfig?.allowedComponents?.length || 0) > 1" class="ml-2 text-xs text-blue-400 font-normal">
+            ({{ slotConfig?.allowedComponents?.length }} db)
+          </span>
         </div>
 
         <!-- JOBB OLDAL: Alapértelmezett + Beállítások -->

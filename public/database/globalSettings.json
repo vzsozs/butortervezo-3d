@@ -41,14 +41,16 @@
           "id": "var_1764454819849",
           "name": "Keretes",
           "componentIds": [
-            "front_bottom_keretes_60_l"
+            "front_bottom_keretes_60_l",
+            "front_bottom_keretes_60_r"
           ]
         },
         {
           "id": "var_1764458929956",
           "name": "Sima",
           "componentIds": [
-            "front_bottom_sima_60_l"
+            "front_bottom_sima_60_l",
+            "front_bottom_sima_60_r"
           ]
         }
       ]

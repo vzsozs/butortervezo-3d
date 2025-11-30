@@ -12,11 +12,12 @@ const configStore = useConfigStore()
 // --- DRAGGABLE SETUP ---
 const panelRef = ref<HTMLElement | null>(null)
 const dragHandleRef = ref<HTMLElement | null>(null)
+
 const initialX = window.innerWidth - 340
-const initialY = window.innerHeight - 500
+const initialY = 100
 
 const { style } = useDraggable(panelRef, {
-  initialValue: { x: initialX > 0 ? initialX : 100, y: initialY > 0 ? initialY : 100 },
+  initialValue: { x: initialX > 0 ? initialX : 100, y: initialY },
   handle: dragHandleRef,
   preventDefault: false,
 })
@@ -24,19 +25,21 @@ const { style } = useDraggable(panelRef, {
 // --- ALAP ADATOK ---
 const selectedObject = computed(() => selectionStore.selectedObject)
 
-// Eredeti definíció betöltése (Ez tartalmazza a te Admin beállításaidat!)
+// Instance Config (Jelenlegi állapot)
+const currentConfig = computed(() => selectionStore.selectedObjectConfig)
+
+// Static Def (Eredeti tervrajz)
 const furnitureDef = computed<FurnitureConfig | undefined>(() => {
-  const instanceConfig = selectionStore.selectedObjectConfig
-  if (!instanceConfig) return undefined
-  return configStore.getFurnitureById(instanceConfig.id) || instanceConfig
+  if (!currentConfig.value) return undefined
+  return configStore.getFurnitureById(currentConfig.value.id) || currentConfig.value;
 })
 
-// --- MÉRETEK (Csak megjelenítéshez) ---
+// --- MÉRETEK ---
 const dimensions = computed(() => {
-  if (!selectedObject.value || !furnitureDef.value) return null;
+  if (!selectedObject.value || !currentConfig.value) return null;
 
   const componentState = selectedObject.value.userData.componentState || {};
-  const corpusSlot = furnitureDef.value.componentSlots.find(s => s.slotId.includes('corpus'));
+  const corpusSlot = currentConfig.value.componentSlots.find(s => s.slotId.includes('corpus'));
 
   if (corpusSlot) {
     const corpusId = componentState[corpusSlot.slotId];
@@ -52,31 +55,46 @@ const dimensions = computed(() => {
 
   return {
     width: '-',
-    height: furnitureDef.value.height ?? '-',
+    height: currentConfig.value.height ?? '-',
     depth: '-'
   }
 })
 
 // --- LISTÁK ---
 const slotGroups = computed(() => furnitureDef.value?.slotGroups ?? [])
-const componentSlots = computed(() => furnitureDef.value?.componentSlots ?? [])
+const componentSlots = computed(() => currentConfig.value?.componentSlots ?? [])
 const materials = computed(() => configStore.materials)
 
-// --- KOMPONENS LISTÁZÁS (EGYSZERŰSÍTVE) ---
+// --- KOMPONENS LISTÁZÁS (JAVÍTVA LAYOUTHOZ) ---
 
 function getFilteredComponents(slot: ComponentSlotConfig) {
-  // Nem matekozunk. Azt adjuk vissza, amit az Adminban beállítottál (allowedComponents).
-  // Csak átalakítjuk ID-ból teljes objektummá, hogy legyen nevünk.
-  return slot.allowedComponents
+  // 1. Megnézzük, mi van a slotban engedélyezve
+  const explicitList = slot.allowedComponents
     .map(id => configStore.getComponentById(id))
-    .filter(c => c !== undefined)
+    .filter(c => c !== undefined);
+
+  // 2. HA a lista túl rövid (<= 1), az gyanús, hogy Layout generálta.
+  // Ilyenkor FALLBACK: Visszaadjuk a kategória összes elemét.
+  if (explicitList.length <= 1 && slot.componentType) {
+    // A store-ban a komponensek kategóriák szerint vannak (pl. 'fronts', 'legs')
+    // Megpróbáljuk megtalálni a megfelelőt.
+    const categoryComponents = configStore.components[slot.componentType];
+
+    if (categoryComponents && categoryComponents.length > 0) {
+      return categoryComponents;
+    }
+  }
+
+  // Ha van rendes lista (pl. lábaknál), vagy nem találtunk kategóriát, marad az eredeti
+  return explicitList;
 }
 
 // --- UI HELPERS ---
 
 function shouldShowComponentSelector(slot: ComponentSlotConfig): boolean {
-  // Csak akkor mutatjuk a legördülőt, ha van miből választani (több mint 1 opció)
-  return slot.allowedComponents.length > 1
+  // Most már a getFilteredComponents eredményét vizsgáljuk!
+  // Így ha a fallback miatt 20 ajtó lett, akkor meg fog jelenni a mező.
+  return getFilteredComponents(slot).length > 1;
 }
 
 function shouldShowMaterialSelector(slot: ComponentSlotConfig): boolean {
@@ -118,145 +136,27 @@ function getMaterialColor(materialId: string): string {
 
 // --- ACTIONS ---
 
-async function handleGroupChange(groupIndex: number, schemaId: string) {
+function handleGroupChange(groupIndex: number, schemaId: string) {
   console.log(`[Inspector] Layout váltás: GroupIndex=${groupIndex}, SchemaID=${schemaId}`);
-
-  if (!selectedObject.value || !furnitureDef.value) return;
-
-  const group = furnitureDef.value.slotGroups?.[groupIndex];
-  const schema = group?.schemas.find(s => s.id === schemaId);
-
-  if (!schema) return;
-
-  selectionStore.applySchema(groupIndex, schemaId);
-
-  // KÖZVETLEN ÚJRAÉPÍTÉS (Force Rebuild)
-  const experience = Experience.getInstance();
-  const original = selectedObject.value;
-  const parent = original.parent;
-
-  if (!parent) return;
-
-  const config = original.userData.config;
-  const componentState = JSON.parse(JSON.stringify(original.userData.componentState || {}));
-  const materialState = original.userData.materialState;
-
-  Object.entries(schema.apply).forEach(([slotId, componentId]) => {
-    if (componentId) {
-      componentState[slotId] = componentId;
-    } else {
-      delete componentState[slotId];
-    }
-  });
-
-  try {
-    experience.camera.transformControls.detach();
-
-    const newObject = await experience.assetManager.buildFurnitureFromConfig(config, componentState);
-
-    newObject.userData.materialState = materialState;
-    await experience.stateManager.applyMaterialsToObject(newObject);
-
-    newObject.position.copy(original.position);
-    newObject.rotation.copy(original.rotation);
-
-    parent.remove(original);
-    parent.add(newObject);
-
-    experience.experienceStore.replaceObject(original.uuid, newObject);
-    selectionStore.selectObject(newObject);
-
-    experience.camera.transformControls.attach(newObject);
-
-    console.log('[Inspector] Layout sikeresen alkalmazva.');
-  } catch (error) {
-    console.error('[Inspector] Hiba a layout váltásnál:', error);
-  }
+  selectionStore.applySchema(groupIndex, schemaId)
 }
 
-async function handleComponentChange(slotId: string, componentId: string) {
+function handleComponentChange(slotId: string, componentId: string) {
   console.log(`[Inspector] Komponens csere: ${slotId} -> ${componentId}`);
-
-  if (!componentId || !selectedObject.value) return;
-
-  selectionStore.changeStyle(slotId, componentId);
-
-  const experience = Experience.getInstance();
-  const original = selectedObject.value;
-  const parent = original.parent;
-
-  if (!parent) return;
-
-  const config = original.userData.config;
-  const componentState = JSON.parse(JSON.stringify(original.userData.componentState || {}));
-  const materialState = original.userData.materialState;
-
-  componentState[slotId] = componentId;
-
-  try {
-    experience.camera.transformControls.detach();
-
-    const newObject = await experience.assetManager.buildFurnitureFromConfig(config, componentState);
-
-    newObject.userData.materialState = materialState;
-    await experience.stateManager.applyMaterialsToObject(newObject);
-
-    newObject.position.copy(original.position);
-    newObject.rotation.copy(original.rotation);
-
-    parent.remove(original);
-    parent.add(newObject);
-
-    experience.experienceStore.replaceObject(original.uuid, newObject);
-    selectionStore.selectObject(newObject);
-
-    experience.camera.transformControls.attach(newObject);
-
-    console.log('[Inspector] Bútor sikeresen újraépítve.');
-  } catch (error) {
-    console.error('[Inspector] Hiba az újraépítés során:', error);
+  if (componentId) {
+    selectionStore.changeStyle(slotId, componentId);
   }
 }
 
-async function handleMaterialChange(slotId: string, materialId: string) {
+function handleMaterialChange(slotId: string, materialId: string) {
   console.log(`[Inspector] Anyag csere: ${slotId} -> ${materialId}`);
-
-  if (materialId && selectedObject.value) {
+  if (materialId) {
     selectionStore.changeMaterial(slotId, materialId);
-
-    const experience = Experience.getInstance();
-
-    if (!selectedObject.value.userData.materialState) {
-      selectedObject.value.userData.materialState = {};
-    }
-    selectedObject.value.userData.materialState[slotId] = materialId;
-
-    await experience.stateManager.applyMaterialsToObject(selectedObject.value);
-    console.log('[Inspector] Anyag kényszerítve.');
   }
 }
 
-async function handleDuplicate() {
-  const original = selectionStore.selectedObject;
-  if (!original) return;
-
-  const experience = Experience.getInstance();
-  const config = original.userData.config;
-  const componentState = original.userData.componentState;
-  const materialState = original.userData.materialState;
-
-  const clone = await experience.assetManager.buildFurnitureFromConfig(config, componentState);
-  clone.userData.materialState = JSON.parse(JSON.stringify(materialState));
-  await experience.stateManager.applyMaterialsToObject(clone);
-
-  clone.position.copy(original.position);
-  clone.position.x += 0.2;
-  clone.rotation.copy(original.rotation);
-
-  experience.scene.add(clone);
-  experience.experienceStore.addObject(clone);
-
-  experience.interactionManager.startDraggingExistingObject(clone);
+function handleDuplicate() {
+  selectionStore.duplicateSelectedObject()
 }
 
 function handleDelete() {

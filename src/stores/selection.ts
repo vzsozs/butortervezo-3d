@@ -4,11 +4,11 @@ import { defineStore } from 'pinia'
 import type { Group } from 'three'
 import { ref, computed, shallowRef } from 'vue'
 import type { FurnitureConfig } from '@/config/furniture'
-import { useExperienceStore } from './experience'
+// import { useExperienceStore } from './experience'
 import Experience from '@/three/Experience'
 
 export const useSelectionStore = defineStore('selection', () => {
-  const experienceStore = useExperienceStore()
+  // const experienceStore = useExperienceStore()
 
   // ShallowRef fontos a Three.js objektumoknál a teljesítmény miatt
   const selectedObject = shallowRef<Group | null>(null)
