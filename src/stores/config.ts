@@ -54,17 +54,21 @@ export const useConfigStore = defineStore('config', () => {
 
   // --- SORRENDEZÉS (NYILAK) ---
   function moveGroupUp(index: number) {
-    if (index > 0) {
-      const temp = globalGroups.value[index]
-      globalGroups.value[index] = globalGroups.value[index - 1]
+    if (index > 0 && globalGroups.value[index] && globalGroups.value[index - 1]) {
+      const temp = globalGroups.value[index]! // ! = biztosan nem undefined
+      globalGroups.value[index] = globalGroups.value[index - 1]!
       globalGroups.value[index - 1] = temp
     }
   }
 
   function moveGroupDown(index: number) {
-    if (index < globalGroups.value.length - 1) {
-      const temp = globalGroups.value[index]
-      globalGroups.value[index] = globalGroups.value[index + 1]
+    if (
+      index < globalGroups.value.length - 1 &&
+      globalGroups.value[index] &&
+      globalGroups.value[index + 1]
+    ) {
+      const temp = globalGroups.value[index]! // ! = biztosan nem undefined
+      globalGroups.value[index] = globalGroups.value[index + 1]!
       globalGroups.value[index + 1] = temp
     }
   }

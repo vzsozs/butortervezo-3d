@@ -43,6 +43,13 @@
           "componentIds": [
             "front_bottom_keretes_60_l"
           ]
+        },
+        {
+          "id": "var_1764458929956",
+          "name": "Sima",
+          "componentIds": [
+            "front_bottom_sima_60_l"
+          ]
         }
       ]
     }

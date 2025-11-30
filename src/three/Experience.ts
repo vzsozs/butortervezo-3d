@@ -16,6 +16,7 @@ import {
   GridHelper,
   BoxHelper,
   LineSegments,
+  Color,
 } from 'three'
 
 import Sizes from './Utils/Sizes'
@@ -35,6 +36,8 @@ import { useExperienceStore } from '@/stores/experience'
 import { useSelectionStore } from '@/stores/selection'
 import { useSettingsStore } from '@/stores/settings'
 import { useHistoryStore, type SceneState } from '@/stores/history'
+import { useConfigStore } from '@/stores/config'
+import type { FurnitureConfig, ComponentConfig } from '@/config/furniture'
 
 let instance: Experience | null = null
 
@@ -65,11 +68,12 @@ export default class Experience {
   public selectionStore = useSelectionStore()
   public settingsStore = useSettingsStore()
   public historyStore = useHistoryStore()
+  public configStore = useConfigStore()
 
   private isDestroyed = false
 
   private constructor(canvas: HTMLDivElement) {
-    // --- ZOMBI GYILKOS (Ez szünteti meg a duplázódást HMR alatt) ---
+    // --- ZOMBI GYILKOS ---
     if ((window as any)._experienceInstance) {
       console.warn('⚠️ Zombi Experience észlelve! Kényszerített leállítás...')
       ;(window as any)._experienceInstance.destroy()
@@ -82,6 +86,7 @@ export default class Experience {
 
     this.canvas = canvas
     this.scene = new Scene()
+    this.scene.background = new Color('#1e1e1e') // Háttérszín beállítása
     this.clock = new Clock()
     this.raycaster = new Raycaster()
 
@@ -113,7 +118,6 @@ export default class Experience {
   public static getInstance(canvas?: HTMLDivElement): Experience {
     if (!instance && canvas) instance = new Experience(canvas)
     else if (instance && canvas && instance.canvas !== canvas) {
-      // Ha új canvast kapunk (pl. oldalváltás), eldobjuk a régit
       instance.destroy()
       instance = new Experience(canvas)
     } else if (!instance && !canvas) throw new Error('Experience not initialized.')
@@ -164,12 +168,11 @@ export default class Experience {
     }
   }
 
-  // --- UPDATE LOOP (CRASH VÉDELEMMEL) ---
+  // --- UPDATE LOOP ---
   private update = () => {
     if (this.isDestroyed) return
     requestAnimationFrame(this.update)
 
-    // Crash Védelem: Ha a TransformControls árva objektumot fog, elengedjük
     // @ts-expect-error - private
     const controlsObj = this.camera.transformControls.object
     if (controlsObj && !controlsObj.parent) {
@@ -181,75 +184,225 @@ export default class Experience {
     this.renderer.update()
   }
 
-  // --- GLOBÁLIS CSERE (Nukleáris módszer) ---
-
-  public async updateGlobalMaterials() {
+  // --- ÚJ GLOBÁLIS ANYAG FRISSÍTÉS (CSOPORT ALAPÚ) ---
+  public async updateGlobalMaterials(specificGroupId?: string) {
     console.log('--- [updateGlobalMaterials] START ---')
     const globalMaterials = this.settingsStore.globalMaterialSettings
-    console.log('Global Materials:', JSON.parse(JSON.stringify(globalMaterials)))
+    const globalGroups = this.configStore.globalGroups
 
     for (const object of this.experienceStore.placedObjects) {
       let needsUpdate = false
       const materialState = object.userData.materialState || {}
-      const config = object.userData.config
+      const config = object.userData.config as FurnitureConfig
       if (!config) continue
 
       const componentState = object.userData.componentState || {}
 
       for (const slot of config.componentSlots) {
-        const slotId = slot.slotId
-        for (const [globalTarget, materialId] of Object.entries(globalMaterials)) {
-          // JAVÍTÁS: A slotId (pl. "front_1") nem tartalmazza a többesszámú targetet ("fronts").
-          // Ezért a componentType-ot is ellenőrizzük, ami viszont egyezik ("fronts").
-          const isMatch = slotId.includes(globalTarget) || slot.componentType === globalTarget
+        const currentComponentId = componentState[slot.slotId]
+        if (!currentComponentId) continue
 
-          if (isMatch && materialState[slotId] !== materialId) {
-            console.log(
-              `Match found! Slot: ${slotId}, Type: ${slot.componentType} matches Target: ${globalTarget}`,
-            )
+        const componentConfig = this.configManager.getComponentById(currentComponentId)
+        if (!componentConfig) continue
 
-            // 1. Ellenőrzés: Megengedett-e ez az anyag ehhez a komponenshez?
-            const currentComponentId = componentState[slotId]
-            if (currentComponentId) {
-              const componentConfig = this.configManager.getComponentById(currentComponentId)
-              const materialConfig = this.configManager.getMaterialById(materialId)
+        // DEBUG LOG: Hogy lássuk, mit vizsgálunk
+        console.log(
+          `Checking Slot: ${slot.slotId} | SlotType: ${slot.componentType} | CompType: ${componentConfig.componentType}`,
+        )
 
-              if (
-                componentConfig &&
-                materialConfig &&
-                componentConfig.allowedMaterialCategories &&
-                componentConfig.allowedMaterialCategories.length > 0
-              ) {
-                // Ha van korlátozás, ellenőrizzük
-                const matCats = Array.isArray(materialConfig.category)
-                  ? materialConfig.category
-                  : [materialConfig.category]
-                const isAllowed = matCats.some((c) =>
-                  componentConfig.allowedMaterialCategories!.includes(c),
+        // Megkeressük az érvényes szabályt
+        // JAVÍTÁS: Ellenőrizzük a Slot típusát ÉS a Komponens típusát is!
+        const activeGroup = globalGroups.find(
+          (g) =>
+            (g.targets.includes(slot.componentType) ||
+              g.targets.includes(componentConfig.componentType)) &&
+            g.material.enabled,
+        )
+
+        // Ha van szabály, és egyezik a kért ID-val (vagy mindent frissítünk)
+        if (activeGroup && (!specificGroupId || activeGroup.id === specificGroupId)) {
+          const selectedMaterialId = globalMaterials[activeGroup.id]
+
+          if (selectedMaterialId && materialState[slot.slotId] !== selectedMaterialId) {
+            // Kategória ellenőrzés
+            const materialConfig = this.configManager.getMaterialById(selectedMaterialId)
+            if (
+              componentConfig.allowedMaterialCategories &&
+              componentConfig.allowedMaterialCategories.length > 0 &&
+              materialConfig
+            ) {
+              const matCats = Array.isArray(materialConfig.category)
+                ? materialConfig.category
+                : [materialConfig.category]
+              const isAllowed = matCats.some((c) =>
+                componentConfig.allowedMaterialCategories!.includes(c),
+              )
+
+              if (!isAllowed) {
+                console.warn(
+                  `Skipping material ${selectedMaterialId} for ${slot.slotId} (Category mismatch)`,
                 )
-
-                if (!isAllowed) {
-                  console.warn(
-                    `[updateGlobalMaterials] Material '${materialId}' skipped for '${currentComponentId}' (Category mismatch)`,
-                  )
-                  continue // Ugrás a következőre, ezt nem alkalmazzuk
-                }
+                continue
               }
             }
 
-            console.log(`Applying material ${materialId} to slot ${slotId}`)
-            materialState[slotId] = materialId
+            console.log(
+              `✅ Applying material ${selectedMaterialId} to slot ${slot.slotId} (Group: ${activeGroup.name})`,
+            )
+            materialState[slot.slotId] = selectedMaterialId
             needsUpdate = true
           }
         }
       }
+
       if (needsUpdate) {
-        console.log('Object needs update, calling applyMaterialsToObject')
         object.userData.materialState = materialState
         await this.stateManager.applyMaterialsToObject(object)
       }
     }
     console.log('--- [updateGlobalMaterials] END ---')
+  }
+
+  // --- ÚJ GLOBÁLIS STÍLUS (KOMPONENS) FRISSÍTÉS ---
+  public async updateGlobalComponents(groupId: string, variantId: string) {
+    console.log(`--- [updateGlobalComponents] START (${groupId} -> ${variantId}) ---`)
+
+    // 1. Megkeressük a szabályt és a variációt
+    const groupConfig = this.configStore.globalGroups.find((g) => g.id === groupId)
+    if (!groupConfig || !groupConfig.style.enabled) {
+      console.warn('Group not found or style disabled')
+      return
+    }
+
+    const variant = groupConfig.style.variants.find((v) => v.id === variantId)
+    if (!variant) {
+      console.warn('Variant not found')
+      return
+    }
+
+    const candidateComponentIds = variant.componentIds
+    console.log('Candidates:', candidateComponentIds)
+
+    // 2. Végigmegyünk minden bútoron
+    const furnitureObjects = [...this.experienceStore.placedObjects]
+
+    for (const furnitureGroup of furnitureObjects) {
+      const config = furnitureGroup.userData.config as FurnitureConfig
+      const componentState = JSON.parse(JSON.stringify(furnitureGroup.userData.componentState))
+      let needsRebuild = false
+
+      // 3. Végigmegyünk a slotokon
+      for (const slot of config.componentSlots) {
+        const currentComponentId = componentState[slot.slotId]
+        if (!currentComponentId) continue
+
+        const currentComponent = this.configStore.getComponentById(currentComponentId)
+        if (!currentComponent) continue
+
+        // DEBUG LOG
+        console.log(
+          `Checking Slot: ${slot.slotId} | Targets: ${groupConfig.targets.join(', ')} | SlotType: ${slot.componentType} | CompType: ${currentComponent.componentType}`,
+        )
+
+        // JAVÍTÁS: Ellenőrizzük a Slot típusát ÉS a Komponens típusát is!
+        const isTarget =
+          groupConfig.targets.includes(slot.componentType) ||
+          groupConfig.targets.includes(currentComponent.componentType)
+
+        if (isTarget) {
+          // --- SMART SWAP LOGIKA ---
+          const bestMatchId = this.findBestMatchingComponent(
+            currentComponent,
+            candidateComponentIds,
+          )
+
+          if (bestMatchId) {
+            if (bestMatchId !== currentComponentId) {
+              console.log(
+                `✅ MATCH! Csere: ${currentComponent.name} -> ${bestMatchId} (Slot: ${slot.slotId})`,
+              )
+              componentState[slot.slotId] = bestMatchId
+              needsRebuild = true
+            } else {
+              console.log(`ℹ️ Már a jó komponens van bent: ${bestMatchId}`)
+            }
+          } else {
+            console.warn(
+              `❌ Nem találtam megfelelő méretű párt ehhez: ${currentComponent.name} (${currentComponent.properties?.width}x${currentComponent.properties?.height}) a variációban.`,
+            )
+          }
+        }
+      }
+
+      // 4. Ha történt változás, újraépítjük a bútort
+      if (needsRebuild) {
+        console.log('Rebuilding object...')
+        await this.rebuildObject(furnitureGroup, componentState)
+        await this.updateGlobalMaterials()
+      }
+    }
+    console.log('--- [updateGlobalComponents] END ---')
+  }
+
+  // Segédfüggvény a megfelelő méretű komponens megtalálásához
+  private findBestMatchingComponent(
+    original: ComponentConfig,
+    candidates: string[],
+  ): string | null {
+    const origProps = original.properties || {}
+    const origWidth = origProps.width || 0
+    const origHeight = origProps.height || 0
+
+    // JAVÍTÁS: Biztonsági fallback. Ha nincs componentType, használjuk az ID-t, vagy üres stringet.
+    // Így a .includes() sosem fog hibát dobni.
+    const type = (original.componentType || original.id || '').toLowerCase()
+
+    // 1. KÍSÉRLET: PONTOS EGYEZÉS (Szélesség ÉS Magasság)
+    // Ez kritikus az Ajtóknak és Fiókoknak
+    for (const id of candidates) {
+      const candidate = this.configStore.getComponentById(id)
+      if (!candidate) continue
+      const candProps = candidate.properties || {}
+
+      const widthMatch = Math.abs((candProps.width || 0) - origWidth) < 2 // 2mm tolerancia
+      const heightMatch = Math.abs((candProps.height || 0) - origHeight) < 2
+
+      if (widthMatch && heightMatch) {
+        return id // Megvan a tökéletes pár!
+      }
+    }
+
+    // 2. KÍSÉRLET: CSAK MAGASSÁG (Lábaknak)
+    // A lábaknál a szélesség stílus kérdése, a magasság a lényeg.
+    if (type.includes('leg') || type.includes('lab')) {
+      for (const id of candidates) {
+        const candidate = this.configStore.getComponentById(id)
+        if (!candidate) continue
+        const candProps = candidate.properties || {}
+
+        // Kicsit nagyobb tolerancia (5mm)
+        if (Math.abs((candProps.height || 0) - origHeight) < 5) {
+          return id
+        }
+      }
+    }
+
+    // 3. KÍSÉRLET: FALLBACK (Fogantyúk és Lábak)
+    // Ha Fogantyúról vagy Lábról van szó, és nem találtunk méret egyezést,
+    // akkor feltételezzük, hogy a felhasználó bármi áron cserélni akar.
+    if (
+      type.includes('handle') ||
+      type.includes('fogantyu') ||
+      type.includes('leg') ||
+      type.includes('lab')
+    ) {
+      if (candidates.length > 0) {
+        console.log(`⚠️ Méret nem egyezik, de fallback alkalmazva (${type}): ${candidates[0]}`)
+        return candidates[0] ?? null
+      }
+    }
+
+    return null
   }
 
   public updateTotalPrice() {
@@ -285,15 +438,12 @@ export default class Experience {
   }
 
   public newScene() {
-    // console.log("--- [newScene] MÉLYTAKARÍTÁS ---");
     const transformControlsUUID = this.camera.transformControls.uuid
 
-    // 1. LECSATOLÁS
     this.camera.transformControls.detach()
     this.selectionStore.clearSelection()
     this.debug.selectionBoxHelper.visible = false
 
-    // 2. STORE ALAPÚ TÖRLÉS (Elsődleges)
     this.experienceStore.placedObjects.forEach((obj) => {
       const rawObj = toRaw(obj)
       const objectInScene = this.scene.children.find((c) => c.uuid === rawObj.uuid)
@@ -303,20 +453,15 @@ export default class Experience {
       }
     })
 
-    // 3. SCENE TAKARÍTÁS (Szigorú Allow-List)
     const objectsToKill: Object3D[] = []
 
     this.scene.children.forEach((child) => {
       const rawChild = toRaw(child)
-
-      // --- ALLOW LIST ---
       if (rawChild === this.rulerElements) return
       if ((rawChild as any).isLight) return
       if ((rawChild as any).isCamera) return
       if (rawChild.uuid === transformControlsUUID) return
       if (rawChild instanceof Mesh && rawChild.geometry instanceof PlaneGeometry) return
-
-      // Helpers (Debug & World)
       if (rawChild instanceof GridHelper) return
       if (rawChild instanceof BoxHelper) return
       if (rawChild instanceof LineSegments) return
@@ -326,8 +471,6 @@ export default class Experience {
         !rawChild.userData.componentState
       )
         return
-
-      // --- KILL LIST ---
       objectsToKill.push(child)
     })
 
@@ -336,7 +479,6 @@ export default class Experience {
       this.disposeRecursively(obj)
     })
 
-    // 4. RULER ELEMENTS TAKARÍTÁS
     while (this.rulerElements.children.length > 0) {
       const child = this.rulerElements.children[0]
       if (!child) break
@@ -344,16 +486,12 @@ export default class Experience {
       this.disposeRecursively(child)
     }
 
-    // 5. Store reset
     this.experienceStore.updatePlacedObjects([])
-
-    // 6. Egyéb
     this.settingsStore.resetToDefaults()
     this.historyStore.clearHistory()
     this.historyStore.addState()
   }
 
-  // Segédfüggvény a memóriatakarításhoz
   private disposeRecursively(object: any) {
     if (!object) return
     object.traverse((child: any) => {
@@ -370,7 +508,6 @@ export default class Experience {
       throw new DOMException('Load state aborted', 'AbortError')
     }
 
-    // BIZTONSÁGI TAKARÍTÁS
     const existingObjects: Object3D[] = []
     this.scene.children.forEach((child) => {
       if (
@@ -383,7 +520,6 @@ export default class Experience {
     existingObjects.forEach((obj) => this.scene.remove(obj))
     this.experienceStore.updatePlacedObjects([])
 
-    // Újak betöltése
     for (const objState of state) {
       if (signal?.aborted) {
         throw new DOMException('Load state aborted during object processing', 'AbortError')
@@ -408,7 +544,6 @@ export default class Experience {
     this.updateTotalPrice()
   }
 
-  // Ez már csak egyedi esetekre kell
   public async rebuildObject(
     oldObject: Group,
     newComponentState: Record<string, string>,

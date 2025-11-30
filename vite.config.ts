@@ -9,6 +9,18 @@ import os from 'os'
 import express from 'express' // express-t használunk a kényelmesebb routingért
 import multer from 'multer'
 import type { ComponentConfig, ComponentDatabase } from './src/config/furniture'
+import { execSync } from 'child_process' // <--- EZ HIÁNYZOTT!
+
+// --- GIT VERZIÓ KINYERÉSE ---
+let commitHash = 'Dev'
+try {
+  // RÉGI (Hash): execSync('git rev-parse --short HEAD').toString().trim()
+
+  // ÚJ (Üzenet): Lekérjük az utolsó commit üzenetének tárgyát (subject)
+  commitHash = execSync('git log -1 --format=%s').toString().trim()
+} catch {
+  console.warn('Nem sikerült kinyerni a git verziót.')
+}
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -133,5 +145,8 @@ export default defineConfig({
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
+  },
+  define: {
+    __APP_VERSION__: JSON.stringify(commitHash),
   },
 })

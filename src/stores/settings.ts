@@ -6,13 +6,7 @@ export const useSettingsStore = defineStore('settings', () => {
   const experienceStore = useExperienceStore()
 
   // --- ÁLLAPOT (STATE) ---
-
-  // 1. Globális Anyagok (groupId -> materialId)
-  // Pl. { "fronts": "mat_white_gloss", "corpuses": "mat_oak" }
   const globalMaterialSettings = ref<Record<string, string>>({})
-
-  // 2. Globális Stílusok / Komponensek (groupId -> componentId)
-  // Pl. { "fronts": "front_keretes", "legs": "leg_modern" }
   const globalComponentSettings = ref<Record<string, string>>({})
 
   const activeFurnitureId = ref<string | null>('also_szekreny_60')
@@ -32,34 +26,35 @@ export const useSettingsStore = defineStore('settings', () => {
     }
     globalMaterialSettings.value[groupId] = newMaterialId
 
-    // Azonnali frissítés a 3D térben
-    await forceGlobalUpdate()
+    // JAVÍTÁS: Átadjuk a groupId-t is, hogy tudjuk, mit kell frissíteni
+    await forceGlobalUpdate(groupId)
   }
 
   /**
    * Globális STÍLUS (Komponens) beállítása
    */
-  async function setGlobalComponentStyle(groupId: string, newComponentId: string) {
-    if (!newComponentId || globalComponentSettings.value[groupId] === newComponentId) {
+  async function setGlobalComponentStyle(groupId: string, variantId: string) {
+    if (!variantId || globalComponentSettings.value[groupId] === variantId) {
       return
     }
-    globalComponentSettings.value[groupId] = newComponentId
+    globalComponentSettings.value[groupId] = variantId
 
-    // Itt később majd a 3D modell cserét kell meghívni
-    // Egyelőre logoljuk, hogy lássuk működik-e
-    console.log(`[SettingsStore] Stílus váltás: ${groupId} -> ${newComponentId}`)
-
-    // TODO: Implementálni a 3D cserét az Experience-ben
-    // await experienceStore.instance?.updateGlobalComponents(groupId, newComponentId);
+    // JAVÍTÁS: Meghívjuk a 3D frissítést
+    const experience = experienceStore.instance
+    if (experience) {
+      console.log(`[SettingsStore] Stílus váltás indítása: ${groupId} -> ${variantId}`)
+      await experience.updateGlobalComponents(groupId, variantId)
+    }
   }
 
   /**
    * Kényszerített frissítés (Anyagok)
    */
-  async function forceGlobalUpdate() {
+  async function forceGlobalUpdate(groupId?: string) {
     const experience = experienceStore.instance
     if (!experience) return
-    await experience.updateGlobalMaterials()
+    // JAVÍTÁS: Átadjuk a groupId-t, ha van
+    await experience.updateGlobalMaterials(groupId)
   }
 
   // --- EGYÉB AKCIÓK ---
@@ -93,17 +88,15 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   return {
-    // State
     globalMaterialSettings,
-    globalComponentSettings, // ÚJ
+    globalComponentSettings,
     activeFurnitureId,
     areFrontsVisible,
     isSnappingEnabled,
     isElementListVisible,
     isRulerModeActive,
-    // Actions
     setGlobalMaterial,
-    setGlobalComponentStyle, // ÚJ
+    setGlobalComponentStyle,
     forceGlobalUpdate,
     setActiveFurnitureId,
     toggleFrontsVisibility,

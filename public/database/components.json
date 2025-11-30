@@ -86,6 +86,29 @@
         }
       ],
       "price": 14800
+    },
+    {
+      "name": "front bottom sima 60 L",
+      "id": "front_bottom_sima_60_l",
+      "properties": {
+        "height": 711,
+        "width": 19,
+        "depth": 596
+      },
+      "allowedMaterialCategories": [],
+      "model": "/models/fronts/front_bottom_sima_60_l.glb",
+      "materialTarget": "MAT_Frontok",
+      "materialOptions": [
+        "MAT_Frontok"
+      ],
+      "attachmentPoints": [
+        {
+          "id": "attach_handle_vertical_L",
+          "allowedComponentTypes": [
+            "handles"
+          ]
+        }
+      ]
     }
   ],
   "handles": [

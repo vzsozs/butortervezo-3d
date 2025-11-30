@@ -8,6 +8,7 @@ import IconAlsoszekrenyAjtos from '@/assets/icons/alsoszekreny-ajtos.svg?compone
 
 const settingsStore = useSettingsStore();
 const configStore = useConfigStore();
+const appVersion = __APP_VERSION__;
 
 // --- ANYAGOK SZŰRÉSE ---
 function getMaterialsForGroup(group: GlobalGroupConfig) {
@@ -40,7 +41,7 @@ function updateStyle(groupId: string, variantId: string) {
     <!-- 1. HEADER -->
     <div class="p-6 border-b border-gray-800 bg-gradient-to-b from-gray-800/50 to-transparent">
       <h1 class="text-2xl font-bold text-white tracking-tight">Bútortervező</h1>
-      <p class="text-xs text-blue-400 font-mono mt-1">v0.7 - BÉTA</p>
+      <p class="text-xs text-blue-400 font-mono mt-1">{{ appVersion }}</p>
     </div>
 
     <!-- 2. GLOBÁLIS BEÁLLÍTÁSOK -->

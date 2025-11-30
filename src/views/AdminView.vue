@@ -12,6 +12,7 @@ import GlobalSettingsEditor from '@/components/admin/GlobalSettingsEditor.vue';
 import MaterialEditor from '@/components/admin/MaterialEditor.vue';
 
 const activeTab = ref('furniture');
+const appVersion = __APP_VERSION__;
 
 const configStore = useConfigStore();
 const { furnitureList: allFurniture, components: allComponents } = storeToRefs(configStore);
@@ -293,7 +294,7 @@ function handleSaveComponentsToServer() {
     <div class="w-full max-w-7xl mx-auto flex flex-col flex-1 min-h-0">
       <div class="flex-shrink-0">
         <h1 class="text-3xl sm:text-4xl font-bold">Admin Felület</h1>
-        <p class="text-sm text-gray-400 -mt-1 mb-4">Verzió 0.5</p>
+        <p class="text-xs text-blue-400 mb-4">{{ appVersion }}</p>
         <div class="flex border-b border-gray-700">
           <button @click="changeTab('furniture')"
             :class="['px-4 py-2 font-semibold', activeTab === 'furniture' ? 'border-b-2 border-blue-500 text-white' : 'text-gray-400']">Bútor

@@ -14,7 +14,6 @@ import {
 } from 'three'
 import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js'
 import Experience from '../Experience'
-import { useConfigStore } from '@/stores/config' // <--- EZT ADTUK HOZZÁ
 
 export default class InteractionManager {
   private experience: Experience
@@ -45,27 +44,35 @@ export default class InteractionManager {
 
   // --- SEGÉDFÜGGVÉNY A MAGASSÁGHOZ ---
   private getLiftHeight(object: Group): number {
-    const configStore = useConfigStore()
+    // JAVÍTÁS: A configStore-t az experience-ből érjük el, ami biztosan inicializálva van
+    const configStore = this.experience.configStore
     let maxLift = 0
 
     // 1. Megnézzük a bútor saját configját (ha van)
     const furnitureConfig = object.userData.config
-    if (furnitureConfig && (furnitureConfig as any).height) {
-      maxLift = (furnitureConfig as any).height
+    // JAVÍTÁS: properties.height ellenőrzése
+    if (furnitureConfig && furnitureConfig.height) {
+      maxLift = furnitureConfig.height
+    } else if (furnitureConfig && furnitureConfig.properties?.height) {
+      maxLift = furnitureConfig.properties.height
     }
 
     // 2. Megnézzük a komponenseket (pl. lábak)
-    // A userData.componentState tartalmazza: { "legs": "leg_standard_15", ... }
     const componentState = object.userData.componentState
     if (componentState) {
       for (const slotId in componentState) {
         const componentId = componentState[slotId]
-        // Lekérjük a komponens adatait a store-ból
         const componentDef = configStore.getComponentById(componentId)
 
-        // Ha a komponensnek van 'height' paramétere (pl. 0.1), azt használjuk
-        if (componentDef && (componentDef as any).height) {
-          maxLift = Math.max(maxLift, (componentDef as any).height)
+        if (componentDef) {
+          // JAVÍTÁS: properties.height ellenőrzése (és mm -> méter konverzió!)
+          // Mivel az adatbázisban mm-ben van (pl. 150), de a 3D-ben méter kell (0.15).
+          const heightMM = componentDef.properties?.height || (componentDef as any).height || 0
+
+          // Ha ez egy láb, akkor valószínűleg ez emeli meg a bútort
+          if (componentDef.componentType === 'legs' || componentDef.id.includes('leg')) {
+            maxLift = Math.max(maxLift, heightMM / 1000)
+          }
         }
       }
     }
