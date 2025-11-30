@@ -71,7 +71,12 @@
         "width": 19,
         "depth": 596
       },
-      "allowedMaterialCategories": [],
+      "allowedMaterialCategories": [
+        "Bútorlap",
+        "Egyéb",
+        "Hátfal",
+        "general"
+      ],
       "model": "/models/fronts/front_bottom_keretes_60_l.glb",
       "materialTarget": "MAT_Frontok",
       "materialOptions": [
@@ -95,7 +100,12 @@
         "width": 19,
         "depth": 596
       },
-      "allowedMaterialCategories": [],
+      "allowedMaterialCategories": [
+        "Bútorlap",
+        "Egyéb",
+        "Hátfal",
+        "general"
+      ],
       "model": "/models/fronts/front_bottom_sima_60_l.glb",
       "materialTarget": "MAT_Frontok",
       "materialOptions": [
@@ -108,7 +118,123 @@
             "handles"
           ]
         }
-      ]
+      ],
+      "price": 10800
+    },
+    {
+      "name": "front bottom keretes 30 L",
+      "id": "front_bottom_keretes_30_l",
+      "properties": {
+        "height": 711,
+        "width": 19,
+        "depth": 294
+      },
+      "allowedMaterialCategories": [
+        "Bútorlap",
+        "Hátfal",
+        "general"
+      ],
+      "model": "/models/fronts/front_bottom_keretes_30_l.glb",
+      "materialTarget": "MAT_Frontok",
+      "materialOptions": [
+        "MAT_Frontok"
+      ],
+      "attachmentPoints": [
+        {
+          "id": "attach_handle_verticall_L",
+          "allowedComponentTypes": [
+            "handles"
+          ]
+        }
+      ],
+      "price": 9800
+    },
+    {
+      "name": "front bottom keretes 30 R",
+      "id": "front_bottom_keretes_30_r",
+      "properties": {
+        "height": 711,
+        "width": 19,
+        "depth": 294
+      },
+      "allowedMaterialCategories": [
+        "Bútorlap",
+        "Egyéb",
+        "Hátfal",
+        "general"
+      ],
+      "model": "/models/fronts/front_bottom_keretes_30_r.glb",
+      "materialTarget": "MAT_Frontok",
+      "materialOptions": [
+        "MAT_Frontok"
+      ],
+      "attachmentPoints": [
+        {
+          "id": "attach_handle_verticall_R",
+          "allowedComponentTypes": [
+            "handles"
+          ]
+        }
+      ],
+      "price": 9800
+    },
+    {
+      "name": "front bottom keretes 60 R",
+      "id": "front_bottom_keretes_60_r",
+      "properties": {
+        "height": 711,
+        "width": 19,
+        "depth": 596
+      },
+      "allowedMaterialCategories": [
+        "Bútorlap",
+        "Egyéb",
+        "Hátfal",
+        "general"
+      ],
+      "model": "/models/fronts/front_bottom_keretes_60_r.glb",
+      "materialTarget": "MAT_Frontok",
+      "materialOptions": [
+        "MAT_Frontok"
+      ],
+      "attachmentPoints": [
+        {
+          "id": "attach_handle_vertical_R",
+          "allowedComponentTypes": [
+            "handles"
+          ]
+        }
+      ],
+      "price": 14800
+    },
+    {
+      "name": "front bottom sima 60 R",
+      "id": "front_bottom_sima_60_r",
+      "properties": {
+        "height": 711,
+        "width": 19,
+        "depth": 596
+      },
+      "allowedMaterialCategories": [
+        "Bútorlap",
+        "Egyéb",
+        "Hátfal",
+        "general"
+      ],
+      "model": "/models/fronts/front_bottom_sima_60_r.glb",
+      "materialTarget": "MAT_Frontok",
+      "materialOptions": [
+        "MAT_Frontok"
+      ],
+      "attachmentPoints": [
+        {
+          "id": "attach_handle_vertical_R",
+          "allowedComponentTypes": [
+            "handles"
+          ]
+        }
+      ],
+      "price": 10800
     }
   ],
   "handles": [
@@ -130,6 +256,25 @@
       ],
       "attachmentPoints": [],
       "price": 1650
+    },
+    {
+      "name": "handle design",
+      "id": "handle_design",
+      "properties": {
+        "height": 30,
+        "width": 30,
+        "depth": 30
+      },
+      "allowedMaterialCategories": [
+        "Fém"
+      ],
+      "model": "/models/handles/handle_design.glb",
+      "materialTarget": "MAT_Fem_Kiegeszitok",
+      "materialOptions": [
+        "MAT_Fem_Kiegeszitok"
+      ],
+      "attachmentPoints": [],
+      "price": 1500
     }
   ],
   "legs": [

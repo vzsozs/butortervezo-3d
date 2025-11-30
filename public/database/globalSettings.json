@@ -75,6 +75,13 @@
           "componentIds": [
             "handle_standard"
           ]
+        },
+        {
+          "id": "var_1764485094727",
+          "name": "Design",
+          "componentIds": [
+            "handle_design"
+          ]
         }
       ]
     }

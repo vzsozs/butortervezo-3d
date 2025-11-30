@@ -2,60 +2,55 @@
 
 import { defineStore } from 'pinia'
 import type { Group } from 'three'
-import { ref, computed, shallowRef } from 'vue' // shallowRef fontos!
+import { ref, computed, shallowRef } from 'vue'
 import type { FurnitureConfig } from '@/config/furniture'
-import { useExperienceStore } from './experience'; 
-import Experience from '@/three/Experience'; // <<< EZT NE FELEJTSD KI!
+import { useExperienceStore } from './experience'
+import Experience from '@/three/Experience'
 
 export const useSelectionStore = defineStore('selection', () => {
-  const experienceStore = useExperienceStore();
-  
-  // TELJESÍTMÉNY JAVÍTÁS: shallowRef a Three.js objektumhoz
+  const experienceStore = useExperienceStore()
+
+  // ShallowRef fontos a Three.js objektumoknál a teljesítmény miatt
   const selectedObject = shallowRef<Group | null>(null)
-  
+
   const objectToDeleteUUID = ref<string | null>(null)
   const objectToDuplicateUUID = ref<string | null>(null)
 
   const materialChangeRequest = ref<{
-    targetUUID: string;
-    slotId: string; 
-    materialId: string;
+    targetUUID: string
+    slotId: string
+    materialId: string
   } | null>(null)
 
   const styleChangeRequest = ref<{
-    targetUUID: string;
-    slotId: string;
-    newStyleId: string;
-  } | null>(null)
-
-  const propertyChangeRequest = ref<{
-    targetUUID: string;
-    slotId: string;
-    propertyId: string;
-    newValue: string | boolean | number;
+    targetUUID: string
+    slotId: string
+    newStyleId: string
   } | null>(null)
 
   const selectedObjectConfig = computed<FurnitureConfig | null>(() => {
     if (selectedObject.value && selectedObject.value.userData.config) {
-      return selectedObject.value.userData.config as FurnitureConfig;
+      return selectedObject.value.userData.config as FurnitureConfig
     }
-    return null;
+    return null
   })
 
   function selectObject(object: Group | null) {
-    if (experienceStore.instance) {
-        experienceStore.instance.debugManager.logSeparator('KIVÁLASZTÁS');
-        if (object) {
-            experienceStore.instance.debugManager.logObjectState('Objektum kiválasztva', object);
-        } else {
-            console.log('Kiválasztás törölve.');
-        }
+    selectedObject.value = object
+
+    // JAVÍTÁS: A transformControls a Camera osztályban van!
+    const experience = Experience.getInstance()
+    if (experience.camera && experience.camera.transformControls) {
+      if (object) {
+        experience.camera.transformControls.attach(object)
+      } else {
+        experience.camera.transformControls.detach()
+      }
     }
-    selectedObject.value = object;
   }
 
   function clearSelection() {
-    selectedObject.value = null
+    selectObject(null)
   }
 
   function deleteSelectedObject() {
@@ -71,12 +66,12 @@ export const useSelectionStore = defineStore('selection', () => {
 
   function duplicateSelectedObject() {
     if (selectedObject.value) {
-      objectToDuplicateUUID.value = selectedObject.value.uuid;
+      objectToDuplicateUUID.value = selectedObject.value.uuid
     }
   }
 
   function acknowledgeDuplication() {
-    objectToDuplicateUUID.value = null;
+    objectToDuplicateUUID.value = null
   }
 
   function changeMaterial(slotId: string, materialId: string) {
@@ -93,114 +88,113 @@ export const useSelectionStore = defineStore('selection', () => {
     materialChangeRequest.value = null
   }
 
-  function changeStyle(slotId: string, newStyleId: string) {
-    if (selectedObject.value) {
-      styleChangeRequest.value = {
-        targetUUID: selectedObject.value.uuid,
-        slotId,
-        newStyleId,
-      }
-    }
+  // --- JAVÍTOTT CHANGE STYLE (Komponens csere) ---
+  async function changeStyle(slotId: string, newComponentId: string) {
+    if (!selectedObject.value) return
+
+    console.log(`[SelectionStore] Stílus csere: ${slotId} -> ${newComponentId}`)
+
+    const currentComponentState = JSON.parse(
+      JSON.stringify(selectedObject.value.userData.componentState || {}),
+    )
+    currentComponentState[slotId] = newComponentId
+
+    await rebuildObjectWithNewState(currentComponentState)
   }
 
-  function acknowledgeStyleChange() {
-    styleChangeRequest.value = null
-  }
-
-  function changeProperty(slotId: string, propertyId: string, newValue: string | boolean | number) {
-    if (selectedObject.value) {
-      propertyChangeRequest.value = {
-        targetUUID: selectedObject.value.uuid,
-        slotId,
-        propertyId,
-        newValue,
-      }
-    }
-  }
-
-  function acknowledgePropertyChange() {
-    propertyChangeRequest.value = null
-  }
-
-  // --- A JAVÍTOTT FÜGGVÉNY ---
+  // --- JAVÍTOTT APPLY SCHEMA (Layout váltás) ---
   async function applySchema(groupIndex: number, schemaId: string) {
-    // Mivel Setup Store-ban vagyunk, a .value-t kell használni!
-    if (!selectedObject.value || !selectedObjectConfig.value) return;
+    if (!selectedObject.value || !selectedObjectConfig.value) return
 
-    const group = selectedObjectConfig.value.slotGroups?.[groupIndex];
-    if (!group) return;
+    const group = selectedObjectConfig.value.slotGroups?.[groupIndex]
+    if (!group) return
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const schema = group.schemas.find((s: any) => s.id === schemaId);
-    if (!schema) return;
+    // JAVÍTÁS: Eslint disable törölve
+    const schema = group.schemas.find((s: any) => s.id === schemaId)
+    if (!schema) return
 
-    console.log(`[SelectionStore] Séma alkalmazása: ${schema.name}`);
+    console.log(`[SelectionStore] Séma alkalmazása: ${schema.name}`)
 
-    const currentComponentState = JSON.parse(JSON.stringify(selectedObject.value.userData.componentState || {}));
-    
+    const currentComponentState = JSON.parse(
+      JSON.stringify(selectedObject.value.userData.componentState || {}),
+    )
+
     Object.entries(schema.apply).forEach(([slotId, componentId]) => {
       if (componentId) {
-        currentComponentState[slotId] = componentId;
+        currentComponentState[slotId] = componentId
       } else {
-        delete currentComponentState[slotId];
+        delete currentComponentState[slotId]
       }
-    });
+    })
 
-    const experience = Experience.getInstance();
-    
-    // --- 1. LÉPÉS: LECSATOLJUK A GIZMO-T (FONTOS!) ---
-    const controls = experience.camera.transformControls;
-    controls.detach();
+    await rebuildObjectWithNewState(currentComponentState)
+  }
 
-    const oldPosition = selectedObject.value.position.clone();
-    const oldRotation = selectedObject.value.rotation.clone();
-    const oldMaterialState = JSON.parse(JSON.stringify(selectedObject.value.userData.materialState || {}));
-    const parent = selectedObject.value.parent;
+  // --- SEGÉDFÜGGVÉNY: AZ ÚJRAÉPÍTÉS LOGIKÁJA ---
+  async function rebuildObjectWithNewState(newComponentState: any) {
+    if (!selectedObject.value) return
 
-    const newObject = await experience.assetManager.buildFurnitureFromConfig(
-      selectedObjectConfig.value,
-      currentComponentState
-    );
+    const experience = Experience.getInstance()
+    const originalObject = selectedObject.value
+    const parent = originalObject.parent
 
-    if (newObject && parent) {
-      newObject.position.copy(oldPosition);
-      newObject.rotation.copy(oldRotation);
-      newObject.userData.materialState = oldMaterialState;
+    if (!parent) {
+      console.error('[SelectionStore] Az objektumnak nincs szülője, nem cserélhető!')
+      return
+    }
 
-      await experience.stateManager.applyMaterialsToObject(newObject);
+    // JAVÍTÁS: Itt is a Camera-n érjük el a controls-t
+    experience.camera.transformControls.detach()
 
-      parent.remove(selectedObject.value);
-      parent.add(newObject);
+    const config = originalObject.userData.config
+    const materialState = originalObject.userData.materialState
+    const position = originalObject.position.clone()
+    const rotation = originalObject.rotation.clone()
+    const uuidToReplace = originalObject.uuid
 
-      // --- 2. LÉPÉS: ÚJRAKIJELÖLÉS ÉS VISSZACSATOLÁS ---
-      selectObject(newObject);
-      
-      controls.attach(newObject);
-      
-      experience.historyStore.addState();
+    try {
+      const newObject = await experience.assetManager.buildFurnitureFromConfig(
+        config,
+        newComponentState,
+      )
+
+      newObject.userData.materialState = materialState
+      await experience.stateManager.applyMaterialsToObject(newObject)
+
+      newObject.position.copy(position)
+      newObject.rotation.copy(rotation)
+
+      parent.remove(originalObject)
+      parent.add(newObject)
+
+      experience.experienceStore.replaceObject(uuidToReplace, newObject)
+
+      selectObject(newObject)
+
+      console.log('[SelectionStore] Objektum sikeresen cserélve és regisztrálva.')
+    } catch (error) {
+      console.error('[SelectionStore] Hiba az objektum cseréjénél:', error)
+      // JAVÍTÁS: Hiba esetén visszacsatolás a régire
+      experience.camera.transformControls.attach(originalObject)
     }
   }
 
-  return { 
-    selectedObject, 
+  return {
+    selectedObject,
     selectedObjectConfig,
-    objectToDeleteUUID, 
+    objectToDeleteUUID,
     materialChangeRequest,
     styleChangeRequest,
     objectToDuplicateUUID,
-    propertyChangeRequest,
     duplicateSelectedObject,
     acknowledgeDuplication,
-    selectObject, 
-    clearSelection, 
-    deleteSelectedObject, 
+    selectObject,
+    clearSelection,
+    deleteSelectedObject,
     acknowledgeDeletion,
     changeMaterial,
     acknowledgeMaterialChange,
     changeStyle,
-    acknowledgeStyleChange,
-    changeProperty,
-    acknowledgePropertyChange,
-    applySchema 
+    applySchema,
   }
 })
