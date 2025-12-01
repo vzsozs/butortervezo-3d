@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch, nextTick } from 'vue'
+import { computed, ref, watch, nextTick, onUnmounted } from 'vue'
 import { useDraggable } from '@vueuse/core'
 import { useSelectionStore } from '@/stores/selection'
 import { useConfigStore } from '@/stores/config'
@@ -7,6 +7,14 @@ import type { ComponentSlotConfig, SlotGroup, FurnitureConfig, ComponentConfig }
 
 const selectionStore = useSelectionStore()
 const configStore = useConfigStore()
+
+// --- LOGGER HELPER ---
+// Alulvonással (_) kezdjük a változókat, hogy az ESLint ne szóljon, ha nincsenek használva
+function log(_msg: string, _data?: any) {
+  // Jelenleg kikapcsolva
+  // if (_data) console.log(`[Inspector] ${_msg}`, _data);
+  // else console.log(`[Inspector] ${_msg}`);
+}
 
 // --- DRAGGABLE SETUP ---
 const panelRef = ref<HTMLElement | null>(null)
@@ -29,51 +37,166 @@ const furnitureDef = computed<FurnitureConfig | undefined>(() => {
 
 const currentState = computed(() => selectedObject.value?.userData.componentState || {})
 
-// --- AJTÓ LÁTHATÓSÁG KEZELÉS ---
+// --- AJTÓ LÁTHATÓSÁG & LOGIKA ---
 const areDoorsVisible = ref(true);
+const lastConfigId = ref<string | null>(null);
+const lastKnownObject = ref<any>(null);
 
-// Bútor váltás figyelése
-watch(() => selectedObject.value?.uuid, async (newId) => {
-  // 1. UI állapot visszaállítása
-  areDoorsVisible.value = true;
-
-  if (!newId) return;
-
-  // 2. Várunk a Vue és a Three.js frissítésre
-  await nextTick();
-
-  // 3. Biztonsági késleltetés (200ms), hogy a modell biztosan betöltődjön
-  setTimeout(() => {
-    if (selectionStore.selectedObject) {
-      updateDoorVisibility(true);
-    }
-  }, 200);
+onUnmounted(() => {
+  if (lastKnownObject.value) {
+    // Kényszerített visszaállítás az utolsó ismert objektumon
+    forceRestoreVisibility(lastKnownObject.value);
+  }
 });
+
+watch(() => selectedObject.value, async (newObj, oldObj) => {
+  // 1. KILÉPÉS (Deselection)
+  if (!newObj) {
+    if (oldObj) {
+      forceRestoreVisibility(oldObj);
+    }
+    lastConfigId.value = null;
+    lastKnownObject.value = null;
+    return;
+  }
+
+  // Frissítjük az utolsó ismert objektumot
+  lastKnownObject.value = newObj;
+
+  const newUuid = newObj.uuid;
+  const currentId = currentConfig.value?.id;
+
+  // 2. ÚJ BÚTOR KIJELÖLÉSE
+  // Akkor tekintjük újnak, ha a config ID változott, VAGY ha eddig nem volt semmi kijelölve
+  const isNewFurniture = currentId !== lastConfigId.value;
+
+  if (isNewFurniture) {
+    log(`New furniture selected. Resetting view.`);
+    areDoorsVisible.value = true; // Alaphelyzet: látható
+    lastConfigId.value = currentId || null;
+
+    await nextTick();
+    checkDefaults();
+  } else {
+    // 3. UGYANAZ A BÚTOR (pl. polc állítás miatti újragenerálás)
+    // Ilyenkor NEM bántjuk az areDoorsVisible értékét, marad, ami volt (pl. false)
+    log(`Same furniture updated. Keeping view state: ${areDoorsVisible.value}`);
+  }
+
+  // Alkalmazzuk a jelenlegi állapotot az új objektumra
+  applyDoorVisibility();
+}, { immediate: true }); // Fontos: azonnal fusson le betöltéskor is
+
+
+// Segédfüggvény a biztos visszaállításhoz (kilépéskor)
+function forceRestoreVisibility(object: any) {
+  object.traverse((child: any) => {
+    if (!child.isMesh) return;
+
+    // Minden releváns elem visszaállítása
+    const name = child.name.toLowerCase();
+    const slotId = (child.userData.slotId || '').toLowerCase();
+    const isFront = name.includes('front') || slotId.includes('front') || name.includes('door') || slotId.includes('door');
+    const isHandle = name.includes('handle') || slotId.includes('handle');
+
+    if (isFront || isHandle) {
+      child.castShadow = true;
+      const materials = Array.isArray(child.material) ? child.material : [child.material];
+      materials.forEach((mat: any) => {
+        if (mat.userData.originalOpacity !== undefined) {
+          mat.opacity = mat.userData.originalOpacity;
+          mat.transparent = mat.userData.originalTransparent;
+          mat.depthWrite = mat.userData.originalDepthWrite;
+          // Clean up
+          delete mat.userData.originalOpacity;
+          delete mat.userData.originalTransparent;
+          delete mat.userData.originalDepthWrite;
+        } else {
+          // Fallback
+          mat.opacity = 1.0;
+          mat.transparent = false;
+          mat.depthWrite = true;
+        }
+        mat.needsUpdate = true;
+      });
+    }
+  });
+}
+
+
+function checkDefaults() {
+  const def = furnitureDef.value;
+  // JAVÍTÁS: Biztonságos ellenőrzés (?.)
+  if (!def?.slotGroups) return;
+
+  def.slotGroups.forEach((group, index) => {
+    const currentSchema = getCurrentSchemaId(group);
+    if (!currentSchema && group.defaultSchemaId) {
+      selectionStore.applySchema(index, group.defaultSchemaId);
+    }
+  });
+}
 
 function toggleDoors() {
   areDoorsVisible.value = !areDoorsVisible.value;
-  updateDoorVisibility(areDoorsVisible.value);
+  applyDoorVisibility();
 }
 
-function updateDoorVisibility(visible: boolean) {
-  if (!selectedObject.value) return;
+function applyDoorVisibility() {
+  setTimeout(() => {
+    if (!selectedObject.value) return;
 
-  selectedObject.value.traverse((child) => {
-    const name = child.name.toLowerCase();
-    const slotId = child.userData.slotId || '';
+    const isGhostMode = !areDoorsVisible.value;
 
-    const isDoorOrFront =
-      name.includes('front') || name.includes('door') || name.includes('ajtó') ||
-      slotId.includes('front') || slotId.includes('door');
+    selectedObject.value.traverse((child: any) => {
+      if (!child.isMesh) return;
 
-    const isHandle =
-      name.includes('handle') || name.includes('fogantyú') ||
-      slotId.includes('handle');
+      const name = child.name.toLowerCase();
+      const slotId = (child.userData.slotId || '').toLowerCase();
 
-    if (isDoorOrFront || isHandle) {
-      child.visible = visible;
-    }
-  });
+      const isFront = name.includes('front') || slotId.includes('front') || name.includes('door') || slotId.includes('door');
+      const isHandle = name.includes('handle') || slotId.includes('handle') || name.includes('fogantyu');
+      const isDrawerFront = name.includes('drawer') && name.includes('front');
+
+      if (isFront || isHandle || isDrawerFront) {
+        child.castShadow = !isGhostMode;
+
+        const materials = Array.isArray(child.material) ? child.material : [child.material];
+
+        materials.forEach((mat: any) => {
+          if (isGhostMode) {
+            // --- GHOST MÓD ---
+            if (mat.userData.originalOpacity === undefined) {
+              mat.userData.originalOpacity = mat.opacity;
+              mat.userData.originalTransparent = mat.transparent;
+              mat.userData.originalDepthWrite = mat.depthWrite;
+            }
+
+            mat.transparent = true;
+            mat.opacity = 0.2;
+            mat.depthWrite = false;
+
+          } else {
+            // --- NORMÁL MÓD ---
+            if (mat.userData.originalOpacity !== undefined) {
+              mat.opacity = mat.userData.originalOpacity;
+              mat.transparent = mat.userData.originalTransparent;
+              mat.depthWrite = mat.userData.originalDepthWrite;
+
+              delete mat.userData.originalOpacity;
+              delete mat.userData.originalTransparent;
+              delete mat.userData.originalDepthWrite;
+            } else {
+              mat.opacity = 1.0;
+              mat.transparent = false;
+              mat.depthWrite = true;
+            }
+          }
+          mat.needsUpdate = true;
+        });
+      }
+    });
+  }, 50);
 }
 
 // --- POLC LOGIKA ---
@@ -86,86 +209,82 @@ function hasLayoutSchema(group: SlotGroup): boolean {
   return group.schemas.some((s: any) => s.type !== 'shelf');
 }
 
+function getMaxShelves(group: SlotGroup): number {
+  if (!currentConfig.value) return 5;
+
+  const corpusSlotDef = currentConfig.value.componentSlots.find(s => s.componentType === 'corpuses');
+
+  if (corpusSlotDef) {
+    const activeCorpusId = currentState.value[corpusSlotDef.slotId];
+    if (activeCorpusId) {
+      const corpusComp = configStore.getComponentById(activeCorpusId);
+      if (corpusComp?.properties?.maxShelves !== undefined) {
+        return corpusComp.properties.maxShelves;
+      }
+    }
+  }
+  return group.controlledSlots.length > 0 ? group.controlledSlots.length : 5;
+}
+
 function getShelfCount(group: SlotGroup): number {
-  const currentSchemaId = getCurrentSchemaId(group);
-  let schema = group.schemas.find(s => s.id === currentSchemaId);
+  // 1. Megnézzük a valós 3D állapotot
+  const state = currentState.value;
 
-  // Ha a jelenlegi nem polc, keressük meg az első polc sémát
-  if (!schema || (schema as any).type !== 'shelf') {
-    schema = group.schemas.find((s: any) => s.type === 'shelf');
+  // Van-e olyan slot a jelenlegi állapotban, ami 'shelf_'-el kezdődik?
+  const hasPhysicalShelves = Object.keys(state).some(key => key.startsWith('shelf_'));
+
+  // 2. Ha a 3D-ben nincsenek polcok, akkor az input legyen 0.
+  // Ez felülírja a JSON-ban lévő "count: 2" alapértéket induláskor.
+  if (!hasPhysicalShelves) {
+    return 0;
   }
 
-  if (schema && (schema as any).shelfConfig) {
-    return (schema as any).shelfConfig.count ?? 0;
+  // 3. Ha VAN polc a 3D-ben, akkor a configból olvassuk ki az értéket
+  // (Így szinkronban maradunk a beállított értékkel)
+  if (currentConfig.value && currentConfig.value.slotGroups) {
+    const dynamicGroup = currentConfig.value.slotGroups.find(g => g.groupId === group.groupId);
+    if (dynamicGroup) {
+      const shelfSchema = dynamicGroup.schemas.find((s: any) => s.type === 'shelf');
+      if (shelfSchema && (shelfSchema as any).shelfConfig) {
+        return (shelfSchema as any).shelfConfig.count ?? 0;
+      }
+    }
   }
+
   return 0;
 }
 
 function setShelfCount(groupIndex: number, group: SlotGroup, count: number) {
-  // 1. AJTÓK ELREJTÉSE (hogy lássuk a polcokat)
+  const config = currentConfig.value;
+  if (!config) return;
+
+  const max = getMaxShelves(group);
+  const safeCount = Math.max(0, Math.min(count, max));
+
   if (areDoorsVisible.value) {
     areDoorsVisible.value = false;
-    updateDoorVisibility(false);
+    applyDoorVisibility();
   }
 
-  // 2. SÉMA KERESÉSE
-  const shelfSchema = group.schemas.find((s: any) => s.type === 'shelf');
-  if (!shelfSchema || !(shelfSchema as any).shelfConfig) return;
+  const storeGroup = config.slotGroups?.find(g => g.groupId === group.groupId);
+  const shelfSchema = storeGroup?.schemas.find((s: any) => s.type === 'shelf');
 
-  const config = (shelfSchema as any).shelfConfig;
-  const isAutoMode = config.mode === 'auto';
-
-  // 3. LIMIT KEZELÉS
-  // Auto módban a maxShelves (vagy 10), Custom módban a fizikai slotok száma a limit
-  const maxSlots = (isAutoMode || group.controlledSlots.length === 0)
-    ? 10
-    : group.controlledSlots.length;
-
-  const safeCount = Math.max(0, Math.min(count, maxSlots));
-
-  // 4. CONFIG FRISSÍTÉSE
-  config.count = safeCount;
-
-  // 5. APPLY MAP KEZELÉSE
-  if (isAutoMode) {
-    // A) AUTO MÓD:
-    // Nem nyúlunk az 'apply'-hoz, mert a rendszer a 'shelfConfig.count' alapján generál.
-    // Esetleg törölhetjük a manuális bejegyzéseket, hogy ne zavarjanak be.
-  } else {
-    // B) CUSTOM MÓD (Fizikai slotok):
-    const componentId = config.componentId;
-    const newApply: Record<string, string | null> = { ...shelfSchema.apply };
-
-    if (group.controlledSlots.length > 0) {
-      group.controlledSlots.forEach((slotId, index) => {
-        newApply[slotId] = index < safeCount ? componentId : null;
-      });
-    } else {
-      // Fallback: Ha Custom mód, de nincsenek slotok (ritka hibaeset)
-      const baseName = group.name.toLowerCase().includes('polc') ? 'polc' : 'shelf';
-      for (let i = 1; i <= 10; i++) {
-        const generatedSlotId = `${baseName}_${i}`;
-        newApply[generatedSlotId] = i <= safeCount ? componentId : null;
-      }
-    }
-    shelfSchema.apply = newApply;
+  if (shelfSchema && (shelfSchema as any).shelfConfig) {
+    (shelfSchema as any).shelfConfig.count = safeCount;
+    selectionStore.applySchema(groupIndex, shelfSchema.id);
   }
-
-  // 6. ALKALMAZÁS (Ez triggereli a 3D frissítést)
-  selectionStore.applySchema(groupIndex, shelfSchema.id);
 }
 
-// --- DEBUG & EGYÉB ---
-const debugComponentState = computed(() => currentState.value)
+// --- EGYÉB LOGIKA ---
 
 const dimensions = computed(() => {
   if (!selectedObject.value || !currentConfig.value) return null;
-  const corpusSlot = currentConfig.value.componentSlots.find(s => s.slotId.includes('corpus'));
+  const corpusSlot = currentConfig.value.componentSlots.find(s => s.componentType === 'corpuses' || s.slotId.includes('corpus'));
 
   if (corpusSlot) {
     const corpusId = currentState.value[corpusSlot.slotId];
     const corpusComp = configStore.getComponentById(corpusId);
-    if (corpusComp && corpusComp.properties) {
+    if (corpusComp?.properties) {
       return {
         width: corpusComp.properties.width ?? '-',
         height: corpusComp.properties.height ?? '-',
@@ -204,18 +323,16 @@ function resolveGroupKey(slot: ComponentSlotConfig, activeComponentId: string): 
 }
 
 function normalizeType(type: string): string {
-  if (type === 'front') return 'fronts';
-  if (type === 'drawer') return 'drawers';
-  if (type === 'leg') return 'legs';
-  if (type === 'handle') return 'handles';
-  if (type === 'shelf') return 'shelves';
-  return type;
+  const map: Record<string, string> = {
+    'front': 'fronts', 'drawer': 'drawers', 'leg': 'legs',
+    'handle': 'handles', 'shelf': 'shelves', 'corpuses': 'corpuses'
+  };
+  return map[type] || type;
 }
 
 const displayGroups = computed<DisplayGroup[]>(() => {
   const slots = currentConfig.value?.componentSlots ?? [];
   const state = currentState.value || {};
-
   if (slots.length === 0) return [];
 
   const groups: Record<string, DisplayGroup> = {
@@ -228,19 +345,25 @@ const displayGroups = computed<DisplayGroup[]>(() => {
     others: { id: 'others', label: 'Egyéb Elemek', slots: [] }
   };
 
+  // JAVÍTÁS: A te verziód beépítve
   slots.forEach(slot => {
     const activeComponentId = state[slot.slotId] || '';
     const isCorpus = slot.componentType === 'corpuses';
-
     if (!activeComponentId && !isCorpus) return;
 
     let groupKey = resolveGroupKey(slot, activeComponentId);
-    if (!groups[groupKey]) groupKey = 'others';
+    let targetGroup = groups[groupKey];
 
-    const targetGroup = groups[groupKey];
+    if (!targetGroup) {
+      groupKey = 'others';
+      targetGroup = groups['others'];
+    }
+
     if (targetGroup) {
-      const niceName = generateNiceName(slot.slotId, groupKey);
-      targetGroup.slots.push({ slot: slot, displayName: niceName });
+      targetGroup.slots.push({
+        slot: slot,
+        displayName: generateNiceName(slot.slotId, groupKey)
+      });
     }
   });
 
@@ -255,43 +378,39 @@ const displayGroups = computed<DisplayGroup[]>(() => {
 function generateNiceName(slotId: string, type: string): string {
   const cleanId = slotId.replace(/^(root__)?(attach_)?/, '').toLowerCase();
   let name = "Elem";
-  if (type === 'fronts') name = "Ajtó";
-  else if (type === 'handles') name = "Fogantyú";
-  else if (type === 'legs') name = "Láb";
-  else if (type === 'drawers') name = "Fiók";
-  else if (type === 'shelves') name = "Polc";
-  else if (type === 'corpuses') name = "Korpusz";
+
+  const typeNames: Record<string, string> = {
+    fronts: "Ajtó", handles: "Fogantyú", legs: "Láb",
+    drawers: "Fiók", shelves: "Polc", corpuses: "Korpusz"
+  };
+  if (typeNames[type]) name = typeNames[type];
 
   const prefixes: string[] = [];
   if (cleanId.includes('_l') || cleanId.includes('left') || cleanId.includes('bal')) prefixes.push("Bal");
   else if (cleanId.includes('_r') || cleanId.includes('right') || cleanId.includes('jobb')) prefixes.push("Jobb");
+
   if (cleanId.includes('vertical')) name += " (Függ.)";
   else if (cleanId.includes('horizontal')) name += " (Vízsz.)";
 
   const numberMatch = cleanId.match(/_(\d+)$/);
-  if (numberMatch) {
-    prefixes.unshift(`${numberMatch[1]}.`);
-  }
+  if (numberMatch) prefixes.unshift(`${numberMatch[1]}.`);
 
-  if (type === 'drawers' && cleanId.includes('front')) {
-    name = "Fiókelőlap";
-  }
+  if (type === 'drawers' && cleanId.includes('front')) name = "Fiókelőlap";
 
   return prefixes.length > 0 ? `${prefixes.join(' ')} ${name}` : name;
 }
 
-// --- SMART LOGIC: HELPERS & FINDERS ---
+// --- SMART LOGIC: HELPERS ---
 function getOrientation(id: string): 'left' | 'right' | 'neutral' {
   if (!id) return 'neutral';
   const lowerId = id.toLowerCase();
-  if (lowerId.endsWith('_l') || lowerId.includes('_left') || lowerId.includes('_bal')) return 'left';
-  if (lowerId.endsWith('_r') || lowerId.includes('_right') || lowerId.includes('_jobb')) return 'right';
+  if (lowerId.endsWith('_l') || lowerId.includes('_left')) return 'left';
+  if (lowerId.endsWith('_r') || lowerId.includes('_right')) return 'right';
   return 'neutral';
 }
 
 function getComponentName(id: string): string {
-  const comp = configStore.getComponentById(id)
-  return comp?.name || id
+  return configStore.getComponentById(id)?.name || id
 }
 
 function getCurrentComponentId(slotId: string): string {
@@ -299,18 +418,15 @@ function getCurrentComponentId(slotId: string): string {
 }
 
 function getCurrentStyleId(slotId: string): string | undefined {
-  const compId = getCurrentComponentId(slotId);
-  const comp = configStore.getComponentById(compId);
+  const comp = configStore.getComponentById(getCurrentComponentId(slotId));
   return comp?.styleId;
 }
 
 function getAvailableStylesForSlot(slot: ComponentSlotConfig) {
-  const currentId = getCurrentComponentId(slot.slotId);
-  const currentComp = configStore.getComponentById(currentId);
-  if (!currentComp || !currentComp.properties) return [];
+  const currentComp = configStore.getComponentById(getCurrentComponentId(slot.slotId));
+  if (!currentComp?.properties) return [];
 
-  const w = currentComp.properties.width || 0;
-  const h = currentComp.properties.height || 0;
+  const { width: w, height: h } = currentComp.properties;
   const orient = getOrientation(currentComp.id);
   const type = currentComp.componentType;
 
@@ -322,11 +438,10 @@ function getAvailableStylesForSlot(slot: ComponentSlotConfig) {
 
         const cW = candidate.properties?.width || 0;
         const cH = candidate.properties?.height || 0;
-        if (Math.abs(cW - w) > 2 || Math.abs(cH - h) > 2) return false;
+        if (Math.abs(cW - (w || 0)) > 2 || Math.abs(cH - (h || 0)) > 2) return false;
 
         const cOrient = getOrientation(candidate.id);
-        if (orient === 'left' && cOrient === 'right') return false;
-        if (orient === 'right' && cOrient === 'left') return false;
+        if ((orient === 'left' && cOrient === 'right') || (orient === 'right' && cOrient === 'left')) return false;
 
         return true;
       });
@@ -335,19 +450,15 @@ function getAvailableStylesForSlot(slot: ComponentSlotConfig) {
 }
 
 function findComponentIdByStyle(slotId: string, targetStyleId: string): string | null {
-  const currentId = getCurrentComponentId(slotId);
-  const currentComp = configStore.getComponentById(currentId);
-  if (!currentComp || !currentComp.properties) return null;
+  const currentComp = configStore.getComponentById(getCurrentComponentId(slotId));
+  if (!currentComp?.properties) return null;
 
-  const slotDef = currentConfig.value?.componentSlots.find(s => s.slotId === slotId);
-  const type = currentComp.componentType || slotDef?.componentType;
+  const type = currentComp.componentType;
   if (!type) return null;
 
-  const w = Number(currentComp.properties.width || 0);
-  const h = Number(currentComp.properties.height || 0);
+  const { width: w, height: h } = currentComp.properties;
   const orient = getOrientation(currentComp.id);
 
-  let bestMatch: string | null = null;
   const candidates = configStore.components[type] || [];
 
   for (const candidate of candidates) {
@@ -356,14 +467,12 @@ function findComponentIdByStyle(slotId: string, targetStyleId: string): string |
     const cH = Number(candidate.properties?.height || 0);
     const cOrient = getOrientation(candidate.id);
 
-    if (Math.abs(cW - w) > 2 || Math.abs(cH - h) > 2) continue;
-    if (orient === 'left' && cOrient === 'right') continue;
-    if (orient === 'right' && cOrient === 'left') continue;
+    if (Math.abs(cW - (Number(w) || 0)) > 2 || Math.abs(cH - (Number(h) || 0)) > 2) continue;
+    if ((orient === 'left' && cOrient === 'right') || (orient === 'right' && cOrient === 'left')) continue;
 
-    bestMatch = candidate.id;
-    break;
+    return candidate.id;
   }
-  return bestMatch;
+  return null;
 }
 
 function getFilteredComponentsFallback(slot: ComponentSlotConfig) {
@@ -416,20 +525,56 @@ function getMaterialColor(materialId: string): string {
   const mat = materials.value.find(m => m.id === materialId)
   return mat?.type === 'color' ? mat.value : '#999'
 }
+
 function getCurrentSchemaId(group: SlotGroup): string {
   const currentState = selectedObject.value?.userData.componentState || {}
+
   for (const schema of group.schemas) {
     let match = true
-    for (const [slotId, compId] of Object.entries(schema.apply)) {
-      if (currentState[slotId] !== compId) { match = false; break }
+    if (Object.keys(schema.apply).length === 0 && schema.type !== 'shelf') {
+      match = false;
+    } else {
+      for (const [slotId, compId] of Object.entries(schema.apply)) {
+        if (currentState[slotId] !== compId) { match = false; break }
+      }
     }
     if (match) return schema.id
   }
+
+  if (group.defaultSchemaId) return group.defaultSchemaId;
+
+  const shelfSchema = group.schemas.find((s: any) => s.type === 'shelf');
+  if (shelfSchema) return shelfSchema.id;
+
   const layoutSchema = group.schemas.find((s: any) => s.type !== 'shelf');
   if (layoutSchema) return layoutSchema.id;
 
   return ''
 }
+
+// ÚJ FÜGGVÉNY: Ez kezeli, hogy mit mutasson a legördülő lista
+function getLayoutDropdownValue(group: SlotGroup): string {
+  // 1. Lekérjük a tényleges aktív sémát
+  const activeId = getCurrentSchemaId(group);
+  const activeSchema = group.schemas.find(s => s.id === activeId);
+
+  // 2. Ha az aktív séma egy Layout (tehát NEM polc), akkor azt mutatjuk
+  if (activeSchema && activeSchema.type !== 'shelf') {
+    return activeId;
+  }
+
+  // 3. Ha Polc van kiválasztva (vagy semmi), akkor a Default Layout-ot mutatjuk
+  // Így sosem lesz üres a mező, és mindig az adminban beállított alapértelmezett látszik
+  if (group.defaultSchemaId) {
+    return group.defaultSchemaId;
+  }
+
+  // 4. Végső fallback: az első nem-polc séma a listából
+  const firstLayout = group.schemas.find(s => s.type !== 'shelf');
+  return firstLayout ? firstLayout.id : '';
+}
+
+const debugComponentState = computed(() => currentState.value)
 </script>
 
 <template>
@@ -470,13 +615,15 @@ function getCurrentSchemaId(group: SlotGroup): string {
               {{ group.name }}
             </label>
 
-            <!-- 1. LEGÖRDÜLŐ LISTA (Layouts) - Csak ha van NEM polc séma -->
+            <!-- 1. LEGÖRDÜLŐ LISTA (Layouts) -->
             <div v-if="hasLayoutSchema(group)" class="relative group mb-2">
               <select
                 class="w-full bg-[#2a2a2a] border border-gray-700 text-gray-200 text-xs rounded-md py-2 pl-2 pr-8 appearance-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors cursor-pointer hover:bg-[#333]"
                 @change="handleGroupChange(index, ($event.target as HTMLSelectElement).value)"
-                :value="getCurrentSchemaId(group)">
-                <option value="" disabled>Válassz...</option>
+                :value="getLayoutDropdownValue(group)">
+
+                <!-- TÖRÖLVE: <option value="" disabled>Válassz...</option> -->
+
                 <template v-for="schema in group.schemas" :key="schema.id">
                   <option v-if="(schema as any).type !== 'shelf'" :value="schema.id">
                     {{ schema.name }}
@@ -490,14 +637,13 @@ function getCurrentSchemaId(group: SlotGroup): string {
               </div>
             </div>
 
-            <!-- 2. POLC INPUT MEZŐ - Csak ha van polc séma -->
+            <!-- 2. POLC INPUT MEZŐ -->
             <div v-if="hasShelfSchema(group)"
               class="flex items-center gap-2 bg-[#252525] p-2 rounded-md border border-gray-800 mt-2">
               <span class="text-[11px] text-gray-400 uppercase font-bold">Polcok:</span>
 
               <div class="relative flex-1">
-                <input type="number" min="0" :max="group.controlledSlots.length > 0 ? group.controlledSlots.length : 10"
-                  :value="getShelfCount(group)"
+                <input type="number" min="0" :max="getMaxShelves(group)" :value="getShelfCount(group)"
                   @input="setShelfCount(index, group, parseInt(($event.target as HTMLInputElement).value))"
                   class="w-full bg-[#333] border border-gray-600 text-white text-sm font-bold rounded py-1 pl-2 pr-8 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors appearance-none" />
                 <span class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs">db</span>
@@ -505,8 +651,8 @@ function getCurrentSchemaId(group: SlotGroup): string {
 
               <!-- SZEM IKON -->
               <button @click="toggleDoors" title="Ajtók megjelenítése/elrejtése"
-                class="flex items-center justify-center w-7 h-7 rounded transition-all"
-                :class="areDoorsVisible ? 'text-gray-500 hover:text-white hover:bg-gray-700' : 'text-yellow-500 bg-yellow-500/10 hover:bg-yellow-500/20'">
+                class="flex items-center justify-center w-7 h-7 rounded transition-all border border-transparent"
+                :class="areDoorsVisible ? 'text-gray-500 hover:text-white hover:bg-gray-700' : 'text-yellow-500 bg-yellow-500/10 border-yellow-500/30 hover:bg-yellow-500/20'">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path v-if="areDoorsVisible" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                     d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -517,15 +663,14 @@ function getCurrentSchemaId(group: SlotGroup): string {
                 </svg>
               </button>
 
-              <span class="text-[10px] text-gray-500 w-10 text-right">Max: {{ group.controlledSlots.length > 0 ?
-                group.controlledSlots.length : 10 }}</span>
+              <span class="text-[10px] text-gray-500 w-10 text-right">Max: {{ getMaxShelves(group) }}</span>
             </div>
 
           </div>
         </div>
       </div>
 
-      <!-- CSOPORTOSÍTOTT LISTA (Részletek) - VÁLTOZATLAN -->
+      <!-- CSOPORTOSÍTOTT LISTA (Részletek) -->
       <div v-if="displayGroups.length > 0">
         <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4 pt-4 border-t border-gray-800">
           Részletek</h3>
@@ -616,7 +761,7 @@ function getCurrentSchemaId(group: SlotGroup): string {
 
     </div>
 
-    <!-- FOOTER (Változatlan) -->
+    <!-- FOOTER -->
     <div class="p-3 bg-[#1a1a1a] border-t border-gray-800 grid grid-cols-2 gap-3" @mousedown.stop>
       <button @click="handleDuplicate"
         class="flex items-center justify-center gap-2 px-3 py-2 bg-[#2a2a2a] border border-gray-700 rounded text-xs font-medium text-blue-400 hover:bg-[#333] hover:border-blue-500/50 transition-all">
@@ -638,7 +783,7 @@ function getCurrentSchemaId(group: SlotGroup): string {
       </button>
     </div>
 
-    <!-- DEBUG PANEL (Változatlan) -->
+    <!-- DEBUG PANEL -->
     <div
       class="p-3 bg-black/80 text-[10px] font-mono text-gray-400 border-t border-gray-800 overflow-x-auto max-h-40 custom-scrollbar"
       @mousedown.stop>

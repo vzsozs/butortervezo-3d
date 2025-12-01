@@ -80,7 +80,7 @@ export const useSelectionStore = defineStore('selection', () => {
     await rebuildObjectWithNewState(currentComponentState)
   }
 
-  // --- 🔄 JAVÍTOTT LAYOUT VÁLTÁS (Config Patching) ---
+  // --- 🔄 JAVÍTOTT LAYOUT VÁLTÁS (Auto Polc Pozicionálás + Cleanup) ---
   async function applySchema(groupIndex: number, schemaId: string) {
     if (!selectedObject.value || !selectedObjectConfig.value) return
 
@@ -88,84 +88,90 @@ export const useSelectionStore = defineStore('selection', () => {
     const group = selectedObjectConfig.value.slotGroups?.[groupIndex]
     if (!group) return
 
-    // JAVÍTÁS: Kivettük a felesleges eslint-disable sort
     const schema = group.schemas.find((s: any) => s.id === schemaId)
     if (!schema) return
 
-    console.group(`[SelectionStore] 🔄 LAYOUT VÁLTÁS: ${schema.name}`)
+    console.group(`[SelectionStore] 🔄 LAYOUT VÁLTÁS: ${schema.name} (${schema.type})`)
 
-    // 1. ÁLLAPOT MÁSOLÁSA & TAKARÍTÁS
+    // 1. ÁLLAPOT MÁSOLÁSA
     const currentComponentState = JSON.parse(
       JSON.stringify(selectedObject.value.userData.componentState || {}),
     )
-    const targetTypes = new Set<string>()
 
-    if (schema.type) {
-      if (schema.type === 'front') {
-        targetTypes.add('fronts')
-        targetTypes.add('handles')
-        targetTypes.add('drawers')
-      } else if (schema.type === 'drawer') {
-        targetTypes.add('drawers')
-        targetTypes.add('fronts')
-        targetTypes.add('handles')
-      } else if (schema.type === 'shelf') {
-        targetTypes.add('shelves')
-      } else if (schema.type === 'leg') {
-        targetTypes.add('legs')
-      }
+    // Törlési lista (state cleanup)
+    const targetTypes = new Set<string>()
+    if (schema.type === 'front') {
+      targetTypes.add('fronts')
+      targetTypes.add('handles')
+      targetTypes.add('drawers')
+    } else if (schema.type === 'shelf') {
+      targetTypes.add('shelves')
     }
 
     Object.values(schema.apply).forEach((compId) => {
-      if (compId) {
-        const comp = configStore.getComponentById(compId as string)
-        if (comp && comp.componentType) targetTypes.add(comp.componentType)
-      }
+      const comp = configStore.getComponentById(compId as string)
+      if (comp?.componentType) targetTypes.add(comp.componentType)
     })
 
+    // State takarítás
     Object.keys(currentComponentState).forEach((slotId) => {
+      // Polc váltásnál minden korábbi polcot törlünk
+      if (schema.type === 'shelf' && slotId.startsWith('shelf_')) {
+        delete currentComponentState[slotId]
+        return
+      }
+
       const currentCompId = currentComponentState[slotId]
       if (currentCompId) {
         const staticSlotDef = selectedObjectConfig.value?.componentSlots.find(
           (s) => s.slotId === slotId,
         )
         const compDef = configStore.getComponentById(currentCompId)
-
-        // JAVÍTÁS: let -> const (prefer-const hiba javítva)
         const slotType = staticSlotDef?.componentType || compDef?.componentType
 
         if (slotType === 'corpuses') return
 
         if ((slotType && targetTypes.has(slotType)) || slotId.includes('attach_')) {
-          // console.log(`🗑️ Törlés: ${slotId}`);
           delete currentComponentState[slotId]
         }
       }
     })
 
-    // 2. ÚJ ELEMEK BEÍRÁSA
+    // 2. ÚJ ELEMEK BEÍRÁSA A STATE-BE
     Object.entries(schema.apply).forEach(([slotId, componentId]) => {
       if (componentId) currentComponentState[slotId] = componentId
     })
 
-    // 3. 🛠️ CONFIG PATCHELÉS
+    // Polc state generálás
+    const generatedShelfSlots: string[] = []
+    if (schema.type === 'shelf' && (schema as any).shelfConfig) {
+      const { count, componentId } = (schema as any).shelfConfig
+      if (count > 0 && componentId) {
+        for (let i = 1; i <= count; i++) {
+          const slotId = `shelf_${i}`
+          currentComponentState[slotId] = componentId
+          generatedShelfSlots.push(slotId)
+        }
+      }
+    }
+
+    // 3. 🛠️ CONFIG PATCHELÉS (Slotok kezelése)
     const newConfig = JSON.parse(JSON.stringify(selectedObjectConfig.value)) as FurnitureConfig
     const corpusSlot = newConfig.componentSlots.find((s) => s.componentType === 'corpuses')
     const corpusSlotId = corpusSlot ? corpusSlot.slotId : 'corpus_1'
 
+    // A) Fix slotok (pl. fogantyú) hozzáadása
     Object.keys(schema.apply).forEach((slotId) => {
       if (newConfig.componentSlots.find((s) => s.slotId === slotId)) return
-
+      // ... (ez a rész változatlan, a slot definíció létrehozása) ...
       const parts = slotId.split('__')
       let attachTo = parts.slice(0, -1).join('__')
       const point = parts[parts.length - 1]
-
       if (attachTo === 'root') attachTo = corpusSlotId
-
       const compId = schema.apply[slotId]
       const compDef = configStore.getComponentById(compId as string)
 
-      const newSlotDef: ComponentSlotConfig = {
+      newConfig.componentSlots.push({
         slotId: slotId,
         name: slotId,
         componentType: compDef?.componentType || 'unknown',
@@ -177,20 +183,54 @@ export const useSelectionStore = defineStore('selection', () => {
         rotation: { x: 0, y: 0, z: 0 },
         scale: { x: 1, y: 1, z: 1 },
         isAutoGenerated: true,
+      })
+    })
+
+    // B) POLC SLOTOK FRISSÍTÉSE (Törlés és Újragenerálás)
+
+    // 1. Lépés: Töröljük a régi generált polc slotokat a configból
+    // Ez azért kell, hogy ne maradjanak "szellem" slotok, és a pozíciók frissüljenek
+    newConfig.componentSlots = newConfig.componentSlots.filter(
+      (s) => !s.slotId.startsWith('shelf_'),
+    )
+
+    // 2. Lépés: Pozíció számítás
+    const corpusId = currentComponentState[corpusSlotId]
+    const corpusComp = configStore.getComponentById(corpusId)
+    const corpusHeight = corpusComp?.properties?.height || 720
+
+    // +1 osztás, hogy egyenletes legyen (pl. 1 polc -> 2 térfél)
+    const segmentHeight = corpusHeight / (generatedShelfSlots.length + 1)
+
+    // 3. Lépés: Új slotok beszúrása a helyes pozícióval
+    generatedShelfSlots.forEach((slotId, index) => {
+      const yPos = segmentHeight * (index + 1)
+
+      // Korrekció: A korpusz origója általában az alján van.
+      // Ha a modellben máshogy van, itt kell offsetelni.
+      // Jelenleg feltételezzük: Y=0 a korpusz alja.
+
+      const newSlotDef: ComponentSlotConfig = {
+        slotId: slotId,
+        name: `Auto Shelf ${slotId}`,
+        componentType: 'shelves',
+        allowedComponents: [currentComponentState[slotId]],
+        defaultComponent: currentComponentState[slotId],
+        attachToSlot: corpusSlotId,
+        useAttachmentPoint: undefined, // Kikapcsoljuk a pont keresést
+        position: { x: 0, y: yPos, z: 0 }, // Abszolút pozíció a korpuszhoz képest
+        rotation: { x: 0, y: 0, z: 0 },
+        scale: { x: 1, y: 1, z: 1 },
+        isAutoGenerated: true,
       }
 
-      if (schema.slotProperties && schema.slotProperties[slotId]) {
-        Object.assign(newSlotDef, schema.slotProperties[slotId])
-      }
-
-      console.log(`✨ Új slot definíció beszúrva: ${slotId} -> ${attachTo} :: ${point}`)
+      console.log(`✨ Polc slot frissítve: ${slotId} @ Y=${Math.round(yPos)}mm`)
       newConfig.componentSlots.push(newSlotDef)
     })
 
-    console.log('Új állapot:', currentComponentState)
+    console.log('📝 Új állapot:', currentComponentState)
     console.groupEnd()
 
-    // 4. Újraépítés az ÚJ configgal
     await rebuildObjectWithNewState(currentComponentState, newConfig)
   }
 
