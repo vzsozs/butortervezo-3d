@@ -17,6 +17,7 @@ import {
   BoxHelper,
   LineSegments,
   Color,
+  AxesHelper,
 } from 'three'
 
 import Sizes from './Utils/Sizes'
@@ -113,6 +114,8 @@ export default class Experience {
 
     this.historyStore.addState()
     this.update()
+    const axesHelper = new AxesHelper(0.5)
+    this.scene.add(axesHelper)
   }
 
   public static getInstance(canvas?: HTMLDivElement): Experience {

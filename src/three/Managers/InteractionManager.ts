@@ -262,7 +262,8 @@ export default class InteractionManager {
 
     const liftHeight = this.getLiftHeight(newObject)
 
-    newObject.rotation.y = -Math.PI / 2
+    // --- KIVETTÜK A HARDCODED FORGATÁST ---
+    // newObject.rotation.y = -Math.PI / 2
     newObject.position.set(0, liftHeight, 0)
 
     this.isDraggingNewObject = true

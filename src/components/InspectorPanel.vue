@@ -62,8 +62,43 @@ interface DisplayGroup {
   slots: { slot: ComponentSlotConfig, displayName: string }[];
 }
 
+// Segédfüggvény: Kitalálja, melyik csoportba tartozik az elem
+function resolveGroupKey(slot: ComponentSlotConfig, activeComponentId: string): string {
+  // 1. Ha van aktív komponens, annak a típusa a döntő
+  if (activeComponentId) {
+    const comp = configStore.getComponentById(activeComponentId);
+    if (comp?.componentType) return normalizeType(comp.componentType);
+  }
+
+  // 2. Ha nincs, vagy nem egyértelmű, nézzük a Slot típusát
+  if (slot.componentType) return normalizeType(slot.componentType);
+
+  // 3. Fallback: ID alapján tippelünk (pl. ha a típus hiányzik a configból)
+  const lowerId = slot.slotId.toLowerCase();
+  if (lowerId.includes('door') || lowerId.includes('front')) return 'fronts';
+  if (lowerId.includes('drawer')) return 'drawers';
+  if (lowerId.includes('leg') || lowerId.includes('lab')) return 'legs';
+  if (lowerId.includes('handle') || lowerId.includes('fogantyu')) return 'handles';
+  if (lowerId.includes('shelf') || lowerId.includes('polc')) return 'shelves';
+
+  return 'others';
+}
+
+// Típusok normalizálása (hogy a 'front' és 'fronts' ugyanoda kerüljön)
+function normalizeType(type: string): string {
+  if (type === 'front') return 'fronts';
+  if (type === 'drawer') return 'drawers';
+  if (type === 'leg') return 'legs';
+  if (type === 'handle') return 'handles';
+  if (type === 'shelf') return 'shelves';
+  return type;
+}
+
 const displayGroups = computed<DisplayGroup[]>(() => {
-  if (!currentConfig.value) return [];
+  const slots = currentConfig.value?.componentSlots ?? [];
+  const state = currentState.value || {};
+
+  if (slots.length === 0) return [];
 
   const groups: Record<string, DisplayGroup> = {
     corpuses: { id: 'corpuses', label: 'Korpusz', slots: [] },
@@ -75,41 +110,62 @@ const displayGroups = computed<DisplayGroup[]>(() => {
     others: { id: 'others', label: 'Egyéb Elemek', slots: [] }
   };
 
-  currentConfig.value.componentSlots.forEach(slot => {
-    const activeComponentId = currentState.value[slot.slotId];
+  slots.forEach(slot => {
+    const activeComponentId = state[slot.slotId] || '';
     const isCorpus = slot.componentType === 'corpuses';
+
     if (!activeComponentId && !isCorpus) return;
 
-    let type = slot.componentType;
-    if (!groups[type]) type = 'others';
+    let groupKey = resolveGroupKey(slot, activeComponentId);
+    if (!groups[groupKey]) groupKey = 'others';
 
-    let niceName = slot.name;
-    if (slot.slotId.includes('attach_')) {
-      niceName = generateNiceName(slot.slotId, type);
-    }
+    const niceName = generateNiceName(slot.slotId, groupKey);
 
-    groups[type].slots.push({ slot: slot, displayName: niceName });
+    groups[groupKey].slots.push({ slot: slot, displayName: niceName });
   });
 
-  return Object.values(groups).filter(g => g.slots.length > 0);
+  return Object.values(groups)
+    .filter(g => g.slots.length > 0)
+    .map(g => {
+      g.slots.sort((a, b) => a.displayName.localeCompare(b.displayName, undefined, { numeric: true }));
+      return g;
+    });
 });
 
 function generateNiceName(slotId: string, type: string): string {
-  let name = "";
+  // 1. Technikai prefixek takarítása (pl. root__attach_door_l -> door_l)
+  const cleanId = slotId.replace(/^(root__)?(attach_)?/, '').toLowerCase();
+
+  // 2. Alap név meghatározása típus alapján
+  let name = "Elem";
   if (type === 'fronts') name = "Ajtó";
   else if (type === 'handles') name = "Fogantyú";
   else if (type === 'legs') name = "Láb";
   else if (type === 'drawers') name = "Fiók";
-  else name = "Elem";
+  else if (type === 'shelves') name = "Polc";
+  else if (type === 'corpuses') name = "Korpusz";
 
-  const lowerId = slotId.toLowerCase();
-  if (lowerId.includes('_l') || lowerId.includes('left')) name = "Bal " + name;
-  else if (lowerId.includes('_r') || lowerId.includes('right')) name = "Jobb " + name;
+  // 3. Orientáció és Pozíció
+  const prefixes: string[] = [];
 
-  if (lowerId.includes('vertical')) name += " (Függ.)";
-  else if (lowerId.includes('horizontal')) name += " (Vízsz.)";
+  if (cleanId.includes('_l') || cleanId.includes('left') || cleanId.includes('bal')) prefixes.push("Bal");
+  else if (cleanId.includes('_r') || cleanId.includes('right') || cleanId.includes('jobb')) prefixes.push("Jobb");
 
-  return name;
+  if (cleanId.includes('vertical')) name += " (Függ.)";
+  else if (cleanId.includes('horizontal')) name += " (Vízsz.)";
+
+  // 4. Számozás kinyerése (pl. drawer_1 -> 1. Fiók)
+  const numberMatch = cleanId.match(/_(\d+)$/);
+  if (numberMatch) {
+    prefixes.unshift(`${numberMatch[1]}.`);
+  }
+
+  // Ha a névben benne van, hogy "front", de fiók típusú, akkor "Fiókelőlap"-ra pontosítunk
+  if (type === 'drawers' && cleanId.includes('front')) {
+    name = "Fiókelőlap";
+  }
+
+  return prefixes.length > 0 ? `${prefixes.join(' ')} ${name}` : name;
 }
 
 // --- 🧠 SMART LOGIC: HELPERS ---

@@ -17,6 +17,7 @@ import {
   LineSegments,
   LineBasicMaterial,
   SphereGeometry,
+  AxesHelper,
 } from 'three'
 import { OrbitControls } from 'three-stdlib'
 import AssetManager from './Managers/AssetManager'
@@ -52,7 +53,7 @@ export default class AdminExperience extends EventTarget {
     const sizes = { width: container.clientWidth, height: container.clientHeight }
 
     this.camera = new PerspectiveCamera(50, sizes.width / sizes.height, 0.1, 1000)
-    this.camera.position.set(1.1, 0.8, 0.5)
+    this.camera.position.set(-0.8, 1.0, 1.5)
 
     this.renderer = new WebGLRenderer({ antialias: true, alpha: true })
     this.renderer.setSize(sizes.width, sizes.height)
@@ -62,7 +63,7 @@ export default class AdminExperience extends EventTarget {
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement)
     this.controls.enableDamping = true
-    this.controls.target.set(0, 0.35, 0)
+    this.controls.target.set(0.6, 0.15, 0)
 
     const ambientLight = new AmbientLight(0xffffff, 0.8)
     this.scene.add(ambientLight)
@@ -70,6 +71,9 @@ export default class AdminExperience extends EventTarget {
     const directionalLight = new DirectionalLight(0xffffff, 1)
     directionalLight.position.set(5, 5, 5)
     this.scene.add(directionalLight)
+
+    const axesHelper = new AxesHelper(0.5)
+    this.scene.add(axesHelper)
 
     this.assetManager = AssetManager.getInstance()
     this.raycaster = new Raycaster()
@@ -281,7 +285,7 @@ export default class AdminExperience extends EventTarget {
     const fov = this.camera.fov * (Math.PI / 180)
     const distance = Math.abs(maxDim / Math.tan(fov / 2)) * 0.8
 
-    const direction = new Vector3(1.3, 0.8, 0.6).normalize()
+    const direction = new Vector3(-1.0, 0.8, 1.3).normalize()
     const newPosition = new Vector3().copy(center).add(direction.multiplyScalar(distance))
 
     this.camera.position.copy(newPosition)

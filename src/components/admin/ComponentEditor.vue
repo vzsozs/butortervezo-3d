@@ -15,6 +15,7 @@ const emit = defineEmits<{
   (e: 'save', component: ComponentConfig, file: File | null): void;
   (e: 'cancel'): void;
   (e: 'delete', component: ComponentConfig): void;
+  (e: 'preview', file: File, data: Partial<ComponentConfig>): void;
 }>();
 
 // --- STATE ---
@@ -116,6 +117,7 @@ async function handleFileChange(event: Event) {
       }),
     };
     modelMaterialOptions.value = analysis.materialNames;
+    emit('preview', file, editableComponent.value);
 
   } catch (error) {
     console.error("Modell hiba:", error);

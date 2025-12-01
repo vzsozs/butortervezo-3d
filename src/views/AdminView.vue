@@ -269,8 +269,61 @@ function handleCreateNewComponent(type: string) {
   isNewComponent.value = true;
 }
 function handleCancelComponent() {
+  // Ha új komponenst hoztunk létre, és az bekerült a listába (mert volt preview),
+  // de nem mentettük el, akkor ki kell venni a listából.
+  if (isNewComponent.value && selectedComponent.value?.id) {
+    const type = selectedComponentType.value;
+    const list = allComponents.value[type];
+
+    if (list) {
+      // Megkeressük és töröljük
+      const index = list.findIndex(c => c.id === selectedComponent.value!.id);
+      if (index !== -1) {
+        list.splice(index, 1); // KIVESSZÜK A LISTÁBÓL
+        console.log('🧹 Takarítás: Nem mentett preview komponens eltávolítva.');
+      }
+    }
+  }
+
   selectedComponent.value = null;
   isNewComponent.value = false;
+}
+
+// --- ÚJ: PREVIEW KEZELÉS ---
+function handleComponentPreview(file: File, data: Partial<ComponentConfig>) {
+  if (!selectedComponent.value) return;
+
+  const blobUrl = URL.createObjectURL(file);
+
+  // FRISSÍTÉS: Összefésüljük a meglévő adatokat a ModelAnalyzer által küldött adatokkal
+  selectedComponent.value = {
+    ...selectedComponent.value,
+    ...data,       // Név, méretek, csatlakozási pontok
+    model: blobUrl // A blob URL
+  };
+
+  // ID generálás (ha még nincs)
+  if (!selectedComponent.value.id) {
+    const tempId = selectedComponent.value.name
+      ? selectedComponent.value.name.toLowerCase().replace(/\s+/g, '_')
+      : `temp_${Date.now()}`;
+    selectedComponent.value.id = tempId;
+  }
+
+  // Store injektálás (ez marad, mert kell a 3D-nek)
+  const type = selectedComponentType.value;
+  if (!allComponents.value[type]) allComponents.value[type] = [];
+
+  const list = allComponents.value[type];
+  const index = list.findIndex(c => c.id === selectedComponent.value!.id);
+
+  const compConfig = JSON.parse(JSON.stringify(selectedComponent.value)) as ComponentConfig;
+
+  if (index !== -1) {
+    list[index] = compConfig;
+  } else {
+    list.push(compConfig);
+  }
 }
 
 async function handleSaveComponent(component: ComponentConfig, file: File | null) {
@@ -374,7 +427,8 @@ function handleSaveComponentsToServer() {
             <div v-if="activeTab === 'components'">
               <ComponentEditor v-if="selectedComponent" :key="selectedComponent.id || 'new-component'"
                 :component="selectedComponent" :is-new="isNewComponent" :component-type="selectedComponentType"
-                @save="handleSaveComponent" @cancel="handleCancelComponent" @delete="handleDeleteComponent" />
+                @save="handleSaveComponent" @cancel="handleCancelComponent" @delete="handleDeleteComponent"
+                @preview="handleComponentPreview" />
               <div v-else class="text-center text-gray-500 p-8">
                 <p>Válassz ki egy komponenst a szerkesztéshez.</p>
               </div>

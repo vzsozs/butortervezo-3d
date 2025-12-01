@@ -1,7 +1,148 @@
 [
   {
-    "id": "als_szekrny_60cm",
-    "name": "Alsó szekrény 60cm",
+    "id": "j_btor",
+    "name": "Also Szekrény 60 (no Layout)",
+    "category": "bottom_cabinets",
+    "componentSlots": [
+      {
+        "slotId": "corpus_1",
+        "name": "Korpusz 1",
+        "componentType": "corpuses",
+        "allowedComponents": [
+          "corpus_bottom_60"
+        ],
+        "defaultComponent": "corpus_bottom_60",
+        "position": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        },
+        "attachToSlot": "",
+        "useAttachmentPoint": ""
+      },
+      {
+        "slotId": "front_1",
+        "name": "Ajtó 1",
+        "componentType": "fronts",
+        "allowedComponents": [
+          "front_bottom_keretes_60_l",
+          "front_bottom_sima_60_l"
+        ],
+        "defaultComponent": "front_bottom_keretes_60_l",
+        "position": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        },
+        "attachToSlot": "corpus_1",
+        "useAttachmentPoint": "",
+        "attachmentMapping": {
+          "front_bottom_keretes_60_l": [
+            "attach_front_full_L"
+          ],
+          "front_bottom_sima_60_l": [
+            "attach_front_full_L"
+          ]
+        }
+      },
+      {
+        "slotId": "handle_1",
+        "name": "Fogantyú 1",
+        "componentType": "handles",
+        "allowedComponents": [
+          "handle_standard",
+          "handle_design"
+        ],
+        "defaultComponent": "handle_standard",
+        "position": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        },
+        "attachToSlot": "front_1",
+        "useAttachmentPoint": "attach_handle_vertical_L",
+        "attachmentMapping": {
+          "handle_design": [
+            "attach_handle_vertical_L"
+          ],
+          "handle_standard": [
+            "attach_handle_vertical_L"
+          ]
+        }
+      },
+      {
+        "slotId": "leg_1",
+        "name": "Láb 1",
+        "componentType": "legs",
+        "allowedComponents": [
+          "leg_standard",
+          "leg_design"
+        ],
+        "defaultComponent": "leg_standard",
+        "position": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        },
+        "attachToSlot": "corpus_1",
+        "useAttachmentPoint": "attach_leg_BR",
+        "attachmentMapping": {
+          "leg_standard": [
+            "attach_leg_C"
+          ],
+          "leg_design": [
+            "attach_leg_BR",
+            "attach_leg_FL",
+            "attach_leg_BL",
+            "attach_leg_FR"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "als_szekrny_60_layout",
+    "name": "Alsó Szekrény 60 (Layout)",
     "category": "bottom_cabinets",
     "componentSlots": [
       {
@@ -44,8 +185,8 @@
           "z": 0
         },
         "rotation": {
-          "x": 1.5707963267948966,
-          "y": 4.71238898038469,
+          "x": 0,
+          "y": 0,
           "z": 0
         },
         "scale": {
@@ -66,7 +207,8 @@
         "name": "Fogantyú 1",
         "componentType": "handles",
         "allowedComponents": [
-          "handle_standard"
+          "handle_standard",
+          "handle_design"
         ],
         "defaultComponent": "handle_standard",
         "position": {
@@ -76,7 +218,7 @@
         },
         "rotation": {
           "x": 0,
-          "y": 1.5707963267948966,
+          "y": 0,
           "z": 0
         },
         "scale": {
@@ -87,6 +229,9 @@
         "attachToSlot": "front_1",
         "useAttachmentPoint": "attach_handle_vertical_L",
         "attachmentMapping": {
+          "handle_design": [
+            "attach_handle_vertical_L"
+          ],
           "handle_standard": [
             "attach_handle_vertical_L"
           ]
@@ -107,8 +252,8 @@
           "z": 0
         },
         "rotation": {
-          "x": 1.5707963267948966,
-          "y": 4.71238898038469,
+          "x": 0,
+          "y": 0,
           "z": 0
         },
         "scale": {
@@ -117,16 +262,16 @@
           "z": 1
         },
         "attachToSlot": "corpus_1",
-        "useAttachmentPoint": "attach_leg_frontLeft",
+        "useAttachmentPoint": "attach_leg_C",
         "attachmentMapping": {
-          "leg_standard": [
-            "attach_leg_frontLeft"
-          ],
           "leg_design": [
-            "attach_leg_frontRight",
-            "attach_leg_backLeft",
-            "attach_leg_frontLeft",
-            "attach_leg_backRight"
+            "attach_leg_BR",
+            "attach_leg_FL",
+            "attach_leg_BL",
+            "attach_leg_FR"
+          ],
+          "leg_standard": [
+            "attach_leg_C"
           ]
         }
       }
@@ -138,7 +283,7 @@
         "controlType": "schema_select",
         "schemas": [
           {
-            "id": "schema_1764490444964_svdic9hhi",
+            "id": "schema_1764570990890_2slw85nk8",
             "name": "Balos",
             "type": "front",
             "apply": {
@@ -150,28 +295,18 @@
                 "allowedComponents": [
                   "front_bottom_keretes_60_l",
                   "front_bottom_sima_60_l"
-                ],
-                "rotation": {
-                  "x": 1.5707963267948966,
-                  "y": 4.71238898038469,
-                  "z": 0
-                }
+                ]
               },
               "root__attach_front_full_L__attach_handle_vertical_L": {
                 "allowedComponents": [
                   "handle_standard",
                   "handle_design"
-                ],
-                "rotation": {
-                  "x": 0,
-                  "y": 1.5707963267948966,
-                  "z": 0
-                }
+                ]
               }
             }
           },
           {
-            "id": "schema_1764490475986_w2e4tpx5r",
+            "id": "schema_1764571025711_m29r8arxd",
             "name": "Jobbos",
             "type": "front",
             "apply": {
@@ -183,101 +318,73 @@
                 "allowedComponents": [
                   "front_bottom_keretes_60_r",
                   "front_bottom_sima_60_r"
-                ],
-                "rotation": {
-                  "x": 1.5707963267948966,
-                  "y": 4.71238898038469,
-                  "z": 0
-                }
+                ]
               },
               "root__attach_front_full_R__attach_handle_vertical_R": {
                 "allowedComponents": [
                   "handle_standard",
                   "handle_design"
-                ],
-                "rotation": {
-                  "x": 0,
-                  "y": 1.5707963267948966,
-                  "z": 0
-                }
+                ]
               }
             }
           },
           {
-            "id": "schema_1764490616334_42hgeu92d",
+            "id": "schema_1764571058093_7ia2dvlvl",
             "name": "Kétajtós",
             "type": "front",
             "apply": {
               "root__attach_front_full_L": "front_bottom_keretes_30_l",
-              "root__attach_front_full_L__attach_handle_verticall_L": "handle_standard",
+              "root__attach_front_full_L__attach_handle_vertical_L": "handle_standard",
               "root__attach_front_full_R": "front_bottom_keretes_30_r",
-              "root__attach_front_full_R__attach_handle_verticall_R": "handle_standard"
+              "root__attach_front_full_R__attach_handle_vertical_R": "handle_standard"
             },
             "slotProperties": {
               "root__attach_front_full_L": {
                 "allowedComponents": [
-                  "front_bottom_keretes_30_l"
-                ],
-                "rotation": {
-                  "x": 1.5707963267948966,
-                  "y": 4.71238898038469,
-                  "z": 0
-                }
+                  "front_bottom_keretes_30_l",
+                  "front_bottom_sima_30_l"
+                ]
               },
-              "root__attach_front_full_L__attach_handle_verticall_L": {
+              "root__attach_front_full_L__attach_handle_vertical_L": {
                 "allowedComponents": [
                   "handle_standard",
                   "handle_design"
-                ],
-                "rotation": {
-                  "x": 0,
-                  "y": 1.5707963267948966,
-                  "z": 0
-                }
+                ]
               },
               "root__attach_front_full_R": {
                 "allowedComponents": [
-                  "front_bottom_keretes_30_r"
-                ],
-                "rotation": {
-                  "x": 1.5707963267948966,
-                  "y": 4.71238898038469,
-                  "z": 0
-                }
+                  "front_bottom_keretes_30_r",
+                  "front_bottom_sima_30_r"
+                ]
               },
-              "root__attach_front_full_R__attach_handle_verticall_R": {
+              "root__attach_front_full_R__attach_handle_vertical_R": {
                 "allowedComponents": [
                   "handle_standard",
                   "handle_design"
-                ],
-                "rotation": {
-                  "x": 0,
-                  "y": 1.5707963267948966,
-                  "z": 0
-                }
+                ]
               }
             }
           },
           {
-            "id": "schema_1764490675269_xfgi8vnak",
+            "id": "schema_1764571102178_hicbg5ngi",
             "name": "Nyitott",
             "type": "front",
             "apply": {}
           },
           {
-            "id": "schema_1764490686087_c47giq7pg",
+            "id": "schema_1764571111958_ynhfw2vvv",
             "name": "Polc Elrendezés 5",
             "type": "shelf",
             "apply": {},
             "shelfConfig": {
               "mode": "auto",
               "count": 2,
-              "componentId": "shelf_bottom-1_standard_60"
+              "componentId": "shelf_bottom_standard_60"
             }
           }
         ],
         "controlledSlots": [],
-        "defaultSchemaId": "schema_1764490444964_svdic9hhi"
+        "defaultSchemaId": "schema_1764570990890_2slw85nk8"
       }
     ]
   }

@@ -4,12 +4,16 @@
       "name": "corpus bottom 60",
       "id": "corpus_bottom_60",
       "properties": {
-        "height": 747,
+        "height": 715,
         "width": 600,
-        "depth": 600,
-        "maxShelves": 3
+        "depth": 464,
+        "wallThickness": 18,
+        "maxShelves": 2
       },
-      "allowedMaterialCategories": [],
+      "allowedMaterialCategories": [
+        "Bútorlap",
+        "general"
+      ],
       "model": "/models/corpuses/corpus_bottom_60.glb",
       "materialTarget": "MAT_Korpusz",
       "materialOptions": [
@@ -23,25 +27,25 @@
           ]
         },
         {
-          "id": "attach_leg_frontRight",
+          "id": "attach_leg_FR",
           "allowedComponentTypes": [
             "legs"
           ]
         },
         {
-          "id": "attach_leg_backLeft",
+          "id": "attach_leg_BL",
           "allowedComponentTypes": [
             "legs"
           ]
         },
         {
-          "id": "attach_leg_frontLeft",
+          "id": "attach_leg_FL",
           "allowedComponentTypes": [
             "legs"
           ]
         },
         {
-          "id": "attach_leg_backRight",
+          "id": "attach_leg_BR",
           "allowedComponentTypes": [
             "legs"
           ]
@@ -53,87 +57,26 @@
           ]
         },
         {
-          "id": "attach_leg_center",
+          "id": "attach_leg_C",
           "allowedComponentTypes": [
             "legs"
           ]
         }
       ],
-      "price": 48000
+      "price": 42000
     }
   ],
   "fronts": [
-    {
-      "name": "front bottom keretes 60 L",
-      "id": "front_bottom_keretes_60_l",
-      "properties": {
-        "height": 711,
-        "width": 596,
-        "depth": 19
-      },
-      "allowedMaterialCategories": [
-        "Bútorlap",
-        "Egyéb",
-        "Hátfal",
-        "general"
-      ],
-      "model": "/models/fronts/front_bottom_keretes_60_l.glb",
-      "materialTarget": "MAT_Frontok",
-      "materialOptions": [
-        "MAT_Frontok"
-      ],
-      "attachmentPoints": [
-        {
-          "id": "attach_handle_vertical_L",
-          "allowedComponentTypes": [
-            "handles"
-          ]
-        }
-      ],
-      "price": 14800,
-      "styleId": "style_1764511063484_bfvs0"
-    },
-    {
-      "name": "front bottom sima 60 L",
-      "id": "front_bottom_sima_60_l",
-      "properties": {
-        "height": 711,
-        "width": 596,
-        "depth": 19
-      },
-      "allowedMaterialCategories": [
-        "Bútorlap",
-        "Egyéb",
-        "Hátfal",
-        "general"
-      ],
-      "model": "/models/fronts/front_bottom_sima_60_l.glb",
-      "materialTarget": "MAT_Frontok",
-      "materialOptions": [
-        "MAT_Frontok"
-      ],
-      "attachmentPoints": [
-        {
-          "id": "attach_handle_vertical_L",
-          "allowedComponentTypes": [
-            "handles"
-          ]
-        }
-      ],
-      "price": 10800,
-      "styleId": "style_1764511122132_n8uao"
-    },
     {
       "name": "front bottom keretes 30 L",
       "id": "front_bottom_keretes_30_l",
       "properties": {
         "height": 711,
-        "width": 19,
-        "depth": 294
+        "width": 294,
+        "depth": 19
       },
       "allowedMaterialCategories": [
         "Bútorlap",
-        "Hátfal",
         "general"
       ],
       "model": "/models/fronts/front_bottom_keretes_30_l.glb",
@@ -143,14 +86,14 @@
       ],
       "attachmentPoints": [
         {
-          "id": "attach_handle_verticall_L",
+          "id": "attach_handle_vertical_L",
           "allowedComponentTypes": [
             "handles"
           ]
         }
       ],
-      "price": 9800,
-      "styleId": "style_1764511063484_bfvs0"
+      "price": 12000,
+      "styleId": "style_1764572116759_b6g0g"
     },
     {
       "name": "front bottom keretes 30 R",
@@ -162,25 +105,51 @@
       },
       "allowedMaterialCategories": [
         "Bútorlap",
-        "Egyéb",
-        "Hátfal",
         "general"
       ],
-      "model": "/models/fronts/front_bottom_keretes_30_r.glb",
+      "model": "blob:http://localhost:5173/22d070b6-b7e7-464c-8988-d7c0800686c4",
       "materialTarget": "MAT_Frontok",
       "materialOptions": [
         "MAT_Frontok"
       ],
       "attachmentPoints": [
         {
-          "id": "attach_handle_verticall_R",
+          "id": "attach_handle_vertical_R",
           "allowedComponentTypes": [
             "handles"
           ]
         }
       ],
-      "price": 9800,
-      "styleId": "style_1764511063484_bfvs0"
+      "price": 12000,
+      "styleId": "style_1764572116759_b6g0g"
+    },
+    {
+      "name": "front bottom keretes 60 L",
+      "id": "front_bottom_keretes_60_l",
+      "properties": {
+        "height": 711,
+        "width": 596,
+        "depth": 19
+      },
+      "allowedMaterialCategories": [
+        "Bútorlap",
+        "general"
+      ],
+      "model": "blob:http://localhost:5173/5fd03ec2-ef0d-451a-9e02-6229963b5402",
+      "materialTarget": "MAT_Frontok",
+      "materialOptions": [
+        "MAT_Frontok"
+      ],
+      "attachmentPoints": [
+        {
+          "id": "attach_handle_vertical_L",
+          "allowedComponentTypes": [
+            "handles"
+          ]
+        }
+      ],
+      "price": 23000,
+      "styleId": "style_1764572116759_b6g0g"
     },
     {
       "name": "front bottom keretes 60 R",
@@ -192,11 +161,9 @@
       },
       "allowedMaterialCategories": [
         "Bútorlap",
-        "Egyéb",
-        "Hátfal",
         "general"
       ],
-      "model": "/models/fronts/front_bottom_keretes_60_r.glb",
+      "model": "blob:http://localhost:5173/251a7b9e-7b4e-4011-9c82-4557c1802ead",
       "materialTarget": "MAT_Frontok",
       "materialOptions": [
         "MAT_Frontok"
@@ -209,24 +176,106 @@
           ]
         }
       ],
-      "price": 14800,
-      "styleId": "style_1764511063484_bfvs0"
+      "price": 23000,
+      "styleId": "style_1764572116759_b6g0g"
+    },
+    {
+      "name": "front bottom sima 30 L",
+      "id": "front_bottom_sima_30_l",
+      "properties": {
+        "height": 711,
+        "width": 294,
+        "depth": 19
+      },
+      "allowedMaterialCategories": [
+        "Bútorlap",
+        "general"
+      ],
+      "model": "blob:http://localhost:5173/02810493-9017-4e30-bf69-d615275856fb",
+      "materialTarget": "MAT_Frontok",
+      "materialOptions": [
+        "MAT_Frontok"
+      ],
+      "attachmentPoints": [
+        {
+          "id": "attach_handle_vertical_L",
+          "allowedComponentTypes": [
+            "handles"
+          ]
+        }
+      ],
+      "price": 9900,
+      "styleId": "style_1764572129673_tyisd"
+    },
+    {
+      "name": "front bottom sima 30 R",
+      "id": "front_bottom_sima_30_r",
+      "properties": {
+        "height": 711,
+        "width": 294,
+        "depth": 19
+      },
+      "allowedMaterialCategories": [
+        "Bútorlap",
+        "general"
+      ],
+      "model": "blob:http://localhost:5173/09bd8ad7-3dd7-46a4-9fdf-031586a88940",
+      "materialTarget": "MAT_Frontok",
+      "materialOptions": [
+        "MAT_Frontok"
+      ],
+      "attachmentPoints": [
+        {
+          "id": "attach_handle_vertical_R",
+          "allowedComponentTypes": [
+            "handles"
+          ]
+        }
+      ],
+      "price": 9900,
+      "styleId": "style_1764572129673_tyisd"
+    },
+    {
+      "name": "front bottom sima 60 L",
+      "id": "front_bottom_sima_60_l",
+      "properties": {
+        "height": 711,
+        "width": 596,
+        "depth": 19
+      },
+      "allowedMaterialCategories": [
+        "Bútorlap",
+        "general"
+      ],
+      "model": "blob:http://localhost:5173/8288a7bd-28cb-496c-ba0f-06495fbc955a",
+      "materialTarget": "MAT_Frontok",
+      "materialOptions": [
+        "MAT_Frontok"
+      ],
+      "attachmentPoints": [
+        {
+          "id": "attach_handle_vertical_L",
+          "allowedComponentTypes": [
+            "handles"
+          ]
+        }
+      ],
+      "price": 18000,
+      "styleId": "style_1764572129673_tyisd"
     },
     {
       "name": "front bottom sima 60 R",
       "id": "front_bottom_sima_60_r",
       "properties": {
         "height": 711,
-        "width": 19,
-        "depth": 596
+        "width": 596,
+        "depth": 19
       },
       "allowedMaterialCategories": [
         "Bútorlap",
-        "Egyéb",
-        "Hátfal",
         "general"
       ],
-      "model": "/models/fronts/front_bottom_sima_60_r.glb",
+      "model": "blob:http://localhost:5173/5caf2947-c5cf-4c9a-96f7-5d8b4574b820",
       "materialTarget": "MAT_Frontok",
       "materialOptions": [
         "MAT_Frontok"
@@ -239,8 +288,8 @@
           ]
         }
       ],
-      "price": 10800,
-      "styleId": "style_1764511122132_n8uao"
+      "price": 18000,
+      "styleId": "style_1764572129673_tyisd"
     }
   ],
   "handles": [
@@ -248,20 +297,21 @@
       "name": "handle standard",
       "id": "handle_standard",
       "properties": {
-        "height": 25,
-        "width": 130,
-        "depth": 10
+        "height": 130,
+        "width": 10,
+        "depth": 25
       },
       "allowedMaterialCategories": [
-        "Fém"
+        "Fém",
+        "general"
       ],
-      "model": "/models/handles/handle_standard.glb",
+      "model": "blob:http://localhost:5173/fca92c8d-68b1-4a05-a82e-2361ef2798b7",
       "materialTarget": "MAT_Fem_Kiegeszitok",
       "materialOptions": [
         "MAT_Fem_Kiegeszitok"
       ],
       "attachmentPoints": [],
-      "price": 1650
+      "price": 2800
     },
     {
       "name": "handle design",
@@ -272,15 +322,16 @@
         "depth": 30
       },
       "allowedMaterialCategories": [
+        "general",
         "Fém"
       ],
-      "model": "/models/handles/handle_design.glb",
+      "model": "blob:http://localhost:5173/bd130e44-9628-4d86-aa00-0ac5998015aa",
       "materialTarget": "MAT_Fem_Kiegeszitok",
       "materialOptions": [
         "MAT_Fem_Kiegeszitok"
       ],
       "attachmentPoints": [],
-      "price": 1500
+      "price": 1900
     }
   ],
   "legs": [
@@ -289,57 +340,61 @@
       "id": "leg_standard",
       "properties": {
         "height": 105,
-        "width": 464,
-        "depth": 600
+        "width": 600,
+        "depth": 464
       },
-      "allowedMaterialCategories": [],
-      "model": "/models/legs/leg_standard.glb",
+      "allowedMaterialCategories": [
+        "Bútorlap",
+        "general"
+      ],
+      "model": "blob:http://localhost:5173/3d5a797a-7940-4cd2-a051-80d57f908d69",
       "materialTarget": "MAT_Korpusz",
       "materialOptions": [
         "MAT_Korpusz"
       ],
       "attachmentPoints": [],
-      "materialSource": "corpus",
-      "price": 2900
+      "price": 7500,
+      "materialSource": "corpus"
     },
     {
       "name": "leg design",
       "id": "leg_design",
       "properties": {
-        "height": 100,
+        "height": 105,
         "width": 31,
         "depth": 31
       },
       "allowedMaterialCategories": [
-        "Fém"
+        "Fém",
+        "general"
       ],
-      "model": "/models/legs/leg_design.glb",
+      "model": "blob:http://localhost:5173/6d2a3d53-6d81-4c7d-af1f-f9995a8fc75e",
       "materialTarget": "MAT_Lab_Fem",
       "materialOptions": [
         "MAT_Lab_Fem"
       ],
       "attachmentPoints": [],
-      "price": 2800
+      "price": 4800
     }
   ],
   "shelves": [
     {
-      "name": "shelf bottom-1 standard 60",
-      "id": "shelf_bottom-1_standard_60",
+      "name": "shelf bottom standard 60",
+      "id": "shelf_bottom_standard_60",
       "properties": {
         "height": 19,
-        "width": 428,
-        "depth": 562
+        "width": 562,
+        "depth": 428
       },
       "allowedMaterialCategories": [],
-      "model": "/models/shelves/shelf_bottom-1_standard_60.glb",
+      "model": "blob:http://localhost:5173/7bb96711-1699-4bb4-a6b5-a928b52f8c99",
       "materialTarget": "Material",
       "materialOptions": [
         "Material"
       ],
       "attachmentPoints": [],
-      "materialSource": "corpus",
-      "price": 1900
+      "price": 3200,
+      "materialSource": "corpus"
     }
   ]
 }
