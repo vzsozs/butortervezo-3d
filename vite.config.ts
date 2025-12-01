@@ -37,30 +37,58 @@ export default defineConfig({
         const upload = multer({ dest: os.tmpdir() })
         app.post('/api/save-component', upload.single('modelFile'), async (req, res) => {
           try {
+            console.log('📥 /api/save-component hívás érkezett')
+
             const componentData: ComponentConfig = JSON.parse(req.body.componentData)
             const componentType: string = req.body.componentType
             const file = req.file
 
+            console.log(`📦 Adatok: ID=${componentData.id}, Type=${componentType}`)
+
             const projectRoot = path.dirname(fileURLToPath(import.meta.url))
 
             if (file) {
+              console.log(
+                `📎 Fájl érkezett: ${file.originalname} (${file.size} bytes) -> Temp: ${file.path}`,
+              )
+
               const targetDir = path.join(projectRoot, 'public/models', componentType)
               const finalPath = path.join(targetDir, `${componentData.id}.glb`)
+
+              // Mappa létrehozása
               await fs.mkdir(targetDir, { recursive: true })
-              await fs.rename(file.path, finalPath)
+
+              // JAVÍTÁS: rename helyett copyFile + unlink (Biztonságosabb Windows-on)
+              await fs.copyFile(file.path, finalPath)
+              await fs.unlink(file.path) // Temp törlése
+
+              console.log(`✅ Fájl mozgatva ide: ${finalPath}`)
+
+              // Útvonal frissítése a JSON objektumban
               componentData.model = `/models/${componentType}/${componentData.id}.glb`
+            } else {
+              console.log('⚠️ Nincs fájl csatolva a kéréshez.')
             }
 
+            // Adatbázis frissítése
             const dbPath = path.join(projectRoot, 'public/database/components.json')
-            const dbContent = await fs.readFile(dbPath, 'utf-8')
-            const componentsDb: ComponentDatabase = JSON.parse(dbContent)
+            // Ha még nincs db fájl, kezeljük le
+            let componentsDb: ComponentDatabase = {}
+            try {
+              const dbContent = await fs.readFile(dbPath, 'utf-8')
+              componentsDb = JSON.parse(dbContent)
+            } catch (_e) {
+              console.log('Új adatbázis fájl létrehozása...')
+            }
 
             if (!componentsDb[componentType]) {
               componentsDb[componentType] = []
             }
+
             const componentIndex = componentsDb[componentType].findIndex(
               (c) => c.id === componentData.id,
             )
+
             if (componentIndex > -1) {
               componentsDb[componentType][componentIndex] = componentData
             } else {
@@ -68,14 +96,15 @@ export default defineConfig({
             }
 
             await fs.writeFile(dbPath, JSON.stringify(componentsDb, null, 2))
+            console.log('💾 Adatbázis frissítve.')
 
             res.status(200).json({
               message: 'Komponens sikeresen mentve!',
               updatedComponent: componentData,
             })
           } catch (error) {
-            console.error('API hiba a /api/save-component végponton:', error)
-            res.status(500).json({ message: 'Szerveroldali hiba történt.' })
+            console.error('❌ API hiba a /api/save-component végponton:', error)
+            res.status(500).json({ message: 'Szerveroldali hiba történt: ' + String(error) })
           }
         })
 

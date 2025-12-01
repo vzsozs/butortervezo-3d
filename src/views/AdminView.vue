@@ -44,6 +44,7 @@ const selectedComponent = ref<Partial<ComponentConfig> | null>(null);
 const isNewComponent = ref(false);
 const selectedComponentType = ref('');
 const componentPreviewConfig = ref<Partial<FurnitureConfig> | null>(null);
+const componentEditorKey = ref(0); // ÚJ: Stabil kulcs a szerkesztőhöz
 
 // Watch a KOMPONENS preview-hoz
 watch(selectedComponent, (newComp) => {
@@ -123,27 +124,55 @@ async function saveDatabase(
 }
 
 async function saveComponent(component: ComponentConfig, file: File | null): Promise<ComponentConfig | null> {
+  console.log("--- MENTÉS INDÍTÁSA ---");
+  console.log("1. Kapott fájl:", file ? file.name : "NINCS FÁJL (NULL)");
+
+  const payload = { ...component };
+
+  // Blob tisztítás
+  if (payload.model && payload.model.startsWith('blob:')) {
+    console.log("2. Blob URL törlése a JSON-ból...");
+    (payload as any).model = null;
+  }
+
   const formData = new FormData();
-  formData.append('componentData', JSON.stringify(component));
+  formData.append('componentData', JSON.stringify(payload));
   formData.append('componentType', selectedComponentType.value);
+
   if (file) {
+    console.log("3. Fájl csatolása a kéréshez...");
     formData.append('modelFile', file);
+  } else {
+    console.warn("3. FIGYELEM: Nem csatolunk fájlt a kéréshez!");
   }
 
   try {
-    const response = await fetch('/api/save-component', { method: 'POST', body: formData });
+    console.log("4. Küldés a szervernek (/api/save-component)...");
+    const response = await fetch('/api/save-component', {
+      method: 'POST',
+      body: formData
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || 'Szerver hiba');
+    }
+
     const result = await response.json();
-    if (!response.ok) throw new Error(result.message || 'Ismeretlen hiba');
+    console.log("5. Szerver válasza:", result);
 
     alert(`Komponens sikeresen mentve!`);
-    if (file) {
+
+    if (result.updatedComponent?.model) {
       const assetManager = AssetManager.getInstance();
       assetManager.invalidateModelCache(result.updatedComponent.model);
     }
+
     return result.updatedComponent;
+
   } catch (error) {
-    console.error(error);
-    alert(`Hiba a komponens mentése közben: ${error}`);
+    console.error("KRITIKUS HIBA MENTÉSKOR:", error);
+    alert(`Hiba: ${error}`);
     return null;
   }
 }
@@ -262,11 +291,13 @@ function handleSelectComponent(component: ComponentConfig, type: string) {
   selectedComponentType.value = type;
   selectedComponent.value = JSON.parse(JSON.stringify(component));
   isNewComponent.value = false;
+  componentEditorKey.value++; // ÚJ: Kényszerítjük az újramountolást váltáskor
 }
 function handleCreateNewComponent(type: string) {
   selectedComponentType.value = type;
   selectedComponent.value = { name: '', id: '' };
   isNewComponent.value = true;
+  componentEditorKey.value++; // ÚJ: Kényszerítjük az újramountolást létrehozáskor
 }
 function handleCancelComponent() {
   // Ha új komponenst hoztunk létre, és az bekerült a listába (mert volt preview),
@@ -425,10 +456,9 @@ function handleSaveComponentsToServer() {
 
             <!-- Komponens Szerkesztő -->
             <div v-if="activeTab === 'components'">
-              <ComponentEditor v-if="selectedComponent" :key="selectedComponent.id || 'new-component'"
-                :component="selectedComponent" :is-new="isNewComponent" :component-type="selectedComponentType"
-                @save="handleSaveComponent" @cancel="handleCancelComponent" @delete="handleDeleteComponent"
-                @preview="handleComponentPreview" />
+              <ComponentEditor v-if="selectedComponent" :key="componentEditorKey" :component="selectedComponent"
+                :is-new="isNewComponent" :component-type="selectedComponentType" @save="handleSaveComponent"
+                @cancel="handleCancelComponent" @delete="handleDeleteComponent" @preview="handleComponentPreview" />
               <div v-else class="text-center text-gray-500 p-8">
                 <p>Válassz ki egy komponenst a szerkesztéshez.</p>
               </div>

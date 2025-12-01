@@ -63,7 +63,7 @@
           ]
         }
       ],
-      "price": 42000
+      "price": 66600
     }
   ],
   "fronts": [
@@ -93,7 +93,7 @@
         }
       ],
       "price": 12000,
-      "styleId": "style_1764572116759_b6g0g"
+      "styleId": "style_1764612976086_tmb30"
     },
     {
       "name": "front bottom keretes 30 R",
@@ -107,7 +107,7 @@
         "Bútorlap",
         "general"
       ],
-      "model": "blob:http://localhost:5173/22d070b6-b7e7-464c-8988-d7c0800686c4",
+      "model": "/models/fronts/front_bottom_keretes_30_r.glb",
       "materialTarget": "MAT_Frontok",
       "materialOptions": [
         "MAT_Frontok"
@@ -121,7 +121,7 @@
         }
       ],
       "price": 12000,
-      "styleId": "style_1764572116759_b6g0g"
+      "styleId": "style_1764612976086_tmb30"
     },
     {
       "name": "front bottom keretes 60 L",
@@ -135,7 +135,7 @@
         "Bútorlap",
         "general"
       ],
-      "model": "blob:http://localhost:5173/5fd03ec2-ef0d-451a-9e02-6229963b5402",
+      "model": "/models/fronts/front_bottom_keretes_60_l.glb",
       "materialTarget": "MAT_Frontok",
       "materialOptions": [
         "MAT_Frontok"
@@ -148,8 +148,8 @@
           ]
         }
       ],
-      "price": 23000,
-      "styleId": "style_1764572116759_b6g0g"
+      "price": 27500,
+      "styleId": "style_1764612976086_tmb30"
     },
     {
       "name": "front bottom keretes 60 R",
@@ -163,7 +163,7 @@
         "Bútorlap",
         "general"
       ],
-      "model": "blob:http://localhost:5173/251a7b9e-7b4e-4011-9c82-4557c1802ead",
+      "model": "/models/fronts/front_bottom_keretes_60_r.glb",
       "materialTarget": "MAT_Frontok",
       "materialOptions": [
         "MAT_Frontok"
@@ -176,8 +176,8 @@
           ]
         }
       ],
-      "price": 23000,
-      "styleId": "style_1764572116759_b6g0g"
+      "price": 27500,
+      "styleId": "style_1764612976086_tmb30"
     },
     {
       "name": "front bottom sima 30 L",
@@ -191,7 +191,7 @@
         "Bútorlap",
         "general"
       ],
-      "model": "blob:http://localhost:5173/02810493-9017-4e30-bf69-d615275856fb",
+      "model": "/models/fronts/front_bottom_sima_30_l.glb",
       "materialTarget": "MAT_Frontok",
       "materialOptions": [
         "MAT_Frontok"
@@ -204,8 +204,8 @@
           ]
         }
       ],
-      "price": 9900,
-      "styleId": "style_1764572129673_tyisd"
+      "price": 9800,
+      "styleId": "style_1764612985067_e3wc3"
     },
     {
       "name": "front bottom sima 30 R",
@@ -219,7 +219,7 @@
         "Bútorlap",
         "general"
       ],
-      "model": "blob:http://localhost:5173/09bd8ad7-3dd7-46a4-9fdf-031586a88940",
+      "model": "/models/fronts/front_bottom_sima_30_r.glb",
       "materialTarget": "MAT_Frontok",
       "materialOptions": [
         "MAT_Frontok"
@@ -232,8 +232,8 @@
           ]
         }
       ],
-      "price": 9900,
-      "styleId": "style_1764572129673_tyisd"
+      "price": 9800,
+      "styleId": "style_1764612985067_e3wc3"
     },
     {
       "name": "front bottom sima 60 L",
@@ -247,7 +247,7 @@
         "Bútorlap",
         "general"
       ],
-      "model": "blob:http://localhost:5173/8288a7bd-28cb-496c-ba0f-06495fbc955a",
+      "model": "/models/fronts/front_bottom_sima_60_l.glb",
       "materialTarget": "MAT_Frontok",
       "materialOptions": [
         "MAT_Frontok"
@@ -260,8 +260,8 @@
           ]
         }
       ],
-      "price": 18000,
-      "styleId": "style_1764572129673_tyisd"
+      "price": 20500,
+      "styleId": "style_1764612985067_e3wc3"
     },
     {
       "name": "front bottom sima 60 R",
@@ -275,7 +275,7 @@
         "Bútorlap",
         "general"
       ],
-      "model": "blob:http://localhost:5173/5caf2947-c5cf-4c9a-96f7-5d8b4574b820",
+      "model": "/models/fronts/front_bottom_sima_60_r.glb",
       "materialTarget": "MAT_Frontok",
       "materialOptions": [
         "MAT_Frontok"
@@ -288,8 +288,8 @@
           ]
         }
       ],
-      "price": 18000,
-      "styleId": "style_1764572129673_tyisd"
+      "price": 20500,
+      "styleId": "style_1764612985067_e3wc3"
     }
   ],
   "handles": [
@@ -302,16 +302,15 @@
         "depth": 25
       },
       "allowedMaterialCategories": [
-        "Fém",
-        "general"
+        "Fém"
       ],
-      "model": "blob:http://localhost:5173/fca92c8d-68b1-4a05-a82e-2361ef2798b7",
+      "model": "/models/handles/handle_standard.glb",
       "materialTarget": "MAT_Fem_Kiegeszitok",
       "materialOptions": [
         "MAT_Fem_Kiegeszitok"
       ],
       "attachmentPoints": [],
-      "price": 2800
+      "price": 3500
     },
     {
       "name": "handle design",
@@ -322,16 +321,15 @@
         "depth": 30
       },
       "allowedMaterialCategories": [
-        "general",
         "Fém"
       ],
-      "model": "blob:http://localhost:5173/bd130e44-9628-4d86-aa00-0ac5998015aa",
+      "model": "/models/handles/handle_design.glb",
       "materialTarget": "MAT_Fem_Kiegeszitok",
       "materialOptions": [
         "MAT_Fem_Kiegeszitok"
       ],
       "attachmentPoints": [],
-      "price": 1900
+      "price": 1980
     }
   ],
   "legs": [
@@ -347,13 +345,13 @@
         "Bútorlap",
         "general"
       ],
-      "model": "blob:http://localhost:5173/3d5a797a-7940-4cd2-a051-80d57f908d69",
+      "model": "/models/legs/leg_standard.glb",
       "materialTarget": "MAT_Korpusz",
       "materialOptions": [
         "MAT_Korpusz"
       ],
       "attachmentPoints": [],
-      "price": 7500,
+      "price": 6800,
       "materialSource": "corpus"
     },
     {
@@ -365,16 +363,15 @@
         "depth": 31
       },
       "allowedMaterialCategories": [
-        "Fém",
-        "general"
+        "Fém"
       ],
-      "model": "blob:http://localhost:5173/6d2a3d53-6d81-4c7d-af1f-f9995a8fc75e",
+      "model": "/models/legs/leg_design.glb",
       "materialTarget": "MAT_Lab_Fem",
       "materialOptions": [
         "MAT_Lab_Fem"
       ],
       "attachmentPoints": [],
-      "price": 4800
+      "price": 3800
     }
   ],
   "shelves": [
@@ -386,14 +383,17 @@
         "width": 562,
         "depth": 428
       },
-      "allowedMaterialCategories": [],
-      "model": "blob:http://localhost:5173/7bb96711-1699-4bb4-a6b5-a928b52f8c99",
+      "allowedMaterialCategories": [
+        "Bútorlap",
+        "general"
+      ],
+      "model": "/models/shelves/shelf_bottom_standard_60.glb",
       "materialTarget": "Material",
       "materialOptions": [
         "Material"
       ],
       "attachmentPoints": [],
-      "price": 3200,
+      "price": 5600,
       "materialSource": "corpus"
     }
   ]

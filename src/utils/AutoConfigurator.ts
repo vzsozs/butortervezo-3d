@@ -59,7 +59,7 @@ export function generateSmartSchemas(
 
   // 1. Opció: Üres
   schemas.push({
-    id: `schema_${groupName}_none`,
+    id: `schema_${groupName}_0`,
     name: 'Nincs / Üres',
     apply: slotIds.reduce((acc, id) => ({ ...acc, [id]: null }), {}),
   })
@@ -84,11 +84,19 @@ export function generateSmartSchemas(
     })
   }
 
+  const isShelf =
+    groupName.toLowerCase().includes('shelf') || groupName.toLowerCase().includes('polc')
+
   return {
     groupId: `group_${groupName}_auto`,
     name: groupName.charAt(0).toUpperCase() + groupName.slice(1),
-    controlType: 'schema_select',
+    // Ha polc, akkor 'shelf_counter' típust adunk neki, egyébként marad a lista
+    controlType: isShelf ? 'shelf_counter' : 'schema_select',
     controlledSlots: slotIds,
     schemas: schemas,
-  }
+    meta: {
+      isShelf: isShelf,
+      maxCount: slotIds.length,
+    },
+  } as any
 }

@@ -24,10 +24,12 @@ const { components: storeComponents } = storeToRefs(configStore);
 
 const editableComponent = ref<Partial<ComponentConfig>>({});
 const selectedFile = ref<File | null>(null);
+
+// Zászló a belső frissítéshez
+const isInternalUpdate = ref(false);
+
 const isProcessing = ref(false);
 const modelMaterialOptions = ref<string[]>([]);
-
-// Checkbox állapotok
 const useMaterialSource = ref(false);
 
 // Elérhető típusok
@@ -43,26 +45,39 @@ const availableMaterialCategories = computed(() => {
   return Array.from(cats).sort();
 });
 
-// --- WATCHERS ---
+// --- WATCHER ---
 watch(() => props.component, (newComponent) => {
   const comp = newComponent ? JSON.parse(JSON.stringify(newComponent)) : {};
+  if (!comp.properties) comp.properties = {};
 
-  if (!comp.properties) {
-    comp.properties = {};
+  // 1. HA BELSŐ FRISSÍTÉS VOLT (Preview)
+  if (isInternalUpdate.value) {
+    console.log("🛡️ Belső frissítés (Preview) - Fájl megtartása.");
+    isInternalUpdate.value = false; // Zászló le
+  }
+  // 2. HA KÜLSŐ VÁLTÁS TÖRTÉNT
+  else {
+    const oldId = editableComponent.value?.id;
+    const newId = comp.id;
+
+    // Csak akkor törlünk, ha az ID különbözik (másik elemre kattintottál)
+    if (oldId !== newId) {
+      console.log(`♻️ Külső váltás (${oldId} -> ${newId}) - Fájl törlése.`);
+      selectedFile.value = null;
+    }
   }
 
+  // Adatok betöltése
   editableComponent.value = comp;
-  selectedFile.value = null;
-
   modelMaterialOptions.value = comp.materialOptions || [];
   if (!comp.allowedMaterialCategories) comp.allowedMaterialCategories = [];
-
   useMaterialSource.value = !!comp.materialSource;
+
 }, { immediate: true, deep: true });
 
-// Automatikus ID generálás
+// Automatikus ID generálás (Csak új elemnél, és ha NINCS fájl feltöltve)
 watch(() => editableComponent.value.name, (newName) => {
-  if (props.isNew && newName) {
+  if (props.isNew && newName && !isProcessing.value && !selectedFile.value) {
     editableComponent.value.id = newName.toLowerCase()
       .replace(/[áéíóöőúüű]/g, c => ({ 'á': 'a', 'é': 'e', 'í': 'i', 'ó': 'o', 'ö': 'o', 'ő': 'o', 'ú': 'u', 'ü': 'u', 'ű': 'u' }[c] || c))
       .replace(/\s+/g, '_')
@@ -70,57 +85,75 @@ watch(() => editableComponent.value.name, (newName) => {
   }
 });
 
-// --- LOGIKA ---
+// --- FÁJL KEZELÉS ---
 async function handleFileChange(event: Event) {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
+
   if (!file) return;
 
+  console.log("📂 Fájl kiválasztva:", file.name);
   selectedFile.value = file;
   isProcessing.value = true;
 
   try {
     const analysis = await analyzeModel(file);
-    const baseName = file.name.replace(/\.glb$/, '').replace(/_/g, ' ');
+
+    // 1. Fájlnév tisztítása (kiterjesztés nélkül)
+    const rawName = file.name.replace(/\.glb$/i, '');
+
+    // 2. Stilizált Név (Megjelenítéshez)
+    // - Alsóvonalak cseréje szóközre
+    // - Szavak kezdőbetűinek nagybetűsítése (opcionális, de szebb)
+    const stylizedName = rawName
+      .replace(/_/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    // 3. Biztonságos Fájlnév (Mentéshez)
+    // - Marad az eredeti kisbetűsítés + alsóvonalas logika a fájlrendszer miatt
+    const safeFileName = rawName.toLowerCase().replace(/\s+/g, '_');
+
+    // FONTOS: NEM VÁLTOZTATJUK MEG AZ ID-t!
+    // Ha megváltoztatnánk, a Vue újrarenderelné az egész komponenst, és elveszne a fájl.
+    // Csak a nevet és a modellt frissítjük.
 
     editableComponent.value = {
       ...editableComponent.value,
-      name: baseName,
-      id: baseName.toLowerCase().replace(/\s+/g, '_'),
-      model: `/models/${props.componentType}/${file.name}`,
+      name: stylizedName, // A név változhat
+      // id: baseName, // <--- EZT KIVETTÜK! Az ID marad a régi.
+
+      model: `/models/${props.componentType}/${safeFileName}`,
       materialTarget: analysis.materialNames[0] || '',
       materialOptions: analysis.materialNames,
-
       properties: {
         ...editableComponent.value.properties,
-        // JAVÍTÁS: Mivel a 3D modell méterben van, itt szorozzuk 1000-rel,
-        // hogy az UI-n és a DB-ben mm-ben legyen.
         height: analysis.height ? Math.round(analysis.height * 1000) : 0,
         width: analysis.width ? Math.round(analysis.width * 1000) : 0,
         depth: analysis.depth ? Math.round(analysis.depth * 1000) : 0,
       },
-
       attachmentPoints: analysis.attachmentPointNames.map(name => {
         const allowedTypes: string[] = [];
         const lowerName = name.toLowerCase();
-
         if (lowerName.includes('shelf')) allowedTypes.push('shelves');
         if (lowerName.includes('leg')) allowedTypes.push('legs');
         if (lowerName.includes('front') || lowerName.includes('door')) allowedTypes.push('fronts');
         if (lowerName.includes('drawer')) allowedTypes.push('drawers');
         if (lowerName.includes('handle')) allowedTypes.push('handles');
-
-        return {
-          id: name,
-          allowedComponentTypes: allowedTypes,
-        };
+        return { id: name, allowedComponentTypes: allowedTypes };
       }),
-    };
+    } as ComponentConfig;
+
     modelMaterialOptions.value = analysis.materialNames;
-    emit('preview', file, editableComponent.value);
+
+    // Zászló felhúzása (hogy a watcher ne töröljön, amikor visszajön az adat)
+    isInternalUpdate.value = true;
+
+    console.log("📤 Preview küldése...");
+    emit('preview', file, editableComponent.value as ComponentConfig);
 
   } catch (error) {
-    console.error("Modell hiba:", error);
+    console.error("❌ Modell hiba:", error);
     alert("Nem sikerült feldolgozni a modellt.");
     selectedFile.value = null;
   } finally {
@@ -139,7 +172,10 @@ function saveChanges() {
       return;
     }
 
-    emit('save', componentToSave as ComponentConfig, selectedFile.value);
+    console.log("💾 Mentés indítása. Fájl:", selectedFile.value);
+    emit('save', componentToSave, selectedFile.value);
+  } else {
+    console.error("Hiba: Nincs editableComponent!");
   }
 }
 

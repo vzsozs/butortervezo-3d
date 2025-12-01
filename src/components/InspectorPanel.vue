@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch, nextTick } from 'vue'
 import { useDraggable } from '@vueuse/core'
 import { useSelectionStore } from '@/stores/selection'
 import { useConfigStore } from '@/stores/config'
@@ -29,10 +29,135 @@ const furnitureDef = computed<FurnitureConfig | undefined>(() => {
 
 const currentState = computed(() => selectedObject.value?.userData.componentState || {})
 
-// --- DEBUG ---
+// --- AJTÓ LÁTHATÓSÁG KEZELÉS ---
+const areDoorsVisible = ref(true);
+
+// Bútor váltás figyelése
+watch(() => selectedObject.value?.uuid, async (newId) => {
+  // 1. UI állapot visszaállítása
+  areDoorsVisible.value = true;
+
+  if (!newId) return;
+
+  // 2. Várunk a Vue és a Three.js frissítésre
+  await nextTick();
+
+  // 3. Biztonsági késleltetés (200ms), hogy a modell biztosan betöltődjön
+  setTimeout(() => {
+    if (selectionStore.selectedObject) {
+      updateDoorVisibility(true);
+    }
+  }, 200);
+});
+
+function toggleDoors() {
+  areDoorsVisible.value = !areDoorsVisible.value;
+  updateDoorVisibility(areDoorsVisible.value);
+}
+
+function updateDoorVisibility(visible: boolean) {
+  if (!selectedObject.value) return;
+
+  selectedObject.value.traverse((child) => {
+    const name = child.name.toLowerCase();
+    const slotId = child.userData.slotId || '';
+
+    const isDoorOrFront =
+      name.includes('front') || name.includes('door') || name.includes('ajtó') ||
+      slotId.includes('front') || slotId.includes('door');
+
+    const isHandle =
+      name.includes('handle') || name.includes('fogantyú') ||
+      slotId.includes('handle');
+
+    if (isDoorOrFront || isHandle) {
+      child.visible = visible;
+    }
+  });
+}
+
+// --- POLC LOGIKA ---
+
+function hasShelfSchema(group: SlotGroup): boolean {
+  return group.schemas.some((s: any) => s.type === 'shelf' || (s.shelfConfig !== undefined));
+}
+
+function hasLayoutSchema(group: SlotGroup): boolean {
+  return group.schemas.some((s: any) => s.type !== 'shelf');
+}
+
+function getShelfCount(group: SlotGroup): number {
+  const currentSchemaId = getCurrentSchemaId(group);
+  let schema = group.schemas.find(s => s.id === currentSchemaId);
+
+  // Ha a jelenlegi nem polc, keressük meg az első polc sémát
+  if (!schema || (schema as any).type !== 'shelf') {
+    schema = group.schemas.find((s: any) => s.type === 'shelf');
+  }
+
+  if (schema && (schema as any).shelfConfig) {
+    return (schema as any).shelfConfig.count ?? 0;
+  }
+  return 0;
+}
+
+function setShelfCount(groupIndex: number, group: SlotGroup, count: number) {
+  // 1. AJTÓK ELREJTÉSE (hogy lássuk a polcokat)
+  if (areDoorsVisible.value) {
+    areDoorsVisible.value = false;
+    updateDoorVisibility(false);
+  }
+
+  // 2. SÉMA KERESÉSE
+  const shelfSchema = group.schemas.find((s: any) => s.type === 'shelf');
+  if (!shelfSchema || !(shelfSchema as any).shelfConfig) return;
+
+  const config = (shelfSchema as any).shelfConfig;
+  const isAutoMode = config.mode === 'auto';
+
+  // 3. LIMIT KEZELÉS
+  // Auto módban a maxShelves (vagy 10), Custom módban a fizikai slotok száma a limit
+  const maxSlots = (isAutoMode || group.controlledSlots.length === 0)
+    ? 10
+    : group.controlledSlots.length;
+
+  const safeCount = Math.max(0, Math.min(count, maxSlots));
+
+  // 4. CONFIG FRISSÍTÉSE
+  config.count = safeCount;
+
+  // 5. APPLY MAP KEZELÉSE
+  if (isAutoMode) {
+    // A) AUTO MÓD:
+    // Nem nyúlunk az 'apply'-hoz, mert a rendszer a 'shelfConfig.count' alapján generál.
+    // Esetleg törölhetjük a manuális bejegyzéseket, hogy ne zavarjanak be.
+  } else {
+    // B) CUSTOM MÓD (Fizikai slotok):
+    const componentId = config.componentId;
+    const newApply: Record<string, string | null> = { ...shelfSchema.apply };
+
+    if (group.controlledSlots.length > 0) {
+      group.controlledSlots.forEach((slotId, index) => {
+        newApply[slotId] = index < safeCount ? componentId : null;
+      });
+    } else {
+      // Fallback: Ha Custom mód, de nincsenek slotok (ritka hibaeset)
+      const baseName = group.name.toLowerCase().includes('polc') ? 'polc' : 'shelf';
+      for (let i = 1; i <= 10; i++) {
+        const generatedSlotId = `${baseName}_${i}`;
+        newApply[generatedSlotId] = i <= safeCount ? componentId : null;
+      }
+    }
+    shelfSchema.apply = newApply;
+  }
+
+  // 6. ALKALMAZÁS (Ez triggereli a 3D frissítést)
+  selectionStore.applySchema(groupIndex, shelfSchema.id);
+}
+
+// --- DEBUG & EGYÉB ---
 const debugComponentState = computed(() => currentState.value)
 
-// --- MÉRETEK ---
 const dimensions = computed(() => {
   if (!selectedObject.value || !currentConfig.value) return null;
   const corpusSlot = currentConfig.value.componentSlots.find(s => s.slotId.includes('corpus'));
@@ -51,29 +176,23 @@ const dimensions = computed(() => {
   return { width: '-', height: currentConfig.value.height ?? '-', depth: '-' }
 })
 
-// --- LISTÁK ---
 const slotGroups = computed(() => furnitureDef.value?.slotGroups ?? [])
 const materials = computed(() => configStore.materials)
 
-// --- 🎨 UI CSOPORTOSÍTÁS ---
+// --- UI CSOPORTOSÍTÁS ---
 interface DisplayGroup {
   id: string;
   label: string;
   slots: { slot: ComponentSlotConfig, displayName: string }[];
 }
 
-// Segédfüggvény: Kitalálja, melyik csoportba tartozik az elem
 function resolveGroupKey(slot: ComponentSlotConfig, activeComponentId: string): string {
-  // 1. Ha van aktív komponens, annak a típusa a döntő
   if (activeComponentId) {
     const comp = configStore.getComponentById(activeComponentId);
     if (comp?.componentType) return normalizeType(comp.componentType);
   }
-
-  // 2. Ha nincs, vagy nem egyértelmű, nézzük a Slot típusát
   if (slot.componentType) return normalizeType(slot.componentType);
 
-  // 3. Fallback: ID alapján tippelünk (pl. ha a típus hiányzik a configból)
   const lowerId = slot.slotId.toLowerCase();
   if (lowerId.includes('door') || lowerId.includes('front')) return 'fronts';
   if (lowerId.includes('drawer')) return 'drawers';
@@ -84,7 +203,6 @@ function resolveGroupKey(slot: ComponentSlotConfig, activeComponentId: string): 
   return 'others';
 }
 
-// Típusok normalizálása (hogy a 'front' és 'fronts' ugyanoda kerüljön)
 function normalizeType(type: string): string {
   if (type === 'front') return 'fronts';
   if (type === 'drawer') return 'drawers';
@@ -119,9 +237,11 @@ const displayGroups = computed<DisplayGroup[]>(() => {
     let groupKey = resolveGroupKey(slot, activeComponentId);
     if (!groups[groupKey]) groupKey = 'others';
 
-    const niceName = generateNiceName(slot.slotId, groupKey);
-
-    groups[groupKey].slots.push({ slot: slot, displayName: niceName });
+    const targetGroup = groups[groupKey];
+    if (targetGroup) {
+      const niceName = generateNiceName(slot.slotId, groupKey);
+      targetGroup.slots.push({ slot: slot, displayName: niceName });
+    }
   });
 
   return Object.values(groups)
@@ -133,10 +253,7 @@ const displayGroups = computed<DisplayGroup[]>(() => {
 });
 
 function generateNiceName(slotId: string, type: string): string {
-  // 1. Technikai prefixek takarítása (pl. root__attach_door_l -> door_l)
   const cleanId = slotId.replace(/^(root__)?(attach_)?/, '').toLowerCase();
-
-  // 2. Alap név meghatározása típus alapján
   let name = "Elem";
   if (type === 'fronts') name = "Ajtó";
   else if (type === 'handles') name = "Fogantyú";
@@ -145,22 +262,17 @@ function generateNiceName(slotId: string, type: string): string {
   else if (type === 'shelves') name = "Polc";
   else if (type === 'corpuses') name = "Korpusz";
 
-  // 3. Orientáció és Pozíció
   const prefixes: string[] = [];
-
   if (cleanId.includes('_l') || cleanId.includes('left') || cleanId.includes('bal')) prefixes.push("Bal");
   else if (cleanId.includes('_r') || cleanId.includes('right') || cleanId.includes('jobb')) prefixes.push("Jobb");
-
   if (cleanId.includes('vertical')) name += " (Függ.)";
   else if (cleanId.includes('horizontal')) name += " (Vízsz.)";
 
-  // 4. Számozás kinyerése (pl. drawer_1 -> 1. Fiók)
   const numberMatch = cleanId.match(/_(\d+)$/);
   if (numberMatch) {
     prefixes.unshift(`${numberMatch[1]}.`);
   }
 
-  // Ha a névben benne van, hogy "front", de fiók típusú, akkor "Fiókelőlap"-ra pontosítunk
   if (type === 'drawers' && cleanId.includes('front')) {
     name = "Fiókelőlap";
   }
@@ -168,8 +280,7 @@ function generateNiceName(slotId: string, type: string): string {
   return prefixes.length > 0 ? `${prefixes.join(' ')} ${name}` : name;
 }
 
-// --- 🧠 SMART LOGIC: HELPERS ---
-
+// --- SMART LOGIC: HELPERS & FINDERS ---
 function getOrientation(id: string): 'left' | 'right' | 'neutral' {
   if (!id) return 'neutral';
   const lowerId = id.toLowerCase();
@@ -193,117 +304,68 @@ function getCurrentStyleId(slotId: string): string | undefined {
   return comp?.styleId;
 }
 
-// --- 🧠 SMART LOGIC: FINDERS ---
-
-// 1. Megkeresi az összes elérhető STÍLUST az adott slotban lévő alkatrészhez
 function getAvailableStylesForSlot(slot: ComponentSlotConfig) {
   const currentId = getCurrentComponentId(slot.slotId);
   const currentComp = configStore.getComponentById(currentId);
   if (!currentComp || !currentComp.properties) return [];
 
-  // Alap tulajdonságok a kereséshez
   const w = currentComp.properties.width || 0;
   const h = currentComp.properties.height || 0;
   const orient = getOrientation(currentComp.id);
   const type = currentComp.componentType;
 
-  // Keresünk olyan stílusokat, amiknek van megfelelő méretű/típusú eleme
-  const availableStyles = configStore.styles.filter(style => {
-    // Van-e ebben a stílusban ilyen méretű/típusú elem?
+  return configStore.styles.filter(style => {
     return Object.values(configStore.components).some(category => {
       return category.some(candidate => {
         if (candidate.styleId !== style.id) return false;
         if (candidate.componentType !== type) return false;
 
-        // Méret ellenőrzés
         const cW = candidate.properties?.width || 0;
         const cH = candidate.properties?.height || 0;
         if (Math.abs(cW - w) > 2 || Math.abs(cH - h) > 2) return false;
 
-        // Orientáció ellenőrzés
         const cOrient = getOrientation(candidate.id);
         if (orient === 'left' && cOrient === 'right') return false;
         if (orient === 'right' && cOrient === 'left') return false;
 
-        return true; // Találtunk egy passzoló elemet ebben a stílusban!
+        return true;
       });
     });
   });
-
-  return availableStyles;
 }
 
-// 2. Megkeresi a konkrét Alkatrész ID-t, amikor stílust váltunk
 function findComponentIdByStyle(slotId: string, targetStyleId: string): string | null {
   const currentId = getCurrentComponentId(slotId);
   const currentComp = configStore.getComponentById(currentId);
+  if (!currentComp || !currentComp.properties) return null;
 
-  if (!currentComp || !currentComp.properties) {
-    console.warn("⚠️ A jelenlegi elemnek nincsenek tulajdonságai!");
-    return null;
-  }
-
-  // JAVÍTÁS: Típus keresése a Slot definícióból is (fallback)
   const slotDef = currentConfig.value?.componentSlots.find(s => s.slotId === slotId);
   const type = currentComp.componentType || slotDef?.componentType;
-
-  if (!type) {
-    console.error("❌ KRITIKUS HIBA: Nem sikerült meghatározni a komponens típusát (sem az adatból, sem a slotból).");
-    return null;
-  }
+  if (!type) return null;
 
   const w = Number(currentComp.properties.width || 0);
   const h = Number(currentComp.properties.height || 0);
   const orient = getOrientation(currentComp.id);
 
-  console.groupCollapsed(`🔍 SmartSwap Keresés: ${currentComp.name}`);
-  console.log(`Bázis: ${w}x${h}mm, ${orient}, Típus: ${type}`);
-  console.log(`Cél Stílus ID: ${targetStyleId}`);
-
   let bestMatch: string | null = null;
-
   const candidates = configStore.components[type] || [];
-  console.log(`Jelöltek száma a '${type}' kategóriában: ${candidates.length}`);
 
   for (const candidate of candidates) {
     if (candidate.styleId !== targetStyleId) continue;
-
     const cW = Number(candidate.properties?.width || 0);
     const cH = Number(candidate.properties?.height || 0);
     const cOrient = getOrientation(candidate.id);
 
-    console.log(`👉 Vizsgálat: ${candidate.name} (${candidate.id})`);
-    console.log(`   Adatok: ${cW}x${cH}mm, ${cOrient}`);
+    if (Math.abs(cW - w) > 2 || Math.abs(cH - h) > 2) continue;
+    if (orient === 'left' && cOrient === 'right') continue;
+    if (orient === 'right' && cOrient === 'left') continue;
 
-    // Méret ellenőrzés
-    const diffW = Math.abs(cW - w);
-    const diffH = Math.abs(cH - h);
-
-    if (diffW > 2 || diffH > 2) {
-      console.log(`   ❌ KIESETT: Méret eltérés (W:${diffW}, H:${diffH})`);
-      continue;
-    }
-
-    // Orientáció ellenőrzés
-    if (orient === 'left' && cOrient === 'right') {
-      console.log(`   ❌ KIESETT: Orientáció (Balos helyre Jobbos)`);
-      continue;
-    }
-    if (orient === 'right' && cOrient === 'left') {
-      console.log(`   ❌ KIESETT: Orientáció (Jobbos helyre Balos)`);
-      continue;
-    }
-
-    console.log(`   ✅ TALÁLAT!`);
     bestMatch = candidate.id;
     break;
   }
-
-  console.groupEnd();
   return bestMatch;
 }
 
-// --- RÉGI FILTER (Fallback azokhoz, amiknek nincs stílusa) ---
 function getFilteredComponentsFallback(slot: ComponentSlotConfig) {
   let candidates = slot.allowedComponents
     .map(id => configStore.getComponentById(id))
@@ -319,26 +381,19 @@ function getFilteredComponentsFallback(slot: ComponentSlotConfig) {
 }
 
 // --- ACTIONS ---
-
 function handleGroupChange(groupIndex: number, schemaId: string) {
   selectionStore.applySchema(groupIndex, schemaId)
 }
 
-// Stílus váltás kezelő
 function handleStyleChange(slotId: string, newStyleId: string) {
-  console.log(`[SmartSwap] Stílus váltás kérés: ${newStyleId}`);
   const newComponentId = findComponentIdByStyle(slotId, newStyleId);
-
   if (newComponentId) {
-    console.log(`   -> Találat: ${newComponentId}`);
     selectionStore.changeStyle(slotId, newComponentId);
   } else {
-    console.warn(`   -> Nincs megfelelő méretű elem ebben a stílusban!`);
     alert("Ehhez a mérethez/pozícióhoz nem található elem a választott stílusban.");
   }
 }
 
-// Hagyományos komponens váltás
 function handleComponentChange(slotId: string, componentId: string) {
   if (componentId) selectionStore.changeStyle(slotId, componentId);
 }
@@ -370,6 +425,9 @@ function getCurrentSchemaId(group: SlotGroup): string {
     }
     if (match) return schema.id
   }
+  const layoutSchema = group.schemas.find((s: any) => s.type !== 'shelf');
+  if (layoutSchema) return layoutSchema.id;
+
   return ''
 }
 </script>
@@ -404,18 +462,26 @@ function getCurrentSchemaId(group: SlotGroup): string {
       <!-- Layouts -->
       <div v-if="slotGroups.length > 0">
         <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Elrendezés</h3>
-        <div class="space-y-3">
+        <div class="space-y-4">
           <div v-for="(group, index) in slotGroups" :key="group.groupId">
-            <label class="block text-xs font-medium text-gray-400 mb-1.5">{{ group.name }}</label>
-            <div class="relative group">
+
+            <!-- CÍMSOR -->
+            <label class="block text-xs font-medium text-gray-400 mb-1.5">
+              {{ group.name }}
+            </label>
+
+            <!-- 1. LEGÖRDÜLŐ LISTA (Layouts) - Csak ha van NEM polc séma -->
+            <div v-if="hasLayoutSchema(group)" class="relative group mb-2">
               <select
                 class="w-full bg-[#2a2a2a] border border-gray-700 text-gray-200 text-xs rounded-md py-2 pl-2 pr-8 appearance-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors cursor-pointer hover:bg-[#333]"
                 @change="handleGroupChange(index, ($event.target as HTMLSelectElement).value)"
                 :value="getCurrentSchemaId(group)">
                 <option value="" disabled>Válassz...</option>
-                <option v-for="schema in group.schemas" :key="schema.id" :value="schema.id">
-                  {{ schema.name }}
-                </option>
+                <template v-for="schema in group.schemas" :key="schema.id">
+                  <option v-if="(schema as any).type !== 'shelf'" :value="schema.id">
+                    {{ schema.name }}
+                  </option>
+                </template>
               </select>
               <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
                 <svg class="fill-current h-3 w-3" viewBox="0 0 20 20">
@@ -423,11 +489,43 @@ function getCurrentSchemaId(group: SlotGroup): string {
                 </svg>
               </div>
             </div>
+
+            <!-- 2. POLC INPUT MEZŐ - Csak ha van polc séma -->
+            <div v-if="hasShelfSchema(group)"
+              class="flex items-center gap-2 bg-[#252525] p-2 rounded-md border border-gray-800 mt-2">
+              <span class="text-[11px] text-gray-400 uppercase font-bold">Polcok:</span>
+
+              <div class="relative flex-1">
+                <input type="number" min="0" :max="group.controlledSlots.length > 0 ? group.controlledSlots.length : 10"
+                  :value="getShelfCount(group)"
+                  @input="setShelfCount(index, group, parseInt(($event.target as HTMLInputElement).value))"
+                  class="w-full bg-[#333] border border-gray-600 text-white text-sm font-bold rounded py-1 pl-2 pr-8 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors appearance-none" />
+                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs">db</span>
+              </div>
+
+              <!-- SZEM IKON -->
+              <button @click="toggleDoors" title="Ajtók megjelenítése/elrejtése"
+                class="flex items-center justify-center w-7 h-7 rounded transition-all"
+                :class="areDoorsVisible ? 'text-gray-500 hover:text-white hover:bg-gray-700' : 'text-yellow-500 bg-yellow-500/10 hover:bg-yellow-500/20'">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path v-if="areDoorsVisible" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path v-if="areDoorsVisible" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  <path v-else stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                </svg>
+              </button>
+
+              <span class="text-[10px] text-gray-500 w-10 text-right">Max: {{ group.controlledSlots.length > 0 ?
+                group.controlledSlots.length : 10 }}</span>
+            </div>
+
           </div>
         </div>
       </div>
 
-      <!-- CSOPORTOSÍTOTT LISTA -->
+      <!-- CSOPORTOSÍTOTT LISTA (Részletek) - VÁLTOZATLAN -->
       <div v-if="displayGroups.length > 0">
         <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4 pt-4 border-t border-gray-800">
           Részletek</h3>
@@ -445,7 +543,6 @@ function getCurrentSchemaId(group: SlotGroup): string {
 
               <div class="flex justify-between items-center">
                 <span class="text-[11px] text-gray-400">{{ item.displayName }}</span>
-                <!-- Ha nincs stílus, de van név, kiírjuk -->
                 <span v-if="!getCurrentStyleId(item.slot.slotId)" class="text-[10px] text-gray-600 italic">
                   {{ getComponentName(getCurrentComponentId(item.slot.slotId)) }}
                 </span>
@@ -453,13 +550,12 @@ function getCurrentSchemaId(group: SlotGroup): string {
 
               <div class="grid gap-2" :class="(shouldShowMaterialSelector(item.slot)) ? 'grid-cols-2' : 'grid-cols-1'">
 
-                <!-- A) STÍLUS VÁLASZTÓ (HA VAN STÍLUSA) -->
+                <!-- STÍLUS VÁLASZTÓ -->
                 <div v-if="getCurrentStyleId(item.slot.slotId)">
                   <div class="relative group">
                     <select :value="getCurrentStyleId(item.slot.slotId)"
                       @change="handleStyleChange(item.slot.slotId, ($event.target as HTMLSelectElement).value)"
                       class="w-full bg-[#2a2a2a] border border-blue-500/30 text-blue-100 font-bold text-[11px] rounded py-1.5 pl-2 pr-4 appearance-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 hover:bg-[#333] transition-colors">
-                      <!-- Listázza az összes stílust, amiben van ilyen méretű elem -->
                       <option v-for="style in getAvailableStylesForSlot(item.slot)" :key="style.id" :value="style.id">
                         {{ style.name }}
                       </option>
@@ -472,7 +568,7 @@ function getCurrentSchemaId(group: SlotGroup): string {
                   </div>
                 </div>
 
-                <!-- B) KOMPONENS VÁLASZTÓ (FALLBACK - HA NINCS STÍLUSA) -->
+                <!-- KOMPONENS VÁLASZTÓ -->
                 <div v-else-if="getFilteredComponentsFallback(item.slot).length > 1">
                   <div class="relative group">
                     <select :value="getCurrentComponentId(item.slot.slotId)"
@@ -520,7 +616,7 @@ function getCurrentSchemaId(group: SlotGroup): string {
 
     </div>
 
-    <!-- FOOTER -->
+    <!-- FOOTER (Változatlan) -->
     <div class="p-3 bg-[#1a1a1a] border-t border-gray-800 grid grid-cols-2 gap-3" @mousedown.stop>
       <button @click="handleDuplicate"
         class="flex items-center justify-center gap-2 px-3 py-2 bg-[#2a2a2a] border border-gray-700 rounded text-xs font-medium text-blue-400 hover:bg-[#333] hover:border-blue-500/50 transition-all">
@@ -542,7 +638,7 @@ function getCurrentSchemaId(group: SlotGroup): string {
       </button>
     </div>
 
-    <!-- DEBUG PANEL -->
+    <!-- DEBUG PANEL (Változatlan) -->
     <div
       class="p-3 bg-black/80 text-[10px] font-mono text-gray-400 border-t border-gray-800 overflow-x-auto max-h-40 custom-scrollbar"
       @mousedown.stop>
@@ -559,23 +655,3 @@ function getCurrentSchemaId(group: SlotGroup): string {
 
   </div>
 </template>
-
-<style scoped>
-.custom-scrollbar::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: #1e1e1e;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #4b5563;
-  border-radius: 2px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #60a5fa;
-}
-</style>
