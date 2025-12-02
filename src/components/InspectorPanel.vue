@@ -554,23 +554,30 @@ function getCurrentSchemaId(group: SlotGroup): string {
 
 // ÚJ FÜGGVÉNY: Ez kezeli, hogy mit mutasson a legördülő lista
 function getLayoutDropdownValue(group: SlotGroup): string {
-  // 1. Lekérjük a tényleges aktív sémát
-  const activeId = getCurrentSchemaId(group);
-  const activeSchema = group.schemas.find(s => s.id === activeId);
+  const currentState = selectedObject.value?.userData.componentState || {}
 
-  // 2. Ha az aktív séma egy Layout (tehát NEM polc), akkor azt mutatjuk
-  if (activeSchema && activeSchema.type !== 'shelf') {
-    return activeId;
-  }
+  // 1. Keressünk olyan sémát, ami illeszkedik a jelenlegi állapothoz ÉS NEM polc típusú
+  const layoutSchema = group.schemas.find(schema => {
+    if ((schema as any).type === 'shelf') return false; // Polcokat kihagyjuk
 
-  // 3. Ha Polc van kiválasztva (vagy semmi), akkor a Default Layout-ot mutatjuk
-  // Így sosem lesz üres a mező, és mindig az adminban beállított alapértelmezett látszik
+    // Üres apply objektum nem illeszkedik (kivéve ha speciális logika van rá, de layoutnál általában kell apply)
+    if (Object.keys(schema.apply).length === 0) return false;
+
+    for (const [slotId, compId] of Object.entries(schema.apply)) {
+      if (currentState[slotId] !== compId) return false;
+    }
+    return true;
+  });
+
+  if (layoutSchema) return layoutSchema.id;
+
+  // 2. Ha nincs illeszkedő layout, akkor jöhet a default
   if (group.defaultSchemaId) {
     return group.defaultSchemaId;
   }
 
-  // 4. Végső fallback: az első nem-polc séma a listából
-  const firstLayout = group.schemas.find(s => s.type !== 'shelf');
+  // 3. Végső fallback: az első nem-polc séma a listából
+  const firstLayout = group.schemas.find(s => (s as any).type !== 'shelf');
   return firstLayout ? firstLayout.id : '';
 }
 

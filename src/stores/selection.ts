@@ -131,7 +131,13 @@ export const useSelectionStore = defineStore('selection', () => {
 
         if (slotType === 'corpuses') return
 
-        if ((slotType && targetTypes.has(slotType)) || slotId.includes('attach_')) {
+        // JAVÍTÁS: Polc módosításnál NE töröljük az attach_ slotokat (ajtók, stb.)
+        // Csak akkor törlünk attach_ slotot, ha NEM polc sémát alkalmazunk,
+        // VAGY ha az adott slot típusa benne van a törlendők között.
+        const isShelfUpdate = schema.type === 'shelf'
+        const shouldDeleteAttach = !isShelfUpdate && slotId.includes('attach_')
+
+        if ((slotType && targetTypes.has(slotType)) || shouldDeleteAttach) {
           delete currentComponentState[slotId]
         }
       }
