@@ -63,7 +63,7 @@ watch(() => selectedObject.value, async (newObj, oldObj) => {
   // Frissítjük az utolsó ismert objektumot
   lastKnownObject.value = newObj;
 
-  const newUuid = newObj.uuid;
+  //const newUuid = newObj.uuid;
   const currentId = currentConfig.value?.id;
 
   // 2. ÚJ BÚTOR KIJELÖLÉSE
@@ -72,11 +72,13 @@ watch(() => selectedObject.value, async (newObj, oldObj) => {
 
   if (isNewFurniture) {
     log(`New furniture selected. Resetting view.`);
-    areDoorsVisible.value = true; // Alaphelyzet: látható
+    areDoorsVisible.value = true;
     lastConfigId.value = currentId || null;
 
     await nextTick();
-    checkDefaults();
+
+    // 🔥 JAVÍTÁS: await használata
+    await checkDefaults();
   } else {
     // 3. UGYANAZ A BÚTOR (pl. polc állítás miatti újragenerálás)
     // Ilyenkor NEM bántjuk az areDoorsVisible értékét, marad, ami volt (pl. false)
@@ -124,17 +126,44 @@ function forceRestoreVisibility(object: any) {
 }
 
 
-function checkDefaults() {
+async function checkDefaults() {
   const def = furnitureDef.value;
-  // JAVÍTÁS: Biztonságos ellenőrzés (?.)
-  if (!def?.slotGroups) return;
+  // Ha nincs slotGroups, vagy üres, akkor ez egy egyszerű bútor -> KÉSZ, nem kell csinálni semmit.
+  if (!def?.slotGroups || def.slotGroups.length === 0) return;
 
-  def.slotGroups.forEach((group, index) => {
-    const currentSchema = getCurrentSchemaId(group);
-    if (!currentSchema && group.defaultSchemaId) {
-      selectionStore.applySchema(index, group.defaultSchemaId);
+  for (const [index, group] of def.slotGroups.entries()) {
+    if (!group.defaultSchemaId) continue;
+
+    const defaultSchema = group.schemas.find((s: any) => s.id === group.defaultSchemaId);
+    if (!defaultSchema) continue;
+
+    const state = currentState.value;
+    let needsUpdate = false;
+
+    // 1. Layout ellenőrzés (Apply lista alapján)
+    if (defaultSchema.apply && Object.keys(defaultSchema.apply).length > 0) {
+      for (const requiredSlot of Object.keys(defaultSchema.apply)) {
+        // Ha a state-ből hiányzik egy olyan slot, amit a séma megkövetel (pl. root__...),
+        // akkor biztosan frissíteni kell.
+        if (!state[requiredSlot]) {
+          needsUpdate = true;
+          break;
+        }
+      }
     }
-  });
+
+    // 2. Polc ellenőrzés
+    if (defaultSchema.type === 'shelf' && (defaultSchema as any).shelfConfig?.count > 0) {
+      const hasShelves = Object.keys(state).some(k => k.startsWith('shelf_'));
+      if (!hasShelves) needsUpdate = true;
+    }
+
+    // Csak akkor alkalmazzuk, ha tényleg indokolt!
+    if (needsUpdate) {
+      console.log(`[Inspector] 🛠️ Kezdeti állapot konvertálása: ${defaultSchema.name}`);
+      await selectionStore.applySchema(index, group.defaultSchemaId);
+    }
+  }
 }
 
 function toggleDoors() {
@@ -298,36 +327,74 @@ const dimensions = computed(() => {
 const slotGroups = computed(() => furnitureDef.value?.slotGroups ?? [])
 const materials = computed(() => configStore.materials)
 
+// --- UI CSOPORTOSÍTÁS DEFINÍCIÓK ---
+
+// Egy "Vezérlő" a felületen. Ez lehet egyetlen slot, vagy több slot összevonva.
+interface InspectorControl {
+  id: string;           // Egyedi azonosító a v-for-hoz
+  label: string;        // A felirat (pl. "Bal Ajtó" vagy "Közös beállítás")
+  slots: ComponentSlotConfig[]; // Az érintett slotok listája (lehet 1 vagy több)
+  referenceSlot: ComponentSlotConfig; // Referencia a dropdown tartalmához (allowedComponents)
+  currentValue: string; // A jelenleg kiválasztott érték (az első slot alapján)
+  isGrouped: boolean;   // Jelzi, ha ez egy összevont vezérlő
+}
+
+
 // --- UI CSOPORTOSÍTÁS ---
 interface DisplayGroup {
   id: string;
   label: string;
-  slots: { slot: ComponentSlotConfig, displayName: string }[];
+  controls: InspectorControl[];
 }
 
 function resolveGroupKey(slot: ComponentSlotConfig, activeComponentId: string): string {
+  // 1. Ha van aktív komponens, annak a típusa a döntő (ez a legbiztosabb)
   if (activeComponentId) {
     const comp = configStore.getComponentById(activeComponentId);
-    if (comp?.componentType) return normalizeType(comp.componentType);
+    if (comp?.componentType) {
+      const group = normalizeType(comp.componentType);
+      if (group !== 'others') return group;
+    }
   }
-  if (slot.componentType) return normalizeType(slot.componentType);
 
-  const lowerId = slot.slotId.toLowerCase();
-  if (lowerId.includes('door') || lowerId.includes('front')) return 'fronts';
-  if (lowerId.includes('drawer')) return 'drawers';
-  if (lowerId.includes('leg') || lowerId.includes('lab')) return 'legs';
-  if (lowerId.includes('handle') || lowerId.includes('fogantyu')) return 'handles';
-  if (lowerId.includes('shelf') || lowerId.includes('polc')) return 'shelves';
+  // 2. Ha a slot definícióban van típus
+  if (slot.componentType) {
+    const group = normalizeType(slot.componentType);
+    if (group !== 'others') return group;
+  }
+
+  // 3. ID alapú detektálás (Hierarchia kezeléssel!)
+  // A teljes 'root__attach_front__attach_handle' helyett csak az utolsó tagot nézzük: 'attach_handle'
+  const fullId = slot.slotId.toLowerCase();
+  const localId = fullId.split('__').pop() || fullId;
+
+  // Fontos: A sorrend számít, de a localId miatt már biztonságosabb
+  if (localId.includes('handle') || localId.includes('fogantyu')) return 'handles';
+  if (localId.includes('leg') || localId.includes('lab')) return 'legs';
+  if (localId.includes('drawer') || localId.includes('fiok')) return 'drawers';
+
+  // A 'front' vizsgálatnál kizárjuk, ha csak a szülő nevében szerepelt (bár a split már megoldotta)
+  if (localId.includes('door') || localId.includes('front') || localId.includes('ajto')) return 'fronts';
+
+  if (localId.includes('shelf') || localId.includes('polc')) return 'shelves';
+  if (localId.includes('corpus') || localId.includes('korpusz')) return 'corpuses';
 
   return 'others';
 }
 
-function normalizeType(type: string): string {
+function normalizeType(type: string | undefined): string {
+  if (!type) return 'others';
+  const t = type.toLowerCase();
+
   const map: Record<string, string> = {
-    'front': 'fronts', 'drawer': 'drawers', 'leg': 'legs',
-    'handle': 'handles', 'shelf': 'shelves', 'corpuses': 'corpuses'
+    'front': 'fronts', 'fronts': 'fronts', 'door': 'fronts', 'doors': 'fronts',
+    'drawer': 'drawers', 'drawers': 'drawers',
+    'leg': 'legs', 'legs': 'legs',
+    'handle': 'handles', 'handles': 'handles',
+    'shelf': 'shelves', 'shelves': 'shelves',
+    'corpus': 'corpuses', 'corpuses': 'corpuses'
   };
-  return map[type] || type;
+  return map[t] || 'others';
 }
 
 const displayGroups = computed<DisplayGroup[]>(() => {
@@ -335,45 +402,179 @@ const displayGroups = computed<DisplayGroup[]>(() => {
   const state = currentState.value || {};
   if (slots.length === 0) return [];
 
-  const groups: Record<string, DisplayGroup> = {
-    corpuses: { id: 'corpuses', label: 'Korpusz', slots: [] },
-    fronts: { id: 'fronts', label: 'Ajtók / Előlapok', slots: [] },
-    drawers: { id: 'drawers', label: 'Fiókok', slots: [] },
-    handles: { id: 'handles', label: 'Fogantyúk', slots: [] },
-    legs: { id: 'legs', label: 'Lábak', slots: [] },
-    shelves: { id: 'shelves', label: 'Polcok', slots: [] },
-    others: { id: 'others', label: 'Egyéb Elemek', slots: [] }
+  // 1. Gyűjtés
+  // JAVÍTÁS: Explicit típusdefiníció a rawGroups-hoz, hogy ne legyen 'undefined' hiba
+  const rawGroups: Record<string, { slot: ComponentSlotConfig, displayName: string }[]> = {
+    corpuses: [], fronts: [], drawers: [], handles: [], legs: [], shelves: [], others: []
   };
 
-  // JAVÍTÁS: A te verziód beépítve
+  const groupLabels: Record<string, string> = {
+    corpuses: 'Korpusz', fronts: 'Ajtók / Frontok', drawers: 'Fiókok',
+    handles: 'Fogantyúk', legs: 'Lábak', shelves: 'Polcok', others: 'Egyéb Elemek'
+  };
+
   slots.forEach(slot => {
     const activeComponentId = state[slot.slotId] || '';
     const isCorpus = slot.componentType === 'corpuses';
+
     if (!activeComponentId && !isCorpus) return;
 
     let groupKey = resolveGroupKey(slot, activeComponentId);
-    let targetGroup = groups[groupKey];
 
-    if (!targetGroup) {
-      groupKey = 'others';
-      targetGroup = groups['others'];
+    // Biztonsági ellenőrzés: ha a kulcs nincs a listában, menjen az others-be
+    if (!rawGroups[groupKey]) groupKey = 'others';
+
+    rawGroups[groupKey]?.push({
+      slot: slot,
+      displayName: generateNiceName(slot.slotId, groupKey)
+    });
+  });
+
+  // 2. Összevonás
+  return Object.entries(rawGroups)
+    .filter(([_, items]) => items.length > 0)
+    .map(([key, items]) => {
+      const controls: InspectorControl[] = [];
+      const shouldGroup = ['fronts', 'handles', 'shelves', 'legs', 'drawers'].includes(key);
+
+      if (shouldGroup && items.length > 1) {
+        // --- ÖSSZEVONT NÉZET ---
+        const allSlots = items.map(i => i.slot);
+        const firstSlot = allSlots[0];
+
+        // JAVÍTÁS: TypeScript ellenőrzés. Ha van items, akkor van firstSlot is.
+        if (firstSlot) {
+          const currentVal = state[firstSlot.slotId] || '';
+          controls.push({
+            id: `group_${key}_unified`,
+            label: 'Közös stílus',
+            slots: allSlots,
+            referenceSlot: firstSlot, // Itt már biztosan nem undefined
+            currentValue: currentVal,
+            isGrouped: true
+          });
+        }
+
+      } else {
+        // --- EGYEDI NÉZET ---
+        items.sort((a, b) => a.displayName.localeCompare(b.displayName, undefined, { numeric: true }));
+
+        items.forEach(item => {
+          controls.push({
+            id: item.slot.slotId,
+            label: item.displayName,
+            slots: [item.slot],
+            referenceSlot: item.slot,
+            currentValue: state[item.slot.slotId] || '',
+            isGrouped: false
+          });
+        });
+      }
+
+      return {
+        id: key,
+        label: groupLabels[key] || 'Egyéb',
+        controls: controls // Ez most már passzol az interface-hez
+      };
+    });
+});
+
+// --- ÚJ ACTION: TÖMEGES VÁLTÁS ---
+function handleUnifiedChange(control: InspectorControl, newValue: string) {
+  if (!newValue) return;
+
+  const firstSlot = control.slots[0];
+  if (!firstSlot) return;
+
+  // Típus meghatározása
+  const currentId = selectedObject.value?.userData.componentState?.[firstSlot.slotId];
+  const comp = configStore.getComponentById(currentId || '');
+  const type = normalizeType(comp?.componentType || control.referenceSlot.componentType);
+
+  const isStyleChange = type === 'fronts';
+
+  // 📦 VÁLTOZÁSOK GYŰJTÉSE
+  const updates: Record<string, string> = {};
+
+  control.slots.forEach(slot => {
+    if (isStyleChange) {
+      // --- STÍLUS VÁLTÁS ---
+      const compatibleId = findComponentIdByStyle(slot.slotId, newValue);
+
+      if (compatibleId) {
+        updates[slot.slotId] = compatibleId; // Gyűjtjük
+      } else {
+        console.warn(`Nem található elem ehhez: ${slot.slotId}, Stílus: ${newValue}`);
+      }
+
+    } else {
+      // --- DIREKT VÁLTÁS ---
+      updates[slot.slotId] = newValue; // Gyűjtjük
     }
+  });
 
-    if (targetGroup) {
-      targetGroup.slots.push({
-        slot: slot,
-        displayName: generateNiceName(slot.slotId, groupKey)
+  // 🔥 EGYETLEN HÍVÁS A STORE FELÉ
+  if (Object.keys(updates).length > 0) {
+    selectionStore.changeStyles(updates);
+  }
+}
+
+// --- OPTION HELPERS ---
+
+// Ez dönti el, hogy mit látunk a legördülőben
+function getOptionsForControl(control: InspectorControl) {
+  // 1. Megnézzük az aktív elemet
+  const activeId = selectedObject.value?.userData.componentState?.[control.referenceSlot.slotId];
+  const activeComp = configStore.getComponentById(activeId || '');
+
+  // 2. A típus most már biztosan ott van az elemen (vagy a sloton)
+  // A normalizeType kezeli, ha esetleg "front" lenne írva "fronts" helyett
+  const rawType = activeComp?.componentType || control.referenceSlot.componentType;
+  const type = normalizeType(rawType);
+
+  // A) AJTÓK -> STÍLUSOK LISTÁZÁSA
+  if (type === 'fronts') {
+    return configStore.styles.map(style => ({
+      label: style.name,
+      value: style.id
+    }));
+  }
+
+  // B) EGYEBEK -> KOMPONENSEK LISTÁZÁSA
+  const candidates = getFilteredComponentsFallback(control.referenceSlot);
+
+  const uniqueItems = new Map();
+  candidates.forEach(comp => {
+    if (!uniqueItems.has(comp.id)) {
+      uniqueItems.set(comp.id, {
+        label: comp.name,
+        value: comp.id
       });
     }
   });
 
-  return Object.values(groups)
-    .filter(g => g.slots.length > 0)
-    .map(g => {
-      g.slots.sort((a, b) => a.displayName.localeCompare(b.displayName, undefined, { numeric: true }));
-      return g;
-    });
-});
+  return Array.from(uniqueItems.values());
+}
+
+// Ez mondja meg, mi az aktuálisan kiválasztott érték
+function getCurrentControlValue(control: InspectorControl): string {
+  const firstSlot = control.slots[0];
+  if (!firstSlot) return '';
+
+  const currentCompId = selectedObject.value?.userData.componentState?.[firstSlot.slotId];
+  if (!currentCompId) return '';
+
+  const comp = configStore.getComponentById(currentCompId);
+  const type = normalizeType(comp?.componentType || control.referenceSlot.componentType);
+
+  // Ha Ajtó, akkor a STÍLUS ID kell a legördülőnek
+  if (type === 'fronts') {
+    return comp?.styleId || '';
+  }
+
+  // Minden másnál a KOMPONENS ID
+  return currentCompId;
+}
 
 function generateNiceName(slotId: string, type: string): string {
   const cleanId = slotId.replace(/^(root__)?(attach_)?/, '').toLowerCase();
@@ -409,66 +610,31 @@ function getOrientation(id: string): 'left' | 'right' | 'neutral' {
   return 'neutral';
 }
 
-function getComponentName(id: string): string {
-  return configStore.getComponentById(id)?.name || id
-}
-
-function getCurrentComponentId(slotId: string): string {
-  return selectedObject.value?.userData.componentState?.[slotId] || ''
-}
-
-function getCurrentStyleId(slotId: string): string | undefined {
-  const comp = configStore.getComponentById(getCurrentComponentId(slotId));
-  return comp?.styleId;
-}
-
-function getAvailableStylesForSlot(slot: ComponentSlotConfig) {
-  const currentComp = configStore.getComponentById(getCurrentComponentId(slot.slotId));
-  if (!currentComp?.properties) return [];
-
-  const { width: w, height: h } = currentComp.properties;
-  const orient = getOrientation(currentComp.id);
-  const type = currentComp.componentType;
-
-  return configStore.styles.filter(style => {
-    return Object.values(configStore.components).some(category => {
-      return category.some(candidate => {
-        if (candidate.styleId !== style.id) return false;
-        if (candidate.componentType !== type) return false;
-
-        const cW = candidate.properties?.width || 0;
-        const cH = candidate.properties?.height || 0;
-        if (Math.abs(cW - (w || 0)) > 2 || Math.abs(cH - (h || 0)) > 2) return false;
-
-        const cOrient = getOrientation(candidate.id);
-        if ((orient === 'left' && cOrient === 'right') || (orient === 'right' && cOrient === 'left')) return false;
-
-        return true;
-      });
-    });
-  });
-}
-
 function findComponentIdByStyle(slotId: string, targetStyleId: string): string | null {
-  const currentComp = configStore.getComponentById(getCurrentComponentId(slotId));
+  const currentId = selectedObject.value?.userData.componentState?.[slotId];
+  const currentComp = configStore.getComponentById(currentId || '');
+
   if (!currentComp?.properties) return null;
 
-  const type = currentComp.componentType;
-  if (!type) return null;
+  // Most már egyszerűen olvassuk a típust, nem kell nyomozni
+  const typeKey = normalizeType(currentComp.componentType);
 
+  const candidates = configStore.components[typeKey] || [];
   const { width: w, height: h } = currentComp.properties;
   const orient = getOrientation(currentComp.id);
-
-  const candidates = configStore.components[type] || [];
 
   for (const candidate of candidates) {
     if (candidate.styleId !== targetStyleId) continue;
+
     const cW = Number(candidate.properties?.width || 0);
     const cH = Number(candidate.properties?.height || 0);
     const cOrient = getOrientation(candidate.id);
 
-    if (Math.abs(cW - (Number(w) || 0)) > 2 || Math.abs(cH - (Number(h) || 0)) > 2) continue;
-    if ((orient === 'left' && cOrient === 'right') || (orient === 'right' && cOrient === 'left')) continue;
+    if (Math.abs(cW - (Number(w) || 0)) > 2) continue;
+    if (Math.abs(cH - (Number(h) || 0)) > 2) continue;
+
+    if (orient === 'left' && cOrient === 'right') continue;
+    if (orient === 'right' && cOrient === 'left') continue;
 
     return candidate.id;
   }
@@ -492,23 +658,6 @@ function getFilteredComponentsFallback(slot: ComponentSlotConfig) {
 // --- ACTIONS ---
 function handleGroupChange(groupIndex: number, schemaId: string) {
   selectionStore.applySchema(groupIndex, schemaId)
-}
-
-function handleStyleChange(slotId: string, newStyleId: string) {
-  const newComponentId = findComponentIdByStyle(slotId, newStyleId);
-  if (newComponentId) {
-    selectionStore.changeStyle(slotId, newComponentId);
-  } else {
-    alert("Ehhez a mérethez/pozícióhoz nem található elem a választott stílusban.");
-  }
-}
-
-function handleComponentChange(slotId: string, componentId: string) {
-  if (componentId) selectionStore.changeStyle(slotId, componentId);
-}
-
-function handleMaterialChange(slotId: string, materialId: string) {
-  if (materialId) selectionStore.changeMaterial(slotId, materialId);
 }
 
 function handleDuplicate() { selectionStore.duplicateSelectedObject() }
@@ -586,8 +735,15 @@ const debugComponentState = computed(() => currentState.value)
 
 <template>
   <div v-if="selectedObject && furnitureDef" ref="panelRef" :style="style"
-    class="fixed w-80 bg-[#1e1e1e] border border-gray-700 shadow-2xl rounded-lg flex flex-col z-50 overflow-hidden"
-    style="max-height: 90vh;">
+    class="fixed w-80 bg-[#1e1e1e] border border-gray-700 shadow-2xl rounded-lg flex flex-col z-50 overflow-hidden transition-opacity duration-200"
+    :class="{ 'opacity-80 pointer-events-none select-none': selectionStore.isBusy }" style="max-height: 90vh;">
+
+    <!-- 🔥 BUSY STATE OVERLAY (TÖLTŐ KÉPERNYŐ) -->
+    <div v-if="selectionStore.isBusy"
+      class="absolute inset-0 z-[60] flex flex-col items-center justify-center bg-black/40 backdrop-blur-[2px]">
+      <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-2"></div>
+      <span class="text-xs text-blue-200 font-mono animate-pulse">Frissítés...</span>
+    </div>
 
     <!-- HEADER -->
     <div ref="dragHandleRef"
@@ -628,8 +784,6 @@ const debugComponentState = computed(() => currentState.value)
                 class="w-full bg-[#2a2a2a] border border-gray-700 text-gray-200 text-xs rounded-md py-2 pl-2 pr-8 appearance-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors cursor-pointer hover:bg-[#333]"
                 @change="handleGroupChange(index, ($event.target as HTMLSelectElement).value)"
                 :value="getLayoutDropdownValue(group)">
-
-                <!-- TÖRÖLVE: <option value="" disabled>Válassz...</option> -->
 
                 <template v-for="schema in group.schemas" :key="schema.id">
                   <option v-if="(schema as any).type !== 'shelf'" :value="schema.id">
@@ -678,90 +832,49 @@ const debugComponentState = computed(() => currentState.value)
       </div>
 
       <!-- CSOPORTOSÍTOTT LISTA (Részletek) -->
-      <div v-if="displayGroups.length > 0">
-        <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4 pt-4 border-t border-gray-800">
-          Részletek</h3>
+      <!-- DYNAMIC GROUPS -->
+      <div v-for="group in displayGroups" :key="group.id" class="mb-6">
+        <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 border-b border-gray-700 pb-1">
+          {{ group.label }}
+        </h3>
 
-        <div class="space-y-6">
-          <div v-for="group in displayGroups" :key="group.id" class="space-y-2">
+        <div class="space-y-4">
+          <!-- Itt most már a 'control'-okon iterálunk, nem a slotokon -->
+          <div v-for="control in group.controls" :key="control.id">
 
-            <div class="flex items-center gap-2 mb-2">
-              <span class="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>
-              <h4 class="text-xs font-bold text-gray-300 uppercase">{{ group.label }}</h4>
+            <!-- Label -->
+            <div class="flex justify-between items-center mb-1.5">
+              <label class="text-xs text-gray-300 font-medium">
+                {{ control.label }}
+                <span v-if="control.isGrouped" class="text-xs text-blue-400 ml-1">(Összes)</span>
+              </label>
+
+              <!-- Anyagválasztó gomb -->
+              <button v-if="shouldShowMaterialSelector(control.referenceSlot)"
+                @click="console.log('Anyagválasztás később...')"
+                class="w-4 h-4 rounded-full border border-gray-600 shadow-sm hover:scale-110 transition-transform"
+                :style="{ backgroundColor: getMaterialColor(getCurrentMaterialId(control.referenceSlot.slotId)) }"
+                title="Anyag módosítása"></button>
             </div>
 
-            <div v-for="item in group.slots" :key="item.slot.slotId"
-              class="pl-3 border-l border-gray-800 ml-0.5 space-y-2 py-1">
+            <!-- Dropdown -->
+            <div class="relative">
+              <select :value="getCurrentControlValue(control)"
+                @change="e => handleUnifiedChange(control, (e.target as HTMLSelectElement).value)"
+                class="w-full bg-gray-900 text-gray-200 text-sm rounded border border-gray-700 px-3 py-2 appearance-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors cursor-pointer">
+                <option v-for="opt in getOptionsForControl(control)" :key="opt.value" :value="opt.value">
+                  {{ opt.label }}
+                </option>
+              </select>
 
-              <div class="flex justify-between items-center">
-                <span class="text-[11px] text-gray-400">{{ item.displayName }}</span>
-                <span v-if="!getCurrentStyleId(item.slot.slotId)" class="text-[10px] text-gray-600 italic">
-                  {{ getComponentName(getCurrentComponentId(item.slot.slotId)) }}
-                </span>
+              <!-- Chevron Icon -->
+              <div class="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-gray-500">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                </svg>
               </div>
-
-              <div class="grid gap-2" :class="(shouldShowMaterialSelector(item.slot)) ? 'grid-cols-2' : 'grid-cols-1'">
-
-                <!-- STÍLUS VÁLASZTÓ -->
-                <div v-if="getCurrentStyleId(item.slot.slotId)">
-                  <div class="relative group">
-                    <select :value="getCurrentStyleId(item.slot.slotId)"
-                      @change="handleStyleChange(item.slot.slotId, ($event.target as HTMLSelectElement).value)"
-                      class="w-full bg-[#2a2a2a] border border-blue-500/30 text-blue-100 font-bold text-[11px] rounded py-1.5 pl-2 pr-4 appearance-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 hover:bg-[#333] transition-colors">
-                      <option v-for="style in getAvailableStylesForSlot(item.slot)" :key="style.id" :value="style.id">
-                        {{ style.name }}
-                      </option>
-                    </select>
-                    <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-1 text-blue-400">
-                      <svg class="fill-current h-3 w-3" viewBox="0 0 20 20">
-                        <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
-                      </svg>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- KOMPONENS VÁLASZTÓ -->
-                <div v-else-if="getFilteredComponentsFallback(item.slot).length > 1">
-                  <div class="relative group">
-                    <select :value="getCurrentComponentId(item.slot.slotId)"
-                      @change="handleComponentChange(item.slot.slotId, ($event.target as HTMLSelectElement).value)"
-                      class="w-full bg-[#2a2a2a] border border-gray-700 text-gray-200 text-[11px] rounded py-1.5 pl-2 pr-4 appearance-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 hover:bg-[#333]">
-                      <option v-for="comp in getFilteredComponentsFallback(item.slot)" :key="comp.id" :value="comp.id">
-                        {{ comp.name }}
-                      </option>
-                    </select>
-                    <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-1 text-gray-500">
-                      <svg class="fill-current h-3 w-3" viewBox="0 0 20 20">
-                        <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
-                      </svg>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- ANYAG VÁLASZTÓ -->
-                <div v-if="shouldShowMaterialSelector(item.slot)">
-                  <div class="relative group">
-                    <select :value="getCurrentMaterialId(item.slot.slotId)"
-                      @change="handleMaterialChange(item.slot.slotId, ($event.target as HTMLSelectElement).value)"
-                      class="w-full bg-[#2a2a2a] border border-gray-700 text-gray-200 text-[11px] rounded py-1.5 pl-6 pr-4 appearance-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 hover:bg-[#333]">
-                      <option value="">Alapértelmezett</option>
-                      <option v-for="mat in materials" :key="mat.id" :value="mat.id">
-                        {{ mat.name }}
-                      </option>
-                    </select>
-                    <div
-                      class="absolute left-2 top-1/2 transform -translate-y-1/2 w-2.5 h-2.5 rounded-full border border-gray-600"
-                      :style="{ backgroundColor: getMaterialColor(getCurrentMaterialId(item.slot.slotId)) }"></div>
-                    <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-1 text-gray-500">
-                      <svg class="fill-current h-3 w-3" viewBox="0 0 20 20">
-                        <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
-                      </svg>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
             </div>
+
           </div>
         </div>
       </div>
