@@ -509,7 +509,7 @@ export default class InteractionManager {
 
   // --- EGYÉB ---
 
-  private handleDelete() {
+  public handleDelete() {
     const selectedObject = this.experience.selectionStore.selectedObject
     if (selectedObject) {
       this.experience.removeObject(selectedObject)

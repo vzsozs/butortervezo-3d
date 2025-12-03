@@ -37,6 +37,37 @@ const furnitureDef = computed<FurnitureConfig | undefined>(() => {
 
 const currentState = computed(() => selectedObject.value?.userData.componentState || {})
 
+// --- ANYAGVÁLASZTÓ STATE ---
+const activeMaterialControl = ref<InspectorControl | null>(null);
+
+// --- HELPER A TEXTÚRÁKHOZ ---
+function getCurrentMaterial(slotId: string): any {
+  const matId = getCurrentMaterialId(slotId);
+
+  const found = materials.value.find(m => m.id === matId);
+  const systemDefault = materials.value.find(m => m.id === 'default_material');
+
+  // Biztosan visszaadunk valamit, aminek van 'type' és 'value' mezője
+  return found || systemDefault || { type: 'color', value: '#cccccc', name: 'Loading...', thumbnail: '' };
+}
+
+
+// --- ÚJ SEGÉDFÜGGVÉNYEK A TEMPLATE-HEZ (Hogy ne legyen TS hiba) ---
+
+function getMatType(slotId: string): string {
+  // Mivel a getCurrentMaterial most már 'any', nem dob hibát a .type elérésre
+  return getCurrentMaterial(slotId)?.type || 'color';
+}
+
+function getMatValue(slotId: string): string {
+  return getCurrentMaterial(slotId)?.value || '#cccccc';
+}
+
+function getMatThumbnail(slotId: string): string {
+  const mat = getCurrentMaterial(slotId);
+  return mat?.thumbnail || mat?.value || '';
+}
+
 // --- AJTÓ LÁTHATÓSÁG & LOGIKA ---
 const areDoorsVisible = ref(true);
 const lastConfigId = ref<string | null>(null);
@@ -123,6 +154,53 @@ function forceRestoreVisibility(object: any) {
       });
     }
   });
+}
+
+// Számított lista: Csak azokat az anyagokat mutatjuk, amik passzolnak az elemhez
+const availableMaterialsForActiveControl = computed(() => {
+  if (!activeMaterialControl.value) return [];
+
+  const slot = activeMaterialControl.value.referenceSlot;
+
+  // 1. Megnézzük, mi van most a slotban (hogy tudjuk a kategóriát)
+  const currentId = selectedObject.value?.userData.componentState?.[slot.slotId];
+  const comp = configStore.getComponentById(currentId || '');
+
+  // 2. Mik az engedélyezett kategóriák? (pl. ["Bútorlap", "Fa"])
+  // Ha a komponensen nincs definiálva, akkor mindent engedünk (vagy semmit, döntés kérdése)
+  const allowedCats = comp?.allowedMaterialCategories || [];
+
+  if (allowedCats.length === 0) return configStore.materials; // Ha nincs szűrés, minden mehet
+
+  // 3. Szűrés
+  return configStore.materials.filter(mat => {
+    const matCats = Array.isArray(mat.category) ? mat.category : [mat.category];
+    // Van-e közös metszet?
+    return matCats.some(c => allowedCats.includes(c));
+  });
+});
+
+function openMaterialSelector(control: InspectorControl) {
+  activeMaterialControl.value = control;
+}
+
+function closeMaterialSelector() {
+  activeMaterialControl.value = null;
+}
+
+function selectMaterial(materialId: string) {
+  if (!activeMaterialControl.value) return;
+
+  // Összegyűjtjük az összes érintett slotot (csoportosítás miatt)
+  const updates = activeMaterialControl.value.slots.map(slot => ({
+    slotId: slot.slotId,
+    materialId: materialId
+  }));
+
+  // Küldés a store-nak
+  selectionStore.changeMaterials(updates);
+
+  closeMaterialSelector();
 }
 
 
@@ -664,41 +742,39 @@ function handleDuplicate() { selectionStore.duplicateSelectedObject() }
 function handleDelete() { selectionStore.deleteSelectedObject() }
 
 // --- HELPER ---
+// 1. Ez dönt a LÁTHATÓSÁGRÓL (Most már mindig true, ha van ott elem)
 function shouldShowMaterialSelector(slot: ComponentSlotConfig): boolean {
-  return materials.value.length > 0 && !!slot
+  if (materials.value.length === 0 || !slot) return false;
+  const currentId = selectedObject.value?.userData.componentState?.[slot.slotId];
+  return !!currentId; // Csak akkor mutatjuk, ha van benne valami
 }
+
+// 2. Ez dönt a TILTÁSRÓL (Ha örököl, akkor true)
+function isMaterialInherited(slot: ComponentSlotConfig): boolean {
+  const currentId = selectedObject.value?.userData.componentState?.[slot.slotId];
+  if (!currentId) return false;
+
+  const comp = configStore.getComponentById(currentId);
+  // Ha van materialSource, akkor örököl -> TILTVA
+  return !!comp?.materialSource;
+}
+
 function getCurrentMaterialId(slotId: string): string {
-  return selectedObject.value?.userData.materialState?.[slotId] || ''
-}
-function getMaterialColor(materialId: string): string {
-  const mat = materials.value.find(m => m.id === materialId)
-  return mat?.type === 'color' ? mat.value : '#999'
-}
+  // 1. State ellenőrzés (Amit a felhasználó beállított)
+  const stateVal = selectedObject.value?.userData.materialState?.[slotId];
+  if (stateVal) return stateVal;
 
-function getCurrentSchemaId(group: SlotGroup): string {
-  const currentState = selectedObject.value?.userData.componentState || {}
-
-  for (const schema of group.schemas) {
-    let match = true
-    if (Object.keys(schema.apply).length === 0 && schema.type !== 'shelf') {
-      match = false;
-    } else {
-      for (const [slotId, compId] of Object.entries(schema.apply)) {
-        if (currentState[slotId] !== compId) { match = false; break }
-      }
+  // 2. Komponens alapértelmezés (Amit a JSON-ban a komponenshez írtál)
+  const compId = selectedObject.value?.userData.componentState?.[slotId];
+  if (compId) {
+    const comp = configStore.getComponentById(compId);
+    if (comp?.materialOptions && comp.materialOptions.length > 0) {
+      return comp.materialOptions[0] || '';
     }
-    if (match) return schema.id
   }
 
-  if (group.defaultSchemaId) return group.defaultSchemaId;
-
-  const shelfSchema = group.schemas.find((s: any) => s.type === 'shelf');
-  if (shelfSchema) return shelfSchema.id;
-
-  const layoutSchema = group.schemas.find((s: any) => s.type !== 'shelf');
-  if (layoutSchema) return layoutSchema.id;
-
-  return ''
+  // 3. VÉGSŐ MENEDÉK: A fix 'default_material' ID
+  return 'default_material';
 }
 
 // ÚJ FÜGGVÉNY: Ez kezeli, hogy mit mutasson a legördülő lista
@@ -738,14 +814,70 @@ const debugComponentState = computed(() => currentState.value)
     class="fixed w-80 bg-[#1e1e1e] border border-gray-700 shadow-2xl rounded-lg flex flex-col z-50 overflow-hidden transition-opacity duration-200"
     :class="{ 'opacity-80 pointer-events-none select-none': selectionStore.isBusy }" style="max-height: 90vh;">
 
-    <!-- 🔥 BUSY STATE OVERLAY (TÖLTŐ KÉPERNYŐ) -->
+    <!-- 🔥 BUSY STATE OVERLAY -->
     <div v-if="selectionStore.isBusy"
       class="absolute inset-0 z-[60] flex flex-col items-center justify-center bg-black/40 backdrop-blur-[2px]">
       <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-2"></div>
       <span class="text-xs text-blue-200 font-mono animate-pulse">Frissítés...</span>
     </div>
 
-    <!-- HEADER -->
+    <!-- 🔥 ANYAGVÁLASZTÓ OVERLAY (ÚJ DESIGN) -->
+    <div v-if="activeMaterialControl"
+      class="absolute inset-0 z-[70] bg-[#1e1e1e] flex flex-col transition-all duration-300">
+
+      <!-- Fejléc -->
+      <div class="p-3 border-b border-gray-700 flex items-center gap-3 bg-gray-800 shadow-md">
+        <button @click="closeMaterialSelector"
+          class="text-gray-400 hover:text-white p-1.5 hover:bg-gray-700 rounded-full transition-colors">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+          </svg>
+        </button>
+        <div>
+          <h3 class="text-xs font-bold text-gray-200 uppercase tracking-wide">Anyag választása</h3>
+          <p class="text-[10px] text-gray-500 truncate w-48">{{ activeMaterialControl.label }}</p>
+        </div>
+      </div>
+
+      <!-- Lista -->
+      <div class="flex-1 overflow-y-auto p-3 custom-scrollbar">
+
+        <div v-if="availableMaterialsForActiveControl.length === 0" class="text-center text-gray-500 text-xs mt-10">
+          Nincs elérhető anyag ehhez az elemhez.
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <button v-for="mat in availableMaterialsForActiveControl" :key="mat.id" @click="selectMaterial(mat.id)"
+            class="group flex flex-col text-left bg-[#252525] hover:bg-[#333] rounded-lg p-2 transition-all">
+            <!-- Téglalap alakú előnézet (Keskenyebb: h-14) -->
+            <div
+              class="w-full h-14 rounded-md shadow-sm border border-gray-600 group-hover:border-gray-400 relative overflow-hidden mb-2">
+              <div v-if="mat.type === 'color'" class="w-full h-full" :style="{ backgroundColor: mat.value }"></div>
+
+              <img v-else :src="(mat as any).thumbnail || mat.value"
+                class="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500" />
+            </div>
+
+            <!-- Infó szekció (Megcserélve) -->
+            <div class="w-full px-1">
+
+              <!-- 1. Név (Fent, hangsúlyosabb) -->
+              <span class="block text-xs font-bold text-gray-300 group-hover:text-white leading-tight mb-0.5">
+                {{ mat.name }}
+              </span>
+
+              <!-- 2. Kategória (Lent, kicsi szürke - mint régen a név) -->
+              <span class="block text-[9px] text-gray-500 group-hover:text-gray-400">
+                {{ Array.isArray(mat.category) ? mat.category.join(', ') : mat.category }}
+              </span>
+
+            </div>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- HEADER (Fő panel) -->
     <div ref="dragHandleRef"
       class="p-4 border-b border-gray-800 bg-gradient-to-b from-gray-800/50 to-transparent cursor-move select-none hover:bg-gray-800/30 transition-colors">
       <div class="flex justify-between items-start">
@@ -758,9 +890,9 @@ const debugComponentState = computed(() => currentState.value)
         </button>
       </div>
       <div v-if="dimensions" class="mt-2 text-[11px] text-blue-400 font-mono flex flex-wrap gap-x-3">
-        <span>Szélesség: <span class="text-gray-300">{{ dimensions.width }}mm</span></span>
-        <span>Magasság: <span class="text-gray-300">{{ dimensions.height }}mm</span></span>
-        <span>Mélység: <span class="text-gray-300">{{ dimensions.depth }}mm</span></span>
+        <span>Szél.: <span class="text-gray-300">{{ dimensions.width }}mm</span></span>
+        <span>Mag.: <span class="text-gray-300">{{ dimensions.height }}mm</span></span>
+        <span>Mély.: <span class="text-gray-300">{{ dimensions.depth }}mm</span></span>
       </div>
     </div>
 
@@ -772,23 +904,16 @@ const debugComponentState = computed(() => currentState.value)
         <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Elrendezés</h3>
         <div class="space-y-4">
           <div v-for="(group, index) in slotGroups" :key="group.groupId">
+            <label class="block text-xs font-medium text-gray-400 mb-1.5">{{ group.name }}</label>
 
-            <!-- CÍMSOR -->
-            <label class="block text-xs font-medium text-gray-400 mb-1.5">
-              {{ group.name }}
-            </label>
-
-            <!-- 1. LEGÖRDÜLŐ LISTA (Layouts) -->
+            <!-- Layout Dropdown -->
             <div v-if="hasLayoutSchema(group)" class="relative group mb-2">
               <select
                 class="w-full bg-[#2a2a2a] border border-gray-700 text-gray-200 text-xs rounded-md py-2 pl-2 pr-8 appearance-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors cursor-pointer hover:bg-[#333]"
                 @change="handleGroupChange(index, ($event.target as HTMLSelectElement).value)"
                 :value="getLayoutDropdownValue(group)">
-
                 <template v-for="schema in group.schemas" :key="schema.id">
-                  <option v-if="(schema as any).type !== 'shelf'" :value="schema.id">
-                    {{ schema.name }}
-                  </option>
+                  <option v-if="(schema as any).type !== 'shelf'" :value="schema.id">{{ schema.name }}</option>
                 </template>
               </select>
               <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
@@ -798,19 +923,16 @@ const debugComponentState = computed(() => currentState.value)
               </div>
             </div>
 
-            <!-- 2. POLC INPUT MEZŐ -->
+            <!-- Polc Input -->
             <div v-if="hasShelfSchema(group)"
               class="flex items-center gap-2 bg-[#252525] p-2 rounded-md border border-gray-800 mt-2">
               <span class="text-[11px] text-gray-400 uppercase font-bold">Polcok:</span>
-
               <div class="relative flex-1">
                 <input type="number" min="0" :max="getMaxShelves(group)" :value="getShelfCount(group)"
                   @input="setShelfCount(index, group, parseInt(($event.target as HTMLInputElement).value))"
                   class="w-full bg-[#333] border border-gray-600 text-white text-sm font-bold rounded py-1 pl-2 pr-8 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors appearance-none" />
                 <span class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs">db</span>
               </div>
-
-              <!-- SZEM IKON -->
               <button @click="toggleDoors" title="Ajtók megjelenítése/elrejtése"
                 class="flex items-center justify-center w-7 h-7 rounded transition-all border border-transparent"
                 :class="areDoorsVisible ? 'text-gray-500 hover:text-white hover:bg-gray-700' : 'text-yellow-500 bg-yellow-500/10 border-yellow-500/30 hover:bg-yellow-500/20'">
@@ -823,58 +945,87 @@ const debugComponentState = computed(() => currentState.value)
                     d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
                 </svg>
               </button>
-
               <span class="text-[10px] text-gray-500 w-10 text-right">Max: {{ getMaxShelves(group) }}</span>
             </div>
-
           </div>
         </div>
       </div>
 
-      <!-- CSOPORTOSÍTOTT LISTA (Részletek) -->
-      <!-- DYNAMIC GROUPS -->
+      <!-- DYNAMIC GROUPS (ÚJ DESIGN) -->
       <div v-for="group in displayGroups" :key="group.id" class="mb-6">
-        <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 border-b border-gray-700 pb-1">
+
+        <!-- CÍMSOR + ÖSSZESÍTŐ CÍMKE -->
+        <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 flex justify-between items-center">
           {{ group.label }}
+          <!-- Ha csak 1 vezérlő van és az csoportosított, akkor kiírjuk ide, hogy Összes -->
+          <span v-if="group.controls.length === 1 && group.controls[0].isGrouped"
+            class="text-[10px] text-blue-400 normal-case bg-blue-900/30 px-1.5 py-0.5 rounded border border-blue-800/50">
+            Összes
+          </span>
         </h3>
 
-        <div class="space-y-4">
-          <!-- Itt most már a 'control'-okon iterálunk, nem a slotokon -->
+        <div class="space-y-3">
           <div v-for="control in group.controls" :key="control.id">
 
-            <!-- Label -->
-            <div class="flex justify-between items-center mb-1.5">
-              <label class="text-xs text-gray-300 font-medium">
-                {{ control.label }}
-                <span v-if="control.isGrouped" class="text-xs text-blue-400 ml-1">(Összes)</span>
-              </label>
+            <!-- ALCÍM (Csak akkor, ha több elem van a csoportban) -->
+            <label v-if="group.controls.length > 1" class="block text-xs font-medium text-gray-400 mb-1">
+              {{ control.label }}
+              <span v-if="control.isGrouped" class="text-blue-400 ml-1 text-[10px]">(Összes)</span>
+            </label>
 
-              <!-- Anyagválasztó gomb -->
-              <button v-if="shouldShowMaterialSelector(control.referenceSlot)"
-                @click="console.log('Anyagválasztás később...')"
-                class="w-4 h-4 rounded-full border border-gray-600 shadow-sm hover:scale-110 transition-transform"
-                :style="{ backgroundColor: getMaterialColor(getCurrentMaterialId(control.referenceSlot.slotId)) }"
-                title="Anyag módosítása"></button>
-            </div>
+            <!-- GRID LAYOUT: 2/3 Dropdown, 1/3 Material -->
+            <div class="grid grid-cols-3 gap-2 h-8">
 
-            <!-- Dropdown -->
-            <div class="relative">
-              <select :value="getCurrentControlValue(control)"
-                @change="e => handleUnifiedChange(control, (e.target as HTMLSelectElement).value)"
-                class="w-full bg-gray-900 text-gray-200 text-sm rounded border border-gray-700 px-3 py-2 appearance-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors cursor-pointer">
-                <option v-for="opt in getOptionsForControl(control)" :key="opt.value" :value="opt.value">
-                  {{ opt.label }}
-                </option>
-              </select>
-
-              <!-- Chevron Icon -->
-              <div class="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-gray-500">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                </svg>
+              <!-- 1. Dropdown (col-span-2) -->
+              <div class="col-span-2 relative">
+                <select :value="getCurrentControlValue(control)"
+                  @change="e => handleUnifiedChange(control, (e.target as HTMLSelectElement).value)"
+                  class="w-full h-full bg-[#2a2a2a] text-gray-200 text-xs rounded-md pl-2 pr-6 appearance-none border border-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors cursor-pointer hover:bg-[#333]">
+                  <option v-for="opt in getOptionsForControl(control)" :key="opt.value" :value="opt.value">
+                    {{ opt.label }}
+                  </option>
+                </select>
+                <div class="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-gray-500">
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                  </svg>
+                </div>
               </div>
-            </div>
 
+              <!-- 2. Material Button (col-span-1) -->
+              <button v-if="shouldShowMaterialSelector(control.referenceSlot)"
+                @click="!isMaterialInherited(control.referenceSlot) && openMaterialSelector(control)"
+                class="col-span-1 h-full rounded-md border border-gray-700 relative overflow-hidden transition-all group"
+                :class="isMaterialInherited(control.referenceSlot)
+                  ? 'opacity-50 cursor-not-allowed bg-gray-800'
+                  : 'hover:border-gray-500 cursor-pointer bg-[#2a2a2a]'"
+                :title="isMaterialInherited(control.referenceSlot) ? 'Ez az elem a korpusz színét örökli' : 'Anyag módosítása'">
+
+                <!-- Anyag Előnézet (Szín vagy Kép) -->
+                <div class="w-full h-full flex items-center justify-center bg-gray-800">
+
+                  <!-- SZÍN -->
+                  <div v-if="getMatType(control.referenceSlot.slotId) === 'color'" class="w-full h-full"
+                    :style="{ backgroundColor: getMatValue(control.referenceSlot.slotId) }">
+                  </div>
+
+                  <!-- TEXTÚRA / KÉP -->
+                  <img v-else :src="getMatThumbnail(control.referenceSlot.slotId)" class="w-full h-full object-cover" />
+                </div>
+
+                <!-- Áthúzás (SVG - Saroktól sarokig) -->
+                <div v-if="isMaterialInherited(control.referenceSlot)"
+                  class="absolute inset-0 z-10 pointer-events-none">
+                  <svg class="w-full h-full" preserveAspectRatio="none">
+                    <line x1="0" y1="100%" x2="100%" y2="0" stroke="#ef4444" stroke-width="1.5" stroke-opacity="0.8" />
+                  </svg>
+                </div>
+              </button>
+
+              <!-- Placeholder -->
+              <div v-else class="col-span-1"></div>
+
+            </div>
           </div>
         </div>
       </div>

@@ -18,6 +18,16 @@ const emit = defineEmits<{
   (e: 'preview', file: File, data: Partial<ComponentConfig>): void;
 }>();
 
+const componentTypeOptionsList = [
+  { value: 'corpuses', label: 'Korpusz' },
+  { value: 'fronts', label: 'Ajtó' },
+  { value: 'handles', label: 'Fogantyú' },
+  { value: 'legs', label: 'Láb' },
+  { value: 'shelves', label: 'Polc' },
+  { value: 'drawers', label: 'Fiók' },
+  { value: 'others', label: 'Egyéb' }
+];
+
 // --- STATE ---
 const configStore = useConfigStore();
 const { components: storeComponents } = storeToRefs(configStore);
@@ -49,6 +59,14 @@ const availableMaterialCategories = computed(() => {
 watch(() => props.component, (newComponent) => {
   const comp = newComponent ? JSON.parse(JSON.stringify(newComponent)) : {};
   if (!comp.properties) comp.properties = {};
+
+  // 🔥 AUTOMATIKUS TÍPUS KITÖLTÉS
+  // 1. Ha új elemről van szó: A típus legyen az, amit a bal oldalon nyomtál (+ Új ...)
+  // 2. Ha régi elem, de nincs kitöltve a componentType: Vegye át a kategóriát (migráció)
+  if (!comp.componentType && props.componentType) {
+    comp.componentType = props.componentType;
+    console.log(`🤖 Automatikus típus beállítás: ${comp.componentType}`);
+  }
 
   // 1. HA BELSŐ FRISSÍTÉS VOLT (Preview)
   if (isInternalUpdate.value) {
@@ -167,6 +185,11 @@ function saveChanges() {
 
     if (!useMaterialSource.value) delete componentToSave.materialSource;
 
+    // 🔥 BIZTONSÁGI HÁLÓ: Ha valahogy mégis üres lenne, töltsük ki mentés előtt
+    if (!componentToSave.componentType) {
+      componentToSave.componentType = props.componentType || 'others';
+    }
+
     if ((componentToSave.price || 0) < 0) {
       alert("Az ár nem lehet negatív!");
       return;
@@ -224,44 +247,67 @@ function deleteItem() {
       <!-- Alapadatok Grid -->
       <div class="grid grid-cols-2 gap-6 bg-gray-800 p-4 rounded-lg border border-gray-700">
 
-        <!-- Megnevezés -->
+        <!-- 1. SOR: Megnevezés és ID -->
         <div class="flex flex-col gap-1">
           <label class="admin-label text-xs uppercase tracking-wider text-gray-400">Megnevezés</label>
           <input type="text" v-model="editableComponent.name" class="admin-input font-bold" />
         </div>
 
-        <!-- Azonosító -->
         <div class="flex flex-col gap-1">
           <label class="admin-label text-xs uppercase tracking-wider text-gray-400">Azonosító (ID)</label>
           <input type="text" v-model="editableComponent.id"
             class="admin-input bg-gray-700/50 text-gray-400 cursor-not-allowed" readonly />
         </div>
 
-        <!-- Ár -->
+        <!-- 2. SOR: Ár és Típus -->
         <div class="flex flex-col gap-1">
           <label class="admin-label text-xs uppercase tracking-wider text-gray-400">Ár (HUF)</label>
           <input type="number" v-model="editableComponent.price" placeholder="0" class="admin-input" />
         </div>
 
-        <!-- Szélesség -->
+        <!-- Típus (ComponentType) - Átlátszó háttérrel és eltolt nyíllal -->
         <div class="flex flex-col gap-1">
-          <label class="admin-label text-xs tracking-wider text-gray-400">SZÉLESSÉG (mm)</label>
-          <input type="number" v-model.number="editableComponent.properties!.width" placeholder="pl. 600"
-            class="admin-input" />
+          <label class="admin-label text-xs uppercase tracking-wider text-gray-400">
+            Típus (ComponentType)
+          </label>
+          <div class="relative">
+            <select v-model="editableComponent.componentType"
+              class="admin-input w-full appearance-none bg-transparent border-gray-600 focus:border-yellow-500 cursor-pointer pr-10 text-gray-200">
+              <option v-for="opt in componentTypeOptionsList" :key="opt.value" :value="opt.value" class="bg-gray-800">
+                {{ opt.label }}
+              </option>
+            </select>
+            <!-- Egyedi Nyíl Ikon (Balrább tolva: right-4) -->
+            <div class="pointer-events-none absolute inset-y-0 right-4 flex items-center text-gray-400">
+              <svg class="h-4 w-4 fill-current" viewBox="0 0 20 20">
+                <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
+              </svg>
+            </div>
+          </div>
         </div>
 
-        <!-- Magasság -->
-        <div class="flex flex-col gap-1">
-          <label class="admin-label text-xs tracking-wider text-gray-400">MAGASSÁG (mm)</label>
-          <input type="number" v-model.number="editableComponent.properties!.height" placeholder="pl. 720"
-            class="admin-input" />
-        </div>
+        <!-- 3. SOR: Méretek (Egy sorban a 3 mező) -->
+        <div class="col-span-2 grid grid-cols-3 gap-4 bg-gray-900/30 p-3 rounded border border-gray-700/30">
+          <!-- Szélesség -->
+          <div class="flex flex-col gap-1">
+            <label class="admin-label text-xs tracking-wider text-gray-400 text-center">SZÉLESSÉG (mm)</label>
+            <input type="number" v-model.number="editableComponent.properties!.width" placeholder="pl. 600"
+              class="admin-input text-center" />
+          </div>
 
-        <!-- Mélység -->
-        <div class="flex flex-col gap-1">
-          <label class="admin-label text-xs tracking-wider text-gray-400">MÉLYSÉG (mm)</label>
-          <input type="number" v-model.number="editableComponent.properties!.depth" placeholder="pl. 510"
-            class="admin-input" />
+          <!-- Magasság -->
+          <div class="flex flex-col gap-1">
+            <label class="admin-label text-xs tracking-wider text-gray-400 text-center">MAGASSÁG (mm)</label>
+            <input type="number" v-model.number="editableComponent.properties!.height" placeholder="pl. 720"
+              class="admin-input text-center" />
+          </div>
+
+          <!-- Mélység -->
+          <div class="flex flex-col gap-1">
+            <label class="admin-label text-xs tracking-wider text-gray-400 text-center">MÉLYSÉG (mm)</label>
+            <input type="number" v-model.number="editableComponent.properties!.depth" placeholder="pl. 510"
+              class="admin-input text-center" />
+          </div>
         </div>
 
         <!-- Engedélyezett Anyagkategóriák -->

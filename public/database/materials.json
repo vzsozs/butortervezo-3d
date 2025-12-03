@@ -1,5 +1,16 @@
 [
   {
+    "id": "default_material",
+    "name": "Alapértelmezett",
+    "category": "general",
+    "type": "color",
+    "value": "#e5e7eb",
+    "properties": {
+      "roughness": 0.5,
+      "metalness": 0
+    }
+  },
+  {
     "id": "mat_1763815413063",
     "name": "Antracit szürke",
     "category": "Bútorlap",

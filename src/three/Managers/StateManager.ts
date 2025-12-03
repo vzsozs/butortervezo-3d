@@ -31,46 +31,78 @@ export default class StateManager {
   public async applyMaterialToSlot(targetObject: Group, slotId: string, materialId: string) {
     console.log(`[StateManager] applyMaterialToSlot: slotId=${slotId}, materialId=${materialId}`)
 
-    // 1. Komponens Config keresése (hogy tudjuk, mi a materialTarget)
     const componentId = targetObject.userData.componentState?.[slotId]
     const componentConfig = this.experience.configManager.getComponentById(componentId)
     const materialConfig = this.experience.configManager.getMaterialById(materialId)
 
-    if (!componentConfig?.materialTarget) {
-      console.warn(`[StateManager] No materialTarget found for component: ${componentId}`)
-      return
-    }
-    if (!materialConfig) {
-      console.warn(`[StateManager] Material config not found for id: ${materialId}`)
-      return
-    }
+    if (!componentConfig?.materialTarget) return
+    if (!materialConfig) return
 
-    const materialTargetName = componentConfig.materialTarget
-    console.log(`[StateManager] Target Material Name in GLB: ${materialTargetName}`)
-
-    // ÚJ: Anyag létrehozása az AssetManager segítségével
+    // Anyag létrehozása
     const newMaterial = await this.experience.assetManager.createMaterial(materialConfig)
 
     let appliedCount = 0
+
+    // 1. Megkeressük a slot gyökerét (pl. a Korpusz csoportját)
     targetObject.traverse((child: Object3D) => {
-      // Slot ID alapján keresünk (ez a legbiztosabb)
       if (child.userData.slotId === slotId) {
-        child.traverse((mesh: Object3D) => {
-          if (mesh instanceof Mesh) {
-            // JAVÍTÁS: Most már a userData.isMaterialTarget flag-et figyeljük,
-            // amit az AssetManager állított be betöltéskor.
-            // Így nem számít, hogy mi az aktuális anyag neve.
-            if (mesh.userData.isMaterialTarget) {
-              mesh.material = newMaterial
-              mesh.castShadow = true
-              mesh.receiveShadow = true
-              appliedCount++
-            }
-          }
-        })
+        // 2. Indítjuk a rekurziót, de most átadjuk a targetObject-et is!
+        appliedCount += this.applyMaterialRecursive(child, newMaterial, slotId, targetObject)
       }
     })
+
     console.log(`[StateManager] Applied material to ${appliedCount} meshes.`)
+  }
+
+  // 🔥 MÓDOSÍTOTT: Okos bejáró öröklés-támogatással
+  private applyMaterialRecursive(
+    object: Object3D,
+    material: any,
+    targetSlotId: string,
+    rootObject: Group, // <--- ÚJ PARAMÉTER: A fő bútor, hogy lássuk a configot
+  ): number {
+    let count = 0
+
+    // HATÁR ELLENŐRZÉS:
+    // Ha ennek az objektumnak van slotId-ja, ÉS az nem egyezik azzal, amit épp színezünk...
+    if (object.userData.slotId && object.userData.slotId !== targetSlotId) {
+      // ...AKKOR megnézzük, hogy ez a gyerek elem örököl-e?
+      const childSlotId = object.userData.slotId
+      const childComponentId = rootObject.userData.componentState?.[childSlotId]
+
+      if (childComponentId) {
+        const childComp = this.experience.configManager.getComponentById(childComponentId)
+
+        // HA ÖRÖKÖL (materialSource === 'corpus'), AKKOR ENGEDJÜK TOVÁBB!
+        // (Feltételezzük, hogy most épp a korpuszt színezzük, vagy a forrás megegyezik)
+        if (childComp?.materialSource === 'corpus') {
+          // Mehet tovább a bejárás (nem returnölünk 0-t)
+          // Így a polc is megkapja a színt.
+        } else {
+          // HA NEM ÖRÖKÖL (pl. Ajtó), AKKOR STOP.
+          return 0
+        }
+      } else {
+        return 0
+      }
+    }
+
+    // Színezés (Mesh esetén)
+    if (object instanceof Mesh) {
+      if (object.userData.isMaterialTarget) {
+        object.material = material
+        object.castShadow = true
+        object.receiveShadow = true
+        count++
+      }
+    }
+
+    // Tovább a gyerekeken
+    for (const child of object.children) {
+      count += this.applyMaterialRecursive(child, material, targetSlotId, rootObject)
+    }
+
+    return count
   }
 
   // --- BELSŐ MŰKÖDÉS ---
@@ -128,16 +160,76 @@ export default class StateManager {
       { deep: true },
     )
 
-    // 3. TÖRLÉS
+    // 3. TÖRLÉS (Javítva: Sárga doboz eltüntetése)
     watch(
       () => selectionStore.objectToDeleteUUID,
       (uuidToDelete) => {
         if (!uuidToDelete) return
-        const objectToRemove = experienceStore.getObjectByUUID(uuidToDelete)
-        if (objectToRemove) {
-          this.experience.removeObject(objectToRemove)
+
+        // Egyszerűen meghívjuk ugyanazt a függvényt, amit a DEL gomb használ
+        if (this.experience.interactionManager) {
+          console.log('[StateManager] Törlés delegálása az InteractionManager-nek...')
+          this.experience.interactionManager.handleDelete()
         }
+
+        // Nyugtázzuk, hogy a kérést feldolgoztuk
         selectionStore.acknowledgeDeletion()
+      },
+    )
+
+    // 4. DUPLIKÁLÁS (ÚJ FUNKCIÓ)
+    watch(
+      () => selectionStore.objectToDuplicateUUID,
+      async (uuidToDuplicate) => {
+        if (!uuidToDuplicate) return
+
+        const originalObject = experienceStore.getObjectByUUID(uuidToDuplicate)
+        if (!originalObject) return
+
+        console.log('[StateManager] Duplikálás indítása...')
+
+        try {
+          // A) Adatok mélymásolása (hogy ne legyen referencia kapcsolat)
+          const config = JSON.parse(JSON.stringify(originalObject.userData.config))
+          const componentState = JSON.parse(
+            JSON.stringify(originalObject.userData.componentState || {}),
+          )
+          const materialState = JSON.parse(
+            JSON.stringify(originalObject.userData.materialState || {}),
+          )
+
+          // B) Új bútor felépítése (ugyanazokkal a beállításokkal)
+          const newObject = await this.experience.assetManager.buildFurnitureFromConfig(
+            config,
+            componentState,
+          )
+
+          // C) Anyagok és Config visszaírása
+          newObject.userData.config = config
+          newObject.userData.materialState = materialState
+
+          // D) Anyagok alkalmazása a 3D hálókra
+          await this.applyMaterialsToObject(newObject)
+
+          // E) 🔥 TAPADJON AZ EGÉRRE (Placement Mode)
+          // Feltételezzük, hogy az InputManager-nek van startDragging vagy startPlacement metódusa.
+          // Ha a te kódodban máshogy hívják (pl. setFloatingObject), írd át arra!
+          if (this.experience.interactionManager) {
+            this.experience.interactionManager.startDraggingExistingObject(newObject)
+          } else {
+            // Fallback, ha valamiért mégsem érné el
+            newObject.position.copy(originalObject.position).addScalar(0.2)
+            this.experience.scene.add(newObject)
+            this.experience.experienceStore.addObject(newObject)
+            this.experience.selectionStore.selectObject(newObject)
+          }
+
+          console.log('[StateManager] Sikeres duplikálás.')
+        } catch (error) {
+          console.error('[StateManager] Hiba a duplikálásnál:', error)
+        }
+
+        selectionStore.acknowledgeDuplication()
       },
     )
   }

@@ -35,12 +35,20 @@ export const useSelectionStore = defineStore('selection', () => {
   function selectObject(object: Group | null) {
     selectedObject.value = object
     triggerRef(selectedObject)
+
     const experience = Experience.getInstance()
+
     if (experience.camera && experience.camera.transformControls) {
+      const controls = experience.camera.transformControls
+
       if (object) {
-        experience.camera.transformControls.attach(object)
+        // --- KIJELÖLÉS ---
+        controls.visible = true
+        controls.attach(object)
       } else {
-        experience.camera.transformControls.detach()
+        // --- LECSATOLÁS ---
+        controls.detach()
+        controls.visible = false // Ez tünteti el a sárga dobozt
       }
     }
   }
@@ -51,7 +59,6 @@ export const useSelectionStore = defineStore('selection', () => {
   function deleteSelectedObject() {
     if (selectedObject.value) {
       objectToDeleteUUID.value = selectedObject.value.uuid
-      clearSelection()
     }
   }
   function acknowledgeDeletion() {
@@ -70,6 +77,38 @@ export const useSelectionStore = defineStore('selection', () => {
       materialChangeRequest.value = { targetUUID: selectedObject.value.uuid, slotId, materialId }
     }
   }
+
+  // 🔥 ÚJ: Tömeges anyagcsere (Batch)
+  function changeMaterials(updates: { slotId: string; materialId: string }[]) {
+    if (!selectedObject.value) return
+
+    // 1. AZONNALI UI FRISSÍTÉS (Optimista update)
+    // Nem várjuk meg, amíg a 3D engine végez, azonnal beírjuk a state-be,
+    // hogy a gomb színe rögtön átváltson.
+    const currentMatState = selectedObject.value.userData.materialState || {}
+
+    updates.forEach((update) => {
+      currentMatState[update.slotId] = update.materialId
+    })
+
+    // Biztosítjuk, hogy a referencia megmaradjon
+    selectedObject.value.userData.materialState = currentMatState
+
+    // 🔥 EZ A KULCS: Kényszerítjük a Vue-t, hogy vegye észre a mély változást!
+    triggerRef(selectedObject)
+
+    // 2. KÜLDÉS A 3D ENGINE-NEK (A háttérben színezi a modellt)
+    updates.forEach((update, index) => {
+      setTimeout(() => {
+        materialChangeRequest.value = {
+          targetUUID: selectedObject.value!.uuid,
+          slotId: update.slotId,
+          materialId: update.materialId,
+        }
+      }, index * 20)
+    })
+  }
+
   function acknowledgeMaterialChange() {
     materialChangeRequest.value = null
   }
@@ -367,6 +406,10 @@ export const useSelectionStore = defineStore('selection', () => {
     }
   }
 
+  function acknowledgeStyleChange() {
+    styleChangeRequest.value = null
+  }
+
   return {
     selectedObject,
     selectedObjectConfig,
@@ -382,9 +425,11 @@ export const useSelectionStore = defineStore('selection', () => {
     deleteSelectedObject,
     acknowledgeDeletion,
     changeMaterial,
+    changeMaterials,
     acknowledgeMaterialChange,
     changeStyle,
     changeStyles,
     applySchema,
+    acknowledgeStyleChange,
   }
 })
