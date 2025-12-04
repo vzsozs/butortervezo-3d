@@ -30,6 +30,60 @@ export default class ProceduralManager {
     color: 0x333333,
   })
 
+  // --- ANYAG KERESŐ ---
+  private getWorktopMaterial(): THREE.Material {
+    // 1. Megkeressük a csoportot, ami a 'worktops'-ot vezérli
+    const worktopGroup = this.configStore.globalGroups.find((g) => g.targets.includes('worktops'))
+
+    if (worktopGroup) {
+      // 2. Megnézzük, mi van kiválasztva a SettingsStore-ban ehhez a csoporthoz
+      const selectedMatId = this.settingsStore.globalMaterialSettings[worktopGroup.id]
+
+      if (selectedMatId) {
+        // 3. Megkeressük az anyag definíciót a ConfigStore-ban
+        const matDef = this.configStore.materials.find((m) => m.id === selectedMatId)
+
+        if (matDef) {
+          // 4. Létrehozzuk a Three.js anyagot
+          // FONTOS: Itt kellene használni az AssetManager-t a textúra betöltéshez!
+          // Mivel azt a kódot nem látom, írok egy egyszerűsített verziót:
+
+          const matParams: any = {
+            roughness: 0.8,
+            metalness: 0.1,
+            side: THREE.DoubleSide,
+          }
+
+          // Ha van szín
+          if (matDef.value && !matDef.value.includes('/')) {
+            matParams.color = new THREE.Color(matDef.value)
+          }
+          // Ha textúra (feltételezzük, hogy a value egy útvonal, vagy van textureUrl)
+          else if (matDef.value || (matDef as any).textureUrl) {
+            const url = (matDef as any).textureUrl || matDef.value
+            // Ideiglenes textúra betöltő (AssetManager cache nélkül lassú lehet, de működik)
+            const texture = new THREE.TextureLoader().load(url)
+
+            // Textúra ismétlődés beállítása (hogy ne legyen torz)
+            texture.wrapS = THREE.RepeatWrapping
+            texture.wrapT = THREE.RepeatWrapping
+            // Ez egy durva becslés, a valódi UV mapping a geometrián történik
+            texture.repeat.set(1, 1)
+
+            matParams.map = texture
+            // Ha fehér a textúra, a color legyen fehér, különben elszínezi
+            matParams.color = 0xffffff
+          }
+
+          return new THREE.MeshStandardMaterial(matParams)
+        }
+      }
+    }
+
+    // Fallback: Ha nincs kiválasztva semmi, marad a default
+    return this.defaultWorktopMaterial
+  }
+
   constructor(experience: Experience) {
     this.experience = experience
     this.scene = experience.scene
@@ -39,6 +93,7 @@ export default class ProceduralManager {
   }
 
   private initWatchers() {
+    // 1. Méret változások (Csúszka)
     watch(
       () => [this.proceduralStore.plinth.height, this.proceduralStore.plinth.depthOffset],
       () => {
@@ -46,6 +101,7 @@ export default class ProceduralManager {
       },
     )
 
+    // 2. Munkapult változások
     watch(
       () => this.proceduralStore.worktop,
       () => {
@@ -54,6 +110,7 @@ export default class ProceduralManager {
       { deep: true },
     )
 
+    // 3. Komponens cserék (Láb típus váltás)
     watch(
       () => this.settingsStore.globalComponentSettings,
       () => {
@@ -62,6 +119,26 @@ export default class ProceduralManager {
         }, 50)
       },
       { deep: true },
+    )
+
+    // 4. Anyag változások (Korpusz szín csere)
+    watch(
+      () => this.settingsStore.globalMaterialSettings,
+      () => {
+        setTimeout(() => {
+          this.generatePlinth()
+          this.generateWorktop()
+        }, 100)
+      },
+      { deep: true },
+    )
+
+    // 5. Kézi trigger (pl. InspectorPanel csúszka)
+    watch(
+      () => this.proceduralStore.updateTrigger,
+      () => {
+        this.fullUpdate()
+      },
     )
   }
 
@@ -78,7 +155,7 @@ export default class ProceduralManager {
 
   // --- LOGIKA ---
 
-  private isStandardLegActive(obj: THREE.Object3D): boolean {
+  /*private isStandardLegActive(obj: THREE.Object3D): boolean {
     const corpusConfig = this.getCorpusConfig(obj)
     if (!corpusConfig) return false
 
@@ -98,6 +175,30 @@ export default class ProceduralManager {
     const values = Object.values(state)
     if (values.some((val: any) => typeof val === 'string' && val.includes('leg_standard'))) {
       return true
+    }
+
+    return false
+  }
+    */
+
+  /**
+   * Kizárólag a bútor aktuális állapotát vizsgálja.
+   * Ha a 'legs' slotban 'leg_standard' van, akkor TRUE.
+   * Minden más esetben (nincs láb, vagy design láb van) FALSE.
+   */
+  private isStandardLegActive(obj: THREE.Object3D): boolean {
+    // 1. Megnézzük a bútorra mentett állapotot
+    const state = obj.userData.componentState || {}
+
+    // 2. Végigmegyünk a slotokon (JAVÍTÁS: Object.values használata)
+    // Így nem keletkezik felesleges 'slotName' változó
+    for (const componentId of Object.values(state)) {
+      if (typeof componentId !== 'string') continue
+
+      // Ha a komponens ID-ja 'leg_standard'
+      if (componentId.includes('leg_standard')) {
+        return true
+      }
     }
 
     return false
@@ -136,6 +237,7 @@ export default class ProceduralManager {
     return maxLift
   }
 
+  // --- POZICIONÁLÁS JAVÍTÁSA ---
   public updateCabinetVerticalPositions() {
     const cabinets = this.experienceStore.placedObjects
     const globalPlinthHeight = this.proceduralStore.plinth.height
@@ -146,22 +248,26 @@ export default class ProceduralManager {
       const isStandard = this.isStandardLegActive(cabinet)
 
       if (isStandard) {
-        // 1. ESET: STANDARD LÁB -> Globális magasság
-        if (Math.abs(cabinet.position.y - globalPlinthHeight) > 0.0001) {
-          cabinet.position.y = globalPlinthHeight
+        // 1. ESET: STANDARD LÁB
+
+        // Megnézzük, van-e egyedi felülbírálás a bútoron
+        const override = cabinet.userData.plinthHeightOverride
+        // Ha van override, azt használjuk, ha nincs, a globálisat
+        const targetHeight =
+          override !== undefined && override !== null ? override : globalPlinthHeight
+
+        if (Math.abs(cabinet.position.y - targetHeight) > 0.0001) {
+          cabinet.position.y = targetHeight
           cabinet.updateMatrixWorld()
         }
         this.toggleLegVisibility(cabinet, false)
       } else {
-        // 2. ESET: DESIGN LÁB -> Komponens magasság
+        // 2. ESET: DESIGN LÁB (Ez maradt a régi)
         const designHeight = this.calculateDesignLegHeight(cabinet)
-
-        // Ha találtunk magasságot, beállítjuk
         if (Math.abs(cabinet.position.y - designHeight) > 0.0001) {
           cabinet.position.y = designHeight
           cabinet.updateMatrixWorld()
         }
-
         this.toggleLegVisibility(cabinet, true)
       }
     })
@@ -181,14 +287,26 @@ export default class ProceduralManager {
 
   // --- GENERÁLÓK ---
 
+  // --- GENERÁLÁS JAVÍTÁSA (Több magasság kezelése) ---
   private generatePlinth() {
-    if (this.plinthMesh) {
-      this.scene.remove(this.plinthMesh)
-      if (this.plinthMesh.geometry) this.plinthMesh.geometry.dispose()
-      this.plinthMesh = null
-    }
+    // 1. Takarítás: Töröljük a régi "ProceduralPlinth" nevű mesheket
+    // Mivel most már több is lehet, név alapján keresünk
+    const toRemove: THREE.Object3D[] = []
+    this.scene.traverse((child) => {
+      if (child.name === 'ProceduralPlinth') toRemove.push(child)
+    })
+    toRemove.forEach((child) => {
+      this.scene.remove(child)
+      if ((child as THREE.Mesh).geometry) (child as THREE.Mesh).geometry.dispose()
+    })
+    this.plinthMesh = null // Ez a referencia már nem elég, de nullázzuk
 
-    const conf = this.proceduralStore.plinth
+    const globalConf = this.proceduralStore.plinth
+    const globalHeight = globalConf.height
+
+    // 2. Bútorok összegyűjtése és CSOPORTOSÍTÁSA magasság szerint
+    // Map<magasság, bútorok[]>
+    const heightGroups = new Map<number, THREE.Object3D[]>()
 
     const cabinets = this.experienceStore.placedObjects.filter((obj) => {
       const isBottom = this.getCorpusConfig(obj) !== null
@@ -197,13 +315,36 @@ export default class ProceduralManager {
 
     if (cabinets.length === 0) return
 
+    // Csoportosítás
+    cabinets.forEach((cab) => {
+      const override = cab.userData.plinthHeightOverride
+      // Kulcs a magasság (fix 3 tizedesjegyre kerekítve a mapelés miatt)
+      const h = override !== undefined && override !== null ? override : globalHeight
+      const key = Math.round(h * 1000) / 1000
+
+      if (!heightGroups.has(key)) heightGroups.set(key, [])
+      heightGroups.get(key)!.push(cab)
+    })
+
+    // 3. Generálás minden magasság-csoporthoz külön-külön
+    heightGroups.forEach((groupCabinets, height) => {
+      this.createPlinthMeshForGroup(groupCabinets, height, globalConf)
+    })
+  }
+
+  // Segédfüggvény egy adott magasságú csoport generálásához
+  private createPlinthMeshForGroup(cabinets: THREE.Object3D[], height: number, conf: any) {
     const polygons: any[] = []
     const cabinetData: any[] = []
 
+    // Anyag keresés
     let inheritedMaterial: THREE.Material = this.defaultPlinthMaterial
+
+    // JAVÍTÁS: Kimentjük változóba és ellenőrizzük
     if (cabinets.length > 0) {
       const firstCabinet = cabinets[0]
-      if (firstCabinet instanceof THREE.Object3D) {
+      if (firstCabinet) {
+        // Ez a check hiányzott
         const mat = this.getInheritedMaterial(firstCabinet)
         if (mat) inheritedMaterial = mat
       }
@@ -226,6 +367,7 @@ export default class ProceduralManager {
       cabinetData.push({ corners, center: cabinet.position.clone() })
     })
 
+    // Hidak generálása (csak az azonos magasságúak között!)
     this.generateBridges(cabinetData, polygons, this.proceduralStore.worktop.gapThreshold)
 
     if (polygons.length === 0) return
@@ -235,19 +377,19 @@ export default class ProceduralManager {
       const shapes = this.createShapesFromPolygon(merged)
 
       const geometry = new THREE.ExtrudeGeometry(shapes, {
-        depth: conf.height,
+        depth: height, // Itt a csoport magasságát használjuk!
         bevelEnabled: false,
       })
 
-      this.plinthMesh = new THREE.Mesh(geometry, inheritedMaterial)
-      this.plinthMesh.name = 'ProceduralPlinth'
-      this.plinthMesh.rotation.x = -Math.PI / 2
-      this.plinthMesh.position.y = 0
+      const mesh = new THREE.Mesh(geometry, inheritedMaterial)
+      mesh.name = 'ProceduralPlinth' // Fontos a törléshez
+      mesh.rotation.x = -Math.PI / 2
+      mesh.position.y = 0
 
-      this.applyWorldUVs(geometry)
-      this.scene.add(this.plinthMesh)
+      this.applyBoxUVs(geometry)
+      this.scene.add(mesh)
     } catch (e) {
-      console.error('❌ Error generating plinth:', e)
+      console.error('❌ Error generating plinth group:', e)
     }
   }
 
@@ -323,28 +465,68 @@ export default class ProceduralManager {
     return { hasLeft, hasRight }
   }
 
+  // --- MUNKAPULT GENERÁLÁS (Több magasság kezelése) ---
   private generateWorktop() {
-    if (this.worktopMesh) {
-      this.scene.remove(this.worktopMesh)
-      if (this.worktopMesh.geometry) this.worktopMesh.geometry.dispose()
-      this.worktopMesh = null
-    }
+    // 1. Takarítás
+    const toRemove: THREE.Object3D[] = []
+    this.scene.traverse((child) => {
+      if (child.name === 'ProceduralWorktop') toRemove.push(child)
+    })
+    toRemove.forEach((child) => {
+      this.scene.remove(child)
+      if ((child as THREE.Mesh).geometry) (child as THREE.Mesh).geometry.dispose()
+    })
+    this.worktopMesh = null
+
+    // Globális beállítások betöltése
     const conf = this.proceduralStore.worktop
+
     const cabinets = this.experienceStore.placedObjects.filter((obj) => {
       return this.getCorpusConfig(obj) !== null
     })
+
     if (cabinets.length === 0) return
+
+    // 2. Csoportosítás KIZÁRÓLAG MAGASSÁG szerint
+    // Map<magasság_mm, bútorok[]>
+    const heightGroups = new Map<number, THREE.Object3D[]>()
+
+    cabinets.forEach((cab) => {
+      const box = new THREE.Box3().setFromObject(cab)
+      const topY = box.max.y
+
+      // Kerekítjük mm pontosságra
+      const key = Math.round(topY * 1000)
+
+      if (!heightGroups.has(key)) heightGroups.set(key, [])
+      heightGroups.get(key)!.push(cab)
+    })
+
+    // 3. Generálás minden szintre
+    heightGroups.forEach((groupCabinets, heightKey) => {
+      const exactHeight = heightKey / 1000
+
+      // Itt simán átadjuk a globális konfigot (conf), nem kell variálni a vastagsággal
+      this.createWorktopMeshForGroup(groupCabinets, exactHeight, conf)
+    })
+  }
+
+  // Segédfüggvény: Egy adott magasságú pult-sziget generálása
+  private createWorktopMeshForGroup(cabinets: THREE.Object3D[], height: number, conf: any) {
     const polygons: any[] = []
-    let maxCorpusHeight = 0
     const cabinetData: any[] = []
+
     cabinets.forEach((cabinet) => {
       const corpusConfig = this.getCorpusConfig(cabinet)
       if (!corpusConfig) return
+
       const rawWidth = corpusConfig.properties?.width ?? 600
-      const box = new THREE.Box3().setFromObject(cabinet)
-      if (box.max.y > maxCorpusHeight) maxCorpusHeight = box.max.y
       const width = rawWidth / 1000
+
+      // Szomszédokat csak a SAJÁT CSOPORTON BELÜL keresünk!
+      // Így nem köti össze a lenti bútort a fentivel.
       const neighbors = this.checkNeighbors(cabinet, cabinets, width, conf.gapThreshold)
+
       const corners = this.getWorktopCorners(
         cabinet,
         width,
@@ -354,31 +536,44 @@ export default class ProceduralManager {
         conf.sideOverhang,
         conf.defaultDepth,
       )
+
       polygons.push([corners])
       cabinetData.push({ corners, center: cabinet.position.clone() })
     })
+
+    // Hidak generálása (csak a csoporton belül)
     this.generateBridges(cabinetData, polygons, conf.gapThreshold)
+
     if (polygons.length === 0) return
+
     try {
       const merged = polygonClipping.union(polygons as any)
       const shapes = this.createShapesFromPolygon(merged)
+
+      // Lyukak kivágása (csak azokat a bútorokat nézzük, amik ebben a csoportban vannak)
       this.applyHoles(cabinets, shapes, conf.defaultDepth)
+
       const geometry = new THREE.ExtrudeGeometry(shapes, {
         depth: conf.thickness,
         bevelEnabled: false,
       })
-      const material = this.defaultWorktopMaterial
-      this.worktopMesh = new THREE.Mesh(geometry, material)
-      this.worktopMesh.name = 'ProceduralWorktop'
-      this.worktopMesh.rotation.x = -Math.PI / 2
-      this.worktopMesh.position.y =
-        (maxCorpusHeight > 0.5 ? maxCorpusHeight : conf.elevation) + 0.001
-      this.applyWorldUVs(geometry)
-      this.worktopMesh.castShadow = true
-      this.worktopMesh.receiveShadow = true
-      this.scene.add(this.worktopMesh)
+
+      // Anyag kezelés (egyelőre default, később ide jöhet a textúra)
+      const material = this.getWorktopMaterial()
+
+      const mesh = new THREE.Mesh(geometry, material)
+      mesh.name = 'ProceduralWorktop'
+      mesh.rotation.x = -Math.PI / 2
+
+      // Pozicionálás: A csoport magassága + pici emelés (Z-fighting ellen)
+      mesh.position.y = height + 0.001
+
+      this.applyBoxUVs(geometry)
+      mesh.castShadow = true
+      mesh.receiveShadow = true
+      this.scene.add(mesh)
     } catch (error) {
-      console.error('❌ Error generating worktop:', error)
+      console.error('❌ Error generating worktop group:', error)
     }
   }
 
@@ -527,17 +722,50 @@ export default class ProceduralManager {
     return shapes
   }
 
-  private applyWorldUVs(geometry: THREE.BufferGeometry) {
-    geometry.computeBoundingBox()
+  private applyBoxUVs(geometry: THREE.BufferGeometry) {
+    geometry.computeVertexNormals()
+
     const posAttribute = geometry.attributes.position
+    const normAttribute = geometry.attributes.normal
     const uvAttribute = geometry.attributes.uv
-    if (!posAttribute || !uvAttribute) return
+
+    // JAVÍTÁS: Ha bármelyik hiányzik, azonnal kilépünk, így a TS megnyugszik
+    if (!posAttribute || !normAttribute || !uvAttribute) return
+
     const scale = 1.0
+
+    // Innentől a TS már tudja, hogy ezek léteznek, nem fog sírni
     for (let i = 0; i < posAttribute.count; i++) {
       const x = posAttribute.getX(i)
       const y = posAttribute.getY(i)
-      uvAttribute.setXY(i, x * scale, y * scale)
+      const z = posAttribute.getZ(i)
+
+      const nx = Math.abs(normAttribute.getX(i))
+      const ny = Math.abs(normAttribute.getY(i))
+      const nz = Math.abs(normAttribute.getZ(i))
+
+      let u = 0
+      let v = 0
+
+      // 1. TETŐ és ALJA (Local Z domináns -> World Y)
+      if (nz > nx && nz > ny) {
+        u = y * scale
+        v = x * scale // 90 fokos forgatás
+      }
+      // 2. OLDALAK (Local X domináns)
+      else if (nx > ny && nx > nz) {
+        u = y * scale
+        v = z * scale
+      }
+      // 3. ELŐLAP/HÁTLAP (Local Y domináns)
+      else {
+        u = x * scale
+        v = z * scale
+      }
+
+      uvAttribute.setXY(i, u, v)
     }
+
     uvAttribute.needsUpdate = true
   }
 }

@@ -1,5 +1,34 @@
 [
   {
+    "id": "group_1764873391272",
+    "name": "Munkapult",
+    "targets": [
+      "worktops"
+    ],
+    "material": {
+      "enabled": true,
+      "allowedCategories": [
+        "Munkapult"
+      ]
+    },
+    "style": {
+      "enabled": false,
+      "variants": []
+    },
+    "construction": {
+      "enabled": true,
+      "minHeight": 0.05,
+      "maxHeight": 0.2,
+      "thicknessOptions": [
+        0.01,
+        0.038,
+        0.018,
+        0.028
+      ],
+      "defaultThickness": 0.038
+    }
+  },
+  {
     "id": "group_1764816272539",
     "name": "Korpusz",
     "targets": [

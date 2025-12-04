@@ -4,9 +4,11 @@ import { useDraggable } from '@vueuse/core'
 import { useSelectionStore } from '@/stores/selection'
 import { useConfigStore } from '@/stores/config'
 import type { ComponentSlotConfig, SlotGroup, FurnitureConfig, ComponentConfig } from '@/config/furniture'
+import { useProceduralStore } from '@/stores/procedural' // <--- ÚJ
 
 const selectionStore = useSelectionStore()
 const configStore = useConfigStore()
+const proceduralStore = useProceduralStore() // <--- ÚJ
 
 // --- LOGGER HELPER ---
 // Alulvonással (_) kezdjük a változókat, hogy az ESLint ne szóljon, ha nincsenek használva
@@ -396,20 +398,56 @@ function setShelfCount(groupIndex: number, group: SlotGroup, count: number) {
 
 const dimensions = computed(() => {
   if (!selectedObject.value || !currentConfig.value) return null;
+
+  // TRÜKK: Bekötjük a triggert, hogy a csúszka húzásakor azonnal frissüljön a szám
+  const _dep = proceduralStore.updateTrigger;
+
+  // --- 1. ALAP MÉRETEK (KORPUSZ) ---
+  let w = 0, h = 0, d = 0;
+
   const corpusSlot = currentConfig.value.componentSlots.find(s => s.componentType === 'corpuses' || s.slotId.includes('corpus'));
 
   if (corpusSlot) {
     const corpusId = currentState.value[corpusSlot.slotId];
     const corpusComp = configStore.getComponentById(corpusId);
     if (corpusComp?.properties) {
-      return {
-        width: corpusComp.properties.width ?? '-',
-        height: corpusComp.properties.height ?? '-',
-        depth: corpusComp.properties.depth ?? '-'
-      }
+      w = corpusComp.properties.width || 0;
+      h = corpusComp.properties.height || 0;
+      d = corpusComp.properties.depth || 0;
     }
   }
-  return { width: '-', height: currentConfig.value.height ?? '-', depth: '-' }
+
+  const conf = currentConfig.value as any;
+
+  // Fallback, ha nem találtunk korpusz komponenst
+  if (h === 0) h = conf.dimensions?.height || conf.height || 0;
+  if (w === 0) w = conf.dimensions?.width || conf.width || 0;
+  if (d === 0) d = conf.dimensions?.depth || conf.depth || 0;
+
+  // --- 2. LÁBAZAT HOZZÁADÁSA ---
+  // Megnézzük, van-e standard láb a jelenlegi állapotban
+  const hasStandardLeg = Object.values(currentState.value).some((id: any) => typeof id === 'string' && id.includes('leg_standard'));
+
+  if (hasStandardLeg) {
+    // Kinyerjük az értéket (Override VAGY Globális) - Méterben van!
+    const pHeightMeter = selectedObject.value.userData.plinthHeightOverride ?? proceduralStore.plinth.height;
+    h += pHeightMeter * 1000; // Átváltjuk mm-re és hozzáadjuk
+  }
+
+  // --- 3. MUNKAPULT HOZZÁADÁSA ---
+  // Feltételezzük, hogy az alsószekrényeknek van pultja
+  // (Vagy vizsgálhatnánk, hogy van-e 'worktops' csoportja, de ez a kategória check gyorsabb)
+  if (currentConfig.value.category === 'bottom_cabinet') {
+    // Kinyerjük az értéket (Override VAGY Globális) - Méterben van!
+    const wThickMeter = selectedObject.value.userData.worktopThicknessOverride ?? proceduralStore.worktop.thickness;
+    h += wThickMeter * 1000; // Átváltjuk mm-re és hozzáadjuk
+  }
+
+  return {
+    width: Math.round(w),
+    height: Math.round(h),
+    depth: Math.round(d)
+  }
 })
 
 const slotGroups = computed(() => furnitureDef.value?.slotGroups ?? [])
@@ -604,6 +642,12 @@ function handleUnifiedChange(control: InspectorControl, newValue: string) {
   // 🔥 EGYETLEN HÍVÁS A STORE FELÉ
   if (Object.keys(updates).length > 0) {
     selectionStore.changeStyles(updates);
+
+    // 2. 🔥 JAVÍTÁS: Értesítjük a ProceduralManagert, hogy valami változott!
+    // Kis késleltetés kellhet, hogy a componentState biztosan frissüljön a store-ban
+    setTimeout(() => {
+      proceduralStore.triggerUpdate();
+    }, 50);
   }
 }
 
@@ -817,6 +861,93 @@ function getLayoutDropdownValue(group: SlotGroup): string {
 }
 
 const debugComponentState = computed(() => currentState.value)
+
+// --- ÚJ: LÁBAZAT MAGASSÁG LOGIKA (EZT MÁSOLD BE A SCRIPT VÉGÉRE) ---
+
+// 1. Megkeressük a globális min/max beállításokat (Ez hiányzott!)
+const legConstraints = computed(() => {
+  const legGroup = configStore.globalGroups.find(g => g.targets.includes('legs') || g.targets.includes('leg_slot'));
+  return legGroup?.construction || { minHeight: 0.05, maxHeight: 0.20 };
+});
+
+// 2. Ellenőrizzük, hogy a jelenlegi vezérlő standard láb-e (Ez is hiányzott!)
+function isControlStandardLeg(control: InspectorControl): boolean {
+  // Megnézzük az első slot értékét
+  const firstSlot = control.slots[0];
+  if (!firstSlot) return false;
+
+  const currentId = selectedObject.value?.userData.componentState?.[firstSlot.slotId];
+  return currentId ? currentId.includes('leg_standard') : false;
+}
+
+// 3. JAVÍTOTT CSÚSZKA LOGIKA (Belső állapottal a sima mozgásért)
+
+// Belső állapot a csúszkának
+const internalPlinthHeight = ref(0.1);
+
+// Szinkronizálás: Ha új bútort jelölünk ki
+watch(selectedObject, (newObj) => {
+  if (newObj) {
+    // Ha van már egyedi érték, azt töltjük be, ha nincs, a globálisat
+    internalPlinthHeight.value = newObj.userData.plinthHeightOverride ?? proceduralStore.plinth.height;
+  }
+}, { immediate: true });
+
+// Szinkronizálás: Ha a globális érték változik (és nincs egyedi felülbírálás)
+watch(() => proceduralStore.plinth.height, (newGlobal) => {
+  if (selectedObject.value && selectedObject.value.userData.plinthHeightOverride === undefined) {
+    internalPlinthHeight.value = newGlobal;
+  }
+});
+
+// A Computed Property, amit a v-model használ
+const localPlinthHeight = computed({
+  get: () => internalPlinthHeight.value,
+  set: (val: number) => {
+    // A. UI frissítése azonnal
+    internalPlinthHeight.value = val;
+
+    // B. 3D adat frissítése
+    if (selectedObject.value) {
+      selectedObject.value.userData.plinthHeightOverride = val;
+
+      // C. Manager értesítése
+      proceduralStore.triggerUpdate();
+    }
+  }
+});
+
+const hasOverride = computed(() => {
+  // TRÜKK: Bekötjük a triggert ide is!
+  // Amikor a csúszkát mozgatod, a setter meghívja a triggerUpdate-et.
+  // Mivel ez a computed most már függ tőle, újra le fog futni,
+  // és észreveszi, hogy a userData megváltozott.
+  const _dep = proceduralStore.updateTrigger;
+
+  return selectedObject.value?.userData.plinthHeightOverride !== undefined;
+});
+
+// Ha a felhasználó megmozdítja a csúszkát, de még nem volt override, akkor most létrehozzuk
+function ensureOverride() {
+  if (selectedObject.value && selectedObject.value.userData.plinthHeightOverride === undefined) {
+    // Ez triggereli a settert, ami beállítja az override-ot
+    localPlinthHeight.value = localPlinthHeight.value;
+  }
+}
+
+// Visszaállítás globálisra
+function resetPlinthOverride() {
+  if (selectedObject.value) {
+    delete selectedObject.value.userData.plinthHeightOverride;
+
+    // Visszaállítjuk a belső ref-et a globálisra
+    internalPlinthHeight.value = proceduralStore.plinth.height;
+
+    // Frissítés
+    proceduralStore.triggerUpdate();
+  }
+}
+
 </script>
 
 <template>
@@ -1035,6 +1166,31 @@ const debugComponentState = computed(() => currentState.value)
               <!-- Placeholder -->
               <div v-else class="col-span-1"></div>
 
+            </div>
+            <!-- 🔥 ÚJ: EGYEDI LÁBAZAT MAGASSÁG CSÚSZKA -->
+            <div v-if="group.id === 'legs' && isControlStandardLeg(control)"
+              class="mt-2 p-2 bg-gray-800/50 rounded border border-gray-700">
+              <div class="flex justify-between items-center mb-1">
+                <label class="text-[10px] font-bold text-gray-400">
+                  {{ hasOverride ? 'Egyedi Magasság' : 'Globális Magasság' }}
+                </label>
+
+                <!-- VISSZAÁLLÍTÁS GOMB (Csak akkor látszik, ha van override) -->
+                <button v-if="hasOverride" @click="resetPlinthOverride"
+                  class="text-[9px] bg-blue-900 text-blue-200 px-1.5 rounded hover:bg-blue-800 transition-colors"
+                  title="Visszaállítás globálisra">
+                  AUTO
+                </button>
+
+                <span class="text-[10px] font-mono" :class="hasOverride ? 'text-blue-400' : 'text-gray-500'">
+                  {{ (localPlinthHeight * 100).toFixed(1) }} cm
+                </span>
+              </div>
+
+              <input type="range" :min="legConstraints.minHeight" :max="legConstraints.maxHeight" step="0.005"
+                v-model.number="localPlinthHeight"
+                class="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-blue-500 hover:accent-blue-400"
+                :class="{ 'opacity-50': !hasOverride }" @input="ensureOverride" />
             </div>
           </div>
         </div>

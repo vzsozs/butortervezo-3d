@@ -21,8 +21,13 @@ export const useProceduralStore = defineStore('procedural', () => {
     depthOffset: 0.05, // Mennyivel van beljebb
     defaultMaterialId: 'plinth_dark_grey', // Fallback anyag
   })
+  const updateTrigger = ref(0) // ÚJ
 
   // --- ACTIONS ---
+
+  function triggerUpdate() {
+    updateTrigger.value++
+  }
 
   // --- ÚJ: BETÖLTŐ FÜGGVÉNY ---
   async function loadSettings() {
@@ -60,6 +65,8 @@ export const useProceduralStore = defineStore('procedural', () => {
   return {
     worktop,
     plinth,
+    updateTrigger,
+    triggerUpdate,
     updateWorktopSetting,
     updatePlinthSetting,
     loadSettings,

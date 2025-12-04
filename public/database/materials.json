@@ -24,7 +24,10 @@
   {
     "id": "mat_1763815456624",
     "name": "Tölgy natúr",
-    "category": ["Munkapult", "Bútorlap"],
+    "category": [
+      "Munkapult",
+      "Bútorlap"
+    ],
     "type": "texture",
     "value": "/textures/uploaded/texture_1763815518898.jpg",
     "properties": {
@@ -46,7 +49,9 @@
   {
     "id": "mat_1763816016879",
     "name": "Piros",
-    "category": ["Bútorlap"],
+    "category": [
+      "Bútorlap"
+    ],
     "type": "color",
     "value": "#e30202",
     "properties": {
@@ -57,7 +62,12 @@
   {
     "id": "mat_1763819384253",
     "name": "Fehér fényes",
-    "category": ["general", "Bútorlap", "Munkapult", "Fém"],
+    "category": [
+      "general",
+      "Bútorlap",
+      "Munkapult",
+      "Fém"
+    ],
     "type": "color",
     "value": "#ededed",
     "properties": {
@@ -68,11 +78,30 @@
   {
     "id": "mat_1763819424903",
     "name": "Fehér matt",
-    "category": ["general", "Bútorlap", "Munkapult", "Fém"],
+    "category": [
+      "general",
+      "Bútorlap",
+      "Munkapult",
+      "Fém"
+    ],
     "type": "color",
     "value": "#ededed",
     "properties": {
       "roughness": 0,
+      "metalness": 0
+    }
+  },
+  {
+    "id": "mat_1764874079807",
+    "name": "Zöld",
+    "category": [
+      "general",
+      "Munkapult"
+    ],
+    "type": "color",
+    "value": "#2f4633",
+    "properties": {
+      "roughness": 0.6,
       "metalness": 0
     }
   }

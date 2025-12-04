@@ -80,11 +80,11 @@ function isStandardLegSelected(group: GlobalGroupConfig): boolean {
           {{ group.name }}
         </h3>
 
-        <!-- GRID: Stílus és Anyag -->
+        <!-- GRID: Balra (Stílus VAGY Vastagság), Jobbra (Anyag) -->
         <div class="grid gap-2"
-          :class="(group.style.enabled && group.material.enabled) ? 'grid-cols-2' : 'grid-cols-1'">
+          :class="((group.style.enabled || (group.construction?.enabled && group.targets.includes('worktops'))) && group.material.enabled) ? 'grid-cols-2' : 'grid-cols-1'">
 
-          <!-- A) STÍLUS VÁLASZTÓ -->
+          <!-- BAL OLDAL 1: STÍLUS VÁLASZTÓ (Ha van stílus) -->
           <div v-if="group.style.enabled">
             <div class="relative group">
               <select :value="settingsStore.globalComponentSettings[group.id] || ''"
@@ -103,7 +103,24 @@ function isStandardLegSelected(group: GlobalGroupConfig): boolean {
             </div>
           </div>
 
-          <!-- B) ANYAG VÁLASZTÓ -->
+          <!-- BAL OLDAL 2: VASTAGSÁG VÁLASZTÓ (Ha munkapult és nincs stílus) -->
+          <div v-else-if="group.construction?.enabled && group.targets.includes('worktops')">
+            <div class="relative group">
+              <select v-model="proceduralStore.worktop.thickness"
+                class="w-full bg-[#2a2a2a] border border-gray-700 text-gray-200 text-xs rounded-md py-2 pl-2 pr-4 appearance-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors cursor-pointer hover:bg-[#333]">
+                <option v-for="thickness in group.construction.thicknessOptions" :key="thickness" :value="thickness">
+                  {{ (thickness * 1000).toFixed(0) }} mm
+                </option>
+              </select>
+              <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-1 text-gray-500">
+                <svg class="fill-current h-3 w-3" viewBox="0 0 20 20">
+                  <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <!-- JOBB OLDAL: ANYAG VÁLASZTÓ -->
           <div v-if="group.material.enabled">
             <div class="relative group">
               <select :value="settingsStore.globalMaterialSettings[group.id] || ''"

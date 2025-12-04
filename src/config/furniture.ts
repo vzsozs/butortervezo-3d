@@ -169,8 +169,12 @@ export interface GlobalGroupConfig {
   }
   construction?: {
     enabled: boolean
+    // Lábakhoz (Range)
     minHeight?: number // méterben tároljuk
     maxHeight?: number // méterben tároljuk
+    // Munkapulthoz (Lista) - ÚJ
+    thicknessOptions?: number[] // méterben tároljuk (pl. [0.028, 0.038])
+    defaultThickness?: number // méterben
   }
 }
 

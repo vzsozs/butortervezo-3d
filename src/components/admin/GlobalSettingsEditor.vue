@@ -27,7 +27,21 @@ const activeSubTab = ref<'groups' | 'construction'>('groups');
 const selectedGroupId = ref<string | null>(null);
 const editingData = ref<Partial<GlobalGroupConfig>>({});
 
-const availableSlotTypes = computed(() => Object.keys(components.value));
+// --- SEGÉDLET: SLOT TÍPUSOK ---
+const availableSlotTypes = computed(() => {
+  // 1. Lekérjük a létező kategóriákat a store-ból
+  const dynamicTypes = Object.keys(components.value);
+
+  // 2. Létrehozunk egy Set-et a duplikációk elkerülése végett
+  const types = new Set(dynamicTypes);
+
+  // 3. MANUÁLISAN HOZZÁADJUK A HIÁNYZÓKAT
+  types.add('worktops');
+  types.add('legs'); // Biztos, ami biztos, ezt is berakjuk fixre
+
+  // 4. Visszaalakítjuk tömbbé és ábécé sorrendbe rendezzük
+  return Array.from(types).sort();
+});
 
 // --- MM <-> METER KONVERTEREK ---
 const worktopThicknessMm = computed({
@@ -69,6 +83,55 @@ const constructionMaxMm = computed({
 
 // Ellenőrizzük, hogy lábakat szerkesztünk-e
 const isLegGroup = computed(() => editingData.value.targets?.includes('legs')); // Vagy 'leg_slot', ahogy elnevezted
+const isWorktopGroup = computed(() => editingData.value.targets?.some(t => t.includes('worktop')));
+
+// --- MUNKAPULT VASTAGSÁG KEZELÉS ---
+const newThicknessInput = ref<number | null>(null); // mm-ben
+
+// Listázáshoz (mm-ben jelenítjük meg, de m-ben tároljuk)
+const thicknessOptionsMm = computed(() => {
+  return (editingData.value.construction?.thicknessOptions || [])
+    .map(val => Math.round(val * 1000))
+    .sort((a, b) => a - b);
+});
+
+function addThickness() {
+  if (!newThicknessInput.value || newThicknessInput.value <= 0) return;
+
+  if (!editingData.value.construction) {
+    editingData.value.construction = { enabled: true, thicknessOptions: [] };
+  }
+  if (!editingData.value.construction.thicknessOptions) {
+    editingData.value.construction.thicknessOptions = [];
+  }
+
+  const valInMeter = newThicknessInput.value / 1000;
+
+  // Duplikáció szűrés
+  if (!editingData.value.construction.thicknessOptions.includes(valInMeter)) {
+    editingData.value.construction.thicknessOptions.push(valInMeter);
+    // Alapértelmezettnek állítjuk be az elsőt, ha nincs
+    if (!editingData.value.construction.defaultThickness) {
+      editingData.value.construction.defaultThickness = valInMeter;
+    }
+  }
+
+  newThicknessInput.value = null;
+}
+
+function removeThickness(valInMm: number) {
+  if (!editingData.value.construction?.thicknessOptions) return;
+
+  const valInMeter = valInMm / 1000;
+  editingData.value.construction.thicknessOptions =
+    editingData.value.construction.thicknessOptions.filter(v => Math.abs(v - valInMeter) > 0.0001);
+}
+
+// Alapértelmezett kiválasztása
+function setDefaultThickness(valInMm: number) {
+  if (!editingData.value.construction) return;
+  editingData.value.construction.defaultThickness = valInMm / 1000;
+}
 
 // --- CSOPORT LOGIKA ---
 function createNewGroup() {
@@ -285,25 +348,73 @@ function saveProcedural() {
               </div>
             </div>
           </div>
-          <!-- C) KONSTRUKCIÓ (CSAK HA LÁB!) -->
-          <div v-if="isLegGroup" class="col-span-2 bg-gray-900/30 border border-gray-600 rounded-lg p-4 flex flex-col">
+          <!-- C) KONSTRUKCIÓ (LÁBAK VAGY MUNKAPULT) -->
+          <div v-if="isLegGroup || isWorktopGroup"
+            class="col-span-2 bg-gray-900/30 border border-gray-600 rounded-lg p-4 flex flex-col">
             <div class="flex items-center gap-2 mb-4">
               <input type="checkbox" v-model="editingData.construction!.enabled" class="checkbox-styled" />
-              <h3 class="text-lg font-bold text-white">Konstrukció Vezérlés (Magasság)</h3>
+              <h3 class="text-lg font-bold text-white">Konstrukció Vezérlés</h3>
             </div>
 
-            <div v-if="editingData.construction!.enabled" class="grid grid-cols-2 gap-4">
-              <div>
-                <label class="admin-label">Minimum Magasság (mm)</label>
-                <input type="number" v-model="constructionMinMm" class="admin-input" />
+            <div v-if="editingData.construction!.enabled">
+
+              <!-- 1. ESET: LÁBAK (Range) -->
+              <div v-if="isLegGroup" class="grid grid-cols-2 gap-4">
+                <div>
+                  <label class="admin-label">Min. Magasság (mm)</label>
+                  <input type="number" v-model="constructionMinMm" class="admin-input" />
+                </div>
+                <div>
+                  <label class="admin-label">Max. Magasság (mm)</label>
+                  <input type="number" v-model="constructionMaxMm" class="admin-input" />
+                </div>
+                <div class="col-span-2 text-xs text-gray-400 italic">
+                  A felhasználó ezen határok között állíthatja a lábazatot csúszkával.
+                </div>
               </div>
-              <div>
-                <label class="admin-label">Maximum Magasság (mm)</label>
-                <input type="number" v-model="constructionMaxMm" class="admin-input" />
+
+              <!-- 2. ESET: MUNKAPULT (Lista) -->
+              <div v-else-if="isWorktopGroup">
+                <label class="admin-label mb-2">Elérhető Vastagságok (mm)</label>
+
+                <!-- Hozzáadás -->
+                <div class="flex gap-2 mb-4">
+                  <input type="number" v-model="newThicknessInput" placeholder="pl. 38" class="admin-input w-32"
+                    @keydown.enter="addThickness" />
+                  <button @click="addThickness"
+                    class="bg-blue-600 hover:bg-blue-500 text-white px-3 rounded text-sm font-bold">
+                    + Hozzáad
+                  </button>
+                </div>
+
+                <!-- Lista -->
+                <div class="flex flex-wrap gap-2">
+                  <div v-for="mm in thicknessOptionsMm" :key="mm"
+                    class="flex items-center gap-2 px-3 py-1.5 rounded border transition-colors cursor-pointer" :class="Math.abs((editingData.construction?.defaultThickness || 0) * 1000 - mm) < 0.1
+                      ? 'bg-green-900/50 border-green-500 text-white'
+                      : 'bg-gray-800 border-gray-600 text-gray-300 hover:border-gray-400'"
+                    @click="setDefaultThickness(mm)" title="Kattints, hogy ez legyen az alapértelmezett">
+
+                    <span class="font-mono font-bold">{{ mm }} mm</span>
+
+                    <!-- Default jelölő -->
+                    <span v-if="Math.abs((editingData.construction?.defaultThickness || 0) * 1000 - mm) < 0.1"
+                      class="text-[10px] text-green-400 uppercase font-bold ml-1">
+                      (Alap)
+                    </span>
+
+                    <!-- Törlés gomb -->
+                    <button @click.stop="removeThickness(mm)" class="text-red-400 hover:text-red-200 ml-2 font-bold">
+                      &times;
+                    </button>
+                  </div>
+                </div>
+
+                <div class="mt-3 text-xs text-gray-400 italic">
+                  Add meg a szabvány méreteket. Kattints a kártyára az alapértelmezett kiválasztásához.
+                </div>
               </div>
-              <div class="col-span-2 text-xs text-gray-400 italic">
-                Ez a tartomány jelenik meg a felhasználónak csúszkaként, ha generált lábat választ.
-              </div>
+
             </div>
             <div v-else class="text-gray-500 text-sm italic mt-2">
               A konstrukciós vezérlés ki van kapcsolva.
