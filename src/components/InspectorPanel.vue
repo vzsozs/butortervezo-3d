@@ -209,6 +209,11 @@ async function checkDefaults() {
   // Ha nincs slotGroups, vagy üres, akkor ez egy egyszerű bútor -> KÉSZ, nem kell csinálni semmit.
   if (!def?.slotGroups || def.slotGroups.length === 0) return;
 
+  // 🔥 JAVÍTÁS: Ha már inicializálva van a bútor, ne írjuk felül a layoutot!
+  if (selectedObject.value?.userData?.initialized) {
+    return;
+  }
+
   for (const [index, group] of def.slotGroups.entries()) {
     if (!group.defaultSchemaId) continue;
 
@@ -241,6 +246,11 @@ async function checkDefaults() {
       console.log(`[Inspector] 🛠️ Kezdeti állapot konvertálása: ${defaultSchema.name}`);
       await selectionStore.applySchema(index, group.defaultSchemaId);
     }
+  }
+
+  // 🔥 JAVÍTÁS: Megjelöljük, hogy inicializálva van
+  if (selectedObject.value) {
+    selectedObject.value.userData.initialized = true;
   }
 }
 
@@ -958,7 +968,7 @@ const debugComponentState = computed(() => currentState.value)
         <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 flex justify-between items-center">
           {{ group.label }}
           <!-- Ha csak 1 vezérlő van és az csoportosított, akkor kiírjuk ide, hogy Összes -->
-          <span v-if="group.controls.length === 1 && group.controls[0].isGrouped"
+          <span v-if="group.controls.length === 1 && group.controls[0]?.isGrouped"
             class="text-[10px] text-blue-400 normal-case bg-blue-900/30 px-1.5 py-0.5 rounded border border-blue-800/50">
             Összes
           </span>

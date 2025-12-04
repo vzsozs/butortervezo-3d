@@ -387,6 +387,8 @@ export const useSelectionStore = defineStore('selection', () => {
 
       newObject.userData.materialState = materialState
       newObject.userData.config = config
+      // 🔥 JAVÍTÁS: Inicializált állapot átmentése
+      newObject.userData.initialized = originalObject.userData.initialized
 
       await experience.stateManager.applyMaterialsToObject(newObject)
 

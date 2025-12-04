@@ -104,7 +104,8 @@ export default class AssetManager {
             const matName = Array.isArray(child.material)
               ? child.material[0].name
               : child.material.name
-            if (matName.includes(componentConfig.materialTarget!)) {
+            // 🔥 JAVÍTÁS: Case-insensitive vizsgálat
+            if (matName.toLowerCase().includes(componentConfig.materialTarget!.toLowerCase())) {
               child.userData.isMaterialTarget = true
               // Opcionális: elmenthetjük az eredeti anyag nevét is debug célokra
               child.userData.originalMaterialName = matName

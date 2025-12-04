@@ -35,23 +35,38 @@ export default class StateManager {
     const componentConfig = this.experience.configManager.getComponentById(componentId)
     const materialConfig = this.experience.configManager.getMaterialById(materialId)
 
-    if (!componentConfig?.materialTarget) return
+    // if (!componentConfig?.materialTarget) return // 🔥 JAVÍTÁS: Kivettük a korlátozást
     if (!materialConfig) return
 
     // Anyag létrehozása
     const newMaterial = await this.experience.assetManager.createMaterial(materialConfig)
+
+    // Ha nincs megadva cél, akkor mindent színezünk (Fallback)
+    const forceApply = !componentConfig?.materialTarget
 
     let appliedCount = 0
 
     // 1. Megkeressük a slot gyökerét (pl. a Korpusz csoportját)
     targetObject.traverse((child: Object3D) => {
       if (child.userData.slotId === slotId) {
-        // 2. Indítjuk a rekurziót, de most átadjuk a targetObject-et is!
-        appliedCount += this.applyMaterialRecursive(child, newMaterial, slotId, targetObject)
+        // 2. Indítjuk a rekurziót
+        appliedCount += this.applyMaterialRecursive(
+          child,
+          newMaterial,
+          slotId,
+          targetObject,
+          forceApply,
+        )
       }
     })
 
-    console.log(`[StateManager] Applied material to ${appliedCount} meshes.`)
+    if (appliedCount === 0) {
+      console.warn(
+        `[StateManager] ⚠️ Nem sikerült anyagot alkalmazni: ${slotId} (Target: ${componentConfig?.materialTarget || 'ALL'})`,
+      )
+    } else {
+      console.log(`[StateManager] Applied material to ${appliedCount} meshes.`)
+    }
   }
 
   // 🔥 MÓDOSÍTOTT: Okos bejáró öröklés-támogatással
@@ -59,7 +74,8 @@ export default class StateManager {
     object: Object3D,
     material: any,
     targetSlotId: string,
-    rootObject: Group, // <--- ÚJ PARAMÉTER: A fő bútor, hogy lássuk a configot
+    rootObject: Group,
+    forceApply: boolean, // <--- ÚJ PARAMÉTER
   ): number {
     let count = 0
 
@@ -89,7 +105,8 @@ export default class StateManager {
 
     // Színezés (Mesh esetén)
     if (object instanceof Mesh) {
-      if (object.userData.isMaterialTarget) {
+      // 🔥 JAVÍTÁS: Ha forceApply igaz, vagy ha explicit meg van jelölve
+      if (object.userData.isMaterialTarget || forceApply) {
         object.material = material
         object.castShadow = true
         object.receiveShadow = true
@@ -99,7 +116,7 @@ export default class StateManager {
 
     // Tovább a gyerekeken
     for (const child of object.children) {
-      count += this.applyMaterialRecursive(child, material, targetSlotId, rootObject)
+      count += this.applyMaterialRecursive(child, material, targetSlotId, rootObject, forceApply)
     }
 
     return count
