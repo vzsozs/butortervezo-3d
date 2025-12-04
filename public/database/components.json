@@ -4,6 +4,7 @@
       "componentType": "corpuses",
       "name": "corpus bottom 60",
       "id": "corpus_bottom_60",
+      "category": "bottom_cabinet",
       "properties": {
         "height": 715,
         "width": 600,

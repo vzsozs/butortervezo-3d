@@ -32,6 +32,7 @@ import InteractionManager from './Managers/InteractionManager'
 import StateManager from './Managers/StateManager'
 import DebugManager from './Managers/DebugManager'
 import Debug from './Utils/Debug'
+import ProceduralManager from './Managers/ProceduralManager'
 
 import { useExperienceStore } from '@/stores/experience'
 import { useSelectionStore } from '@/stores/selection'
@@ -52,6 +53,7 @@ export default class Experience {
   public renderer!: Renderer
   public world!: World
   public debug!: Debug
+  public proceduralManager!: ProceduralManager
 
   public raycaster!: Raycaster
   public mouse = new Vector2()
@@ -116,6 +118,7 @@ export default class Experience {
     this.update()
     const axesHelper = new AxesHelper(0.5)
     this.scene.add(axesHelper)
+    this.proceduralManager = new ProceduralManager(this)
   }
 
   public static getInstance(canvas?: HTMLDivElement): Experience {
@@ -168,6 +171,8 @@ export default class Experience {
     } else {
       this.interactionManager.handleTransformEnd()
       this.debug.hideAll()
+
+      this.proceduralManager.update()
     }
   }
 
@@ -432,6 +437,7 @@ export default class Experience {
     this.experienceStore.addObject(markRaw(newObject))
     this.updateTotalPrice()
     this.historyStore.addState()
+    this.proceduralManager.update()
   }
 
   public removeObject(objectToRemove: Group) {
@@ -453,6 +459,7 @@ export default class Experience {
     }
     this.updateTotalPrice()
     this.historyStore.addState()
+    this.proceduralManager.update()
   }
 
   public newScene() {
@@ -559,6 +566,7 @@ export default class Experience {
         this.experienceStore.addObject(markRaw(newObject))
       }
     }
+    this.proceduralManager.update()
     this.updateTotalPrice()
   }
 

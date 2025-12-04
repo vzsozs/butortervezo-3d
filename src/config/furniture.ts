@@ -23,6 +23,7 @@ export interface ComponentConfig {
   name: string
   price?: number
   componentType: string
+  category?: string
   styleId?: string
   model: string
 

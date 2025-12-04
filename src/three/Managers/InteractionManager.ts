@@ -331,7 +331,7 @@ export default class InteractionManager {
     // @ts-expect-error - showX
     controls.showX = true
     // @ts-expect-error - showY
-    controls.showY = false
+    controls.showY = true
     // @ts-expect-error - showZ
     controls.showZ = true
 
