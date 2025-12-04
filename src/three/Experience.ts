@@ -357,18 +357,23 @@ export default class Experience {
     const origHeight = origProps.height || 0
 
     // JAVÍTÁS: Biztonsági fallback. Ha nincs componentType, használjuk az ID-t, vagy üres stringet.
-    // Így a .includes() sosem fog hibát dobni.
     const type = (original.componentType || original.id || '').toLowerCase()
+    const origOrient = this.getOrientation(original.id)
 
-    // 1. KÍSÉRLET: PONTOS EGYEZÉS (Szélesség ÉS Magasság)
+    // 1. KÍSÉRLET: PONTOS EGYEZÉS (Szélesség ÉS Magasság + Orientáció)
     // Ez kritikus az Ajtóknak és Fiókoknak
     for (const id of candidates) {
       const candidate = this.configStore.getComponentById(id)
       if (!candidate) continue
       const candProps = candidate.properties || {}
+      const candOrient = this.getOrientation(candidate.id)
 
       const widthMatch = Math.abs((candProps.width || 0) - origWidth) < 2 // 2mm tolerancia
       const heightMatch = Math.abs((candProps.height || 0) - origHeight) < 2
+
+      // Orientáció ellenőrzés (csak ha ellentétes, akkor baj)
+      if (origOrient === 'left' && candOrient === 'right') continue
+      if (origOrient === 'right' && candOrient === 'left') continue
 
       if (widthMatch && heightMatch) {
         return id // Megvan a tökéletes pár!
@@ -406,6 +411,16 @@ export default class Experience {
     }
 
     return null
+  }
+
+  private getOrientation(id: string): 'left' | 'right' | 'neutral' {
+    if (!id) return 'neutral'
+    const lowerId = id.toLowerCase()
+    if (lowerId.endsWith('_l') || lowerId.includes('_left') || lowerId.includes('bal'))
+      return 'left'
+    if (lowerId.endsWith('_r') || lowerId.includes('_right') || lowerId.includes('jobb'))
+      return 'right'
+    return 'neutral'
   }
 
   public updateTotalPrice() {
@@ -580,6 +595,9 @@ export default class Experience {
     newObject.position.copy(objectInScene.position)
     newObject.rotation.copy(objectInScene.rotation)
     newObject.userData.materialState = JSON.parse(JSON.stringify(materialState || {}))
+    // 🔥 JAVÍTÁS: Inicializált állapot átmentése (hogy ne ugorjon vissza defaultra)
+    newObject.userData.initialized = objectInScene.userData.initialized
+
     await this.stateManager.applyMaterialsToObject(newObject)
 
     this.scene.remove(objectInScene)

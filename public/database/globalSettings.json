@@ -1,1 +1,123 @@
-[]
+[
+  {
+    "id": "group_1764816272539",
+    "name": "Korpusz",
+    "targets": [
+      "corpuses"
+    ],
+    "material": {
+      "enabled": true,
+      "allowedCategories": [
+        "Bútorlap",
+        "general"
+      ]
+    },
+    "style": {
+      "enabled": false,
+      "variants": []
+    }
+  },
+  {
+    "id": "group_1764816302679",
+    "name": "Ajtó",
+    "targets": [
+      "fronts"
+    ],
+    "material": {
+      "enabled": true,
+      "allowedCategories": [
+        "Bútorlap",
+        "general"
+      ]
+    },
+    "style": {
+      "enabled": true,
+      "variants": [
+        {
+          "id": "var_1764816336596",
+          "name": "Keretes ajtó",
+          "componentIds": [
+            "front_bottom_keretes_30_l",
+            "front_bottom_keretes_30_r",
+            "front_bottom_keretes_60_l",
+            "front_bottom_keretes_60_r"
+          ]
+        },
+        {
+          "id": "var_1764816369317",
+          "name": "Sima ajtó",
+          "componentIds": [
+            "front_bottom_sima_30_l",
+            "front_bottom_sima_30_r",
+            "front_bottom_sima_60_l",
+            "front_bottom_sima_60_r"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "group_1764816387408",
+    "name": "Fogantyú",
+    "targets": [
+      "handles"
+    ],
+    "material": {
+      "enabled": true,
+      "allowedCategories": [
+        "Fém"
+      ]
+    },
+    "style": {
+      "enabled": true,
+      "variants": [
+        {
+          "id": "var_1764816398621",
+          "name": "Hosszúkás",
+          "componentIds": [
+            "handle_standard"
+          ]
+        },
+        {
+          "id": "var_1764816418555",
+          "name": "Design",
+          "componentIds": [
+            "handle_design"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "group_1764816451372",
+    "name": "Lábak",
+    "targets": [
+      "legs"
+    ],
+    "material": {
+      "enabled": true,
+      "allowedCategories": [
+        "Fém"
+      ]
+    },
+    "style": {
+      "enabled": true,
+      "variants": [
+        {
+          "id": "var_1764816463313",
+          "name": "Bútorlapláb",
+          "componentIds": [
+            "leg_standard"
+          ]
+        },
+        {
+          "id": "var_1764816475277",
+          "name": "Cső láb",
+          "componentIds": [
+            "leg_design"
+          ]
+        }
+      ]
+    }
+  }
+]
