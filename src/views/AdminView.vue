@@ -11,6 +11,8 @@ import AssetManager from '@/three/Managers/AssetManager';
 import GlobalSettingsEditor from '@/components/admin/GlobalSettingsEditor.vue';
 import MaterialEditor from '@/components/admin/MaterialEditor.vue';
 import StyleManager from '@/components/admin/StyleManager.vue';
+import ProceduralEditor from '@/components/admin/ProceduralEditor.vue';
+import { useProceduralStore } from '@/stores/procedural';
 
 const activeTab = ref('furniture');
 const appVersion = __APP_VERSION__;
@@ -102,8 +104,20 @@ function confirmAndProceed(action: () => void) {
 
 // --- ADATBÁZIS MENTÉSI FÜGGVÉNYEK ---
 
+function handleSaveProceduralSettings() {
+  // A store-ból kiszedjük a nyers adatokat
+  const proceduralStore = useProceduralStore();
+
+  const dataToSave = {
+    worktop: proceduralStore.worktop,
+    plinth: proceduralStore.plinth
+  };
+
+  saveDatabase('procedural.json', dataToSave);
+}
+
 async function saveDatabase(
-  filename: 'furniture.json' | 'components.json' | 'globalSettings.json' | 'styles.json',
+  filename: 'furniture.json' | 'components.json' | 'globalSettings.json' | 'styles.json' | 'procedural.json',
   data: FurnitureConfig[] | ComponentDatabase | any
 ) {
   try {
@@ -232,7 +246,7 @@ function handleCreateNewFurniture() {
     furnitureEditorKey.value = tempId;
   });
 }
-function changeTab(tab: 'furniture' | 'components' | 'global' | 'styles' | 'materials') {
+function changeTab(tab: 'furniture' | 'components' | 'global' | 'styles' | 'materials' | 'procedural') {
   confirmAndProceed(() => {
     activeTab.value = tab;
     handleCancelFurniture();
@@ -405,13 +419,18 @@ function handleSaveComponentsToServer() {
           <button @click="changeTab('materials')"
             :class="['px-4 py-2 font-semibold', activeTab === 'materials' ? 'border-b-2 border-blue-500 text-white' : 'text-gray-400']">Anyag
             Szerkesztő</button>
+          <button @click="changeTab('procedural')"
+            :class="['px-4 py-2 font-semibold', activeTab === 'procedural' ? 'border-b-2 border-blue-500 text-white' : 'text-gray-400']">
+            Konstrukció
+          </button>
         </div>
       </div>
 
       <div class="flex-1 min-h-0 pt-8">
         <!-- 1. ESET: GLOBÁLIS BEÁLLÍTÁSOK -->
         <div v-if="activeTab === 'global'" class="h-full p-4">
-          <GlobalSettingsEditor @save-to-server="handleSaveGlobalSettings" />
+          <GlobalSettingsEditor @save-groups="handleSaveGlobalSettings"
+            @save-procedural="handleSaveProceduralSettings" />
         </div>
 
         <!-- 2. ESET: ANYAG SZERKESZTŐ -->
@@ -422,6 +441,11 @@ function handleSaveComponentsToServer() {
         <!-- 4. ESET: Stílus SZERKESZTŐ -->
         <div v-else-if="activeTab === 'styles'" class="h-full p-4">
           <StyleManager @save-changes="handleSaveStyles" />
+        </div>
+
+        <!-- 5. ESET: PROCEDURÁLIS SZERKESZTŐ -->
+        <div v-else-if="activeTab === 'procedural'" class="h-full p-4">
+          <ProceduralEditor @save="handleSaveProceduralSettings" />
         </div>
 
         <!-- 3. ESET: RÉGI NÉZET (Bútor vagy Komponens) -->

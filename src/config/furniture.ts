@@ -167,6 +167,11 @@ export interface GlobalGroupConfig {
     enabled: boolean
     variants: StyleVariant[] // Itt vannak a csoportosított stílusok
   }
+  construction?: {
+    enabled: boolean
+    minHeight?: number // méterben tároljuk
+    maxHeight?: number // méterben tároljuk
+  }
 }
 
 export interface MaterialConfig {

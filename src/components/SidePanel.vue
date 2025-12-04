@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useSettingsStore } from '@/stores/settings';
 import { useConfigStore } from '@/stores/config';
+import { useProceduralStore } from '@/stores/procedural';
 import type { GlobalGroupConfig } from '@/config/furniture';
 
 // Ikonok
@@ -8,12 +9,12 @@ import IconAlsoszekrenyAjtos from '@/assets/icons/alsoszekreny-ajtos.svg?compone
 
 const settingsStore = useSettingsStore();
 const configStore = useConfigStore();
+const proceduralStore = useProceduralStore();
 const appVersion = __APP_VERSION__;
 
 // --- ANYAGOK SZŰRÉSE ---
 function getMaterialsForGroup(group: GlobalGroupConfig) {
   const allowedCategories = group.material.allowedCategories || [];
-
   if (allowedCategories.length > 0) {
     return configStore.materials.filter(m => {
       const matCats = Array.isArray(m.category) ? m.category : [m.category];
@@ -30,6 +31,23 @@ function updateMaterial(groupId: string, materialId: string) {
 
 function updateStyle(groupId: string, variantId: string) {
   settingsStore.setGlobalComponentStyle(groupId, variantId);
+}
+
+// --- HELPER: LÁB ELLENŐRZÉS ---
+function isStandardLegSelected(group: GlobalGroupConfig): boolean {
+  // 1. Megnézzük, melyik variáció van kiválasztva (pl. "var_12345")
+  const selectedVariantId = settingsStore.globalComponentSettings[group.id];
+
+  if (!selectedVariantId) return false; // Ha nincs semmi kiválasztva
+
+  // 2. Megkeressük ezt a variációt a csoport definíciójában
+  const variant = group.style.variants.find(v => v.id === selectedVariantId);
+
+  if (!variant) return false; // Ha valamiért nem találjuk
+
+  // 3. Megnézzük, hogy ez a variáció a 'leg_standard' komponenst tartalmazza-e
+  // (Mivel a componentIds egy tömb)
+  return variant.componentIds.includes('leg_standard');
 }
 
 </script>
@@ -52,7 +70,7 @@ function updateStyle(groupId: string, variantId: string) {
         Nincsenek beállítások.
       </div>
 
-      <!-- CSOPORT LISTA -->
+      <!-- CSOPORT LISTA (V-FOR CIKLUS KEZDŐDIK) -->
       <div v-for="group in configStore.globalGroups" :key="group.id"
         class="space-y-2 pb-4 border-b border-gray-800 last:border-0">
 
@@ -62,7 +80,7 @@ function updateStyle(groupId: string, variantId: string) {
           {{ group.name }}
         </h3>
 
-        <!-- DINAMIKUS GRID: Ha mindkettő aktív -> 2 oszlop, különben 1 -->
+        <!-- GRID: Stílus és Anyag -->
         <div class="grid gap-2"
           :class="(group.style.enabled && group.material.enabled) ? 'grid-cols-2' : 'grid-cols-1'">
 
@@ -77,7 +95,6 @@ function updateStyle(groupId: string, variantId: string) {
                   {{ variant.name }}
                 </option>
               </select>
-              <!-- Nyíl ikon -->
               <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-1 text-gray-500">
                 <svg class="fill-current h-3 w-3" viewBox="0 0 20 20">
                   <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
@@ -97,7 +114,6 @@ function updateStyle(groupId: string, variantId: string) {
                   {{ mat.name }}
                 </option>
               </select>
-              <!-- Nyíl ikon -->
               <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-1 text-gray-500">
                 <svg class="fill-current h-3 w-3" viewBox="0 0 20 20">
                   <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
@@ -105,9 +121,31 @@ function updateStyle(groupId: string, variantId: string) {
               </div>
             </div>
           </div>
-
         </div>
+
+        <!-- C) KONSTRUKCIÓS CSÚSZKA (LÁBAZAT MAGASSÁG) -->
+        <div v-if="group.construction?.enabled && isStandardLegSelected(group)"
+          class="mt-3 p-3 bg-gray-800/50 rounded border border-gray-700 animate-fade-in">
+
+          <div class="flex justify-between mb-1">
+            <label class="text-xs font-bold text-gray-300">Lábazat Magassága</label>
+            <span class="text-xs text-blue-400 font-mono">
+              {{ (proceduralStore.plinth.height * 100).toFixed(1) }} cm
+            </span>
+          </div>
+
+          <input type="range" :min="group.construction.minHeight || 0.05" :max="group.construction.maxHeight || 0.20"
+            step="0.005" v-model="proceduralStore.plinth.height"
+            class="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-blue-500 hover:accent-blue-400" />
+
+          <div class="flex justify-between text-[10px] text-gray-500 mt-1">
+            <span>{{ ((group.construction.minHeight || 0.05) * 100).toFixed(0) }}cm</span>
+            <span>{{ ((group.construction.maxHeight || 0.20) * 100).toFixed(0) }}cm</span>
+          </div>
+        </div>
+
       </div>
+
     </div>
 
     <!-- 3. BÚTORVÁLASZTÓ (Változatlan) -->
@@ -163,5 +201,21 @@ function updateStyle(groupId: string, variantId: string) {
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #60a5fa;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 </style>

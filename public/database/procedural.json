@@ -1,0 +1,16 @@
+{
+  "worktop": {
+    "thickness": 0.03,
+    "elevation": 0.87,
+    "defaultDepth": 0.6,
+    "sideOverhang": 0.015,
+    "frontOverhang": 0,
+    "gapThreshold": 0.2,
+    "materialId": "default_worktop_grey"
+  },
+  "plinth": {
+    "height": 0.1,
+    "depthOffset": 0.05,
+    "defaultMaterialId": "plinth_dark_grey"
+  }
+}
