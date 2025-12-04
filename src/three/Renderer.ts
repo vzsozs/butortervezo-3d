@@ -4,6 +4,8 @@ import {
   WebGLRenderer,
   PCFSoftShadowMap,
   ACESFilmicToneMapping,
+  DepthTexture,
+  UnsignedShortType,
 } from 'three'
 import { CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js'
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js'
@@ -74,6 +76,13 @@ export default class Renderer {
     this.composer.setSize(this.sizes.width, this.sizes.height)
     this.composer.setPixelRatio(this.sizes.pixelRatio)
 
+    // --- DEPTH TEXTURE HOZZÁADÁSA ---
+    // Ez kritikus az SSAO-hoz, hogy olvassa a mélységet!
+    const depthTexture = new DepthTexture(this.sizes.width, this.sizes.height)
+    depthTexture.type = UnsignedShortType
+    this.composer.renderTarget1.depthTexture = depthTexture
+    this.composer.renderTarget2.depthTexture = depthTexture
+
     // 1. Render Pass
     const renderPass = new RenderPass(this.scene, this.camera)
     this.composer.addPass(renderPass)
@@ -81,17 +90,15 @@ export default class Renderer {
     // 2. SSAO Pass
     const ssaoPass = new SSAOPass(this.scene, this.camera, this.sizes.width, this.sizes.height)
 
-    // --- SSAO BEÁLLÍTÁSOK (Camera Far: 20-hoz igazítva) ---
-    ssaoPass.kernelRadius = 16 // Kisebb sugár = élesebb, pontosabb árnyék a résekben
-    ssaoPass.minDistance = 0.001
-    ssaoPass.maxDistance = 0.1 // 10 cm-ig keres árnyékot
+    // --- SSAO BEÁLLÍTÁSOK (MINŐSÉG JAVÍTÁS) ---
+    // A "csúnya" eredmény általában zajt vagy "acne"-t jelent.
+    ssaoPass.kernelRadius = 0.2 // Felhasználó kérése
+    ssaoPass.minDistance = 0.0005 // Kicsit emeltem (0.0001 -> 0.001) a zaj csökkentésére
+    ssaoPass.maxDistance = 0.08
 
-    // ⚠️ DEBUG MÓD: FEKETE-FEHÉR NÉZET
-    // Ha ezt a sort benne hagyod, csak az árnyékokat látod (szürkeárnyalatosan).
-    // Ha látod a fekete foltokat a sarkokban, akkor MŰKÖDIK!
-    // Ha megvan, KOMMENTELD KI ezt a sort, hogy visszakapd a színeket!
-
-    // ssaoPass.output = SSAOPass.OUTPUT.SSAO
+    // ⚠️ NORMÁL NÉZET (Blur bekapcsolva)
+    // A Default mód tartalmazza a homályosítást (Blur), ami elmossa a zajt.
+    ssaoPass.output = SSAOPass.OUTPUT.Default
 
     this.composer.addPass(ssaoPass)
 

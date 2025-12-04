@@ -54,7 +54,7 @@ export default class World {
     dirLight.shadow.mapSize.width = 2048
     dirLight.shadow.mapSize.height = 2048
     dirLight.shadow.bias = -0.0001
-    dirLight.shadow.normalBias = 0.02
+    dirLight.shadow.normalBias = 0.002
 
     dirLight.shadow.camera.top = 5
     dirLight.shadow.camera.bottom = -5
