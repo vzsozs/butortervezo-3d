@@ -387,5 +387,38 @@
         "defaultSchemaId": "schema_1764612831376_vo8xlki40"
       }
     ]
+  },
+  {
+    "id": "j_top_cabinets_elem",
+    "name": "Felső szekrény 40cm",
+    "category": "top_cabinets",
+    "componentSlots": [
+      {
+        "slotId": "corpus_1",
+        "name": "Korpusz 1",
+        "componentType": "corpuses",
+        "allowedComponents": [
+          "corpus_top_40"
+        ],
+        "defaultComponent": "corpus_top_40",
+        "position": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        },
+        "attachToSlot": "",
+        "useAttachmentPoint": ""
+      }
+    ]
   }
 ]

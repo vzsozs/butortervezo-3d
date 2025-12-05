@@ -398,7 +398,7 @@ export default class ProceduralManager {
     for (const componentId of Object.values(state)) {
       if (typeof componentId !== 'string') continue
       const compConfig = this.configStore.getComponentById(componentId)
-      if (compConfig && (compConfig as any).category === 'bottom_cabinet') {
+      if (compConfig && (compConfig as any).category === 'bottom_cabinets') {
         return compConfig
       }
     }

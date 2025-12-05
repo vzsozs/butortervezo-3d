@@ -554,7 +554,8 @@ const PencilIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewB
         </div>
         <div>
           <label class="admin-label">Kategória</label>
-          <input type="text" v-model="editableFurniture.category" class="admin-input" />
+          <input type="text" v-model="editableFurniture.category"
+            class="admin-input bg-gray-700/50 text-gray-400 cursor-not-allowed" readonly />
         </div>
       </div>
 

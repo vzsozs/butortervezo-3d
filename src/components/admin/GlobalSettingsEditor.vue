@@ -228,19 +228,19 @@ function saveProcedural() {
     <!-- FEJLÉC ÉS TABOK -->
     <div class="flex justify-between items-center mb-6 pb-4 border-b border-gray-700">
       <div>
-        <h2 class="text-2xl font-bold text-white">Beállítások</h2>
-        <p class="text-sm text-gray-400">Globális szabályok és konstrukciós paraméterek.</p>
+        <h2 class="text-2xl font-bold text-white">Általános beállítások</h2>
+        <p class="text-sm text-gray-400">Általános beállítások a bútorszerkesztőben és alapvető bútor beállítások.</p>
       </div>
 
       <!-- TAB VÁLTÓ -->
       <div class="flex bg-gray-800 rounded-lg p-1 border border-gray-600 w-96">
         <button @click="activeSubTab = 'groups'"
           :class="['flex-1 px-4 py-2 rounded text-sm font-bold transition text-center', activeSubTab === 'groups' ? 'bg-blue-600 text-white shadow' : 'text-gray-400 hover:text-white']">
-          Csoportok & Szabályok
+          Globális beállítások menü
         </button>
         <button @click="activeSubTab = 'construction'"
           :class="['flex-1 px-4 py-2 rounded text-sm font-bold transition text-center', activeSubTab === 'construction' ? 'bg-blue-600 text-white shadow' : 'text-gray-400 hover:text-white']">
-          Konstrukció (Pult/Láb)
+          Alapértelmezett beállítások
         </button>
       </div>
     </div>

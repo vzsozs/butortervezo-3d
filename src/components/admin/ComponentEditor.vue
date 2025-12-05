@@ -30,7 +30,8 @@ const componentTypeOptionsList = [
 
 // --- STATE ---
 const configStore = useConfigStore();
-const { components: storeComponents } = storeToRefs(configStore);
+// JAVÍTÁS: Behúztuk a furnitureList-et is a kategóriákhoz
+const { components: storeComponents, furnitureList } = storeToRefs(configStore);
 
 const editableComponent = ref<Partial<ComponentConfig>>({});
 const selectedFile = ref<File | null>(null);
@@ -55,14 +56,26 @@ const availableMaterialCategories = computed(() => {
   return Array.from(cats).sort();
 });
 
+// ÚJ: Elérhető Bútor Kategóriák (a furnitureList-ből)
+const availableFurnitureCategories = computed(() => {
+  const cats = new Set<string>();
+  // Alapértelmezettek, hogy biztosan legyen valami
+  cats.add('bottom_cabinets');
+
+  if (furnitureList.value) {
+    furnitureList.value.forEach(f => {
+      if (f.category) cats.add(f.category);
+    });
+  }
+  return Array.from(cats).sort();
+});
+
 // --- WATCHER ---
 watch(() => props.component, (newComponent) => {
   const comp = newComponent ? JSON.parse(JSON.stringify(newComponent)) : {};
   if (!comp.properties) comp.properties = {};
 
   // 🔥 AUTOMATIKUS TÍPUS KITÖLTÉS
-  // 1. Ha új elemről van szó: A típus legyen az, amit a bal oldalon nyomtál (+ Új ...)
-  // 2. Ha régi elem, de nincs kitöltve a componentType: Vegye át a kategóriát (migráció)
   if (!comp.componentType && props.componentType) {
     comp.componentType = props.componentType;
     console.log(`🤖 Automatikus típus beállítás: ${comp.componentType}`);
@@ -78,7 +91,6 @@ watch(() => props.component, (newComponent) => {
     const oldId = editableComponent.value?.id;
     const newId = comp.id;
 
-    // Csak akkor törlünk, ha az ID különbözik (másik elemre kattintottál)
     if (oldId !== newId) {
       console.log(`♻️ Külső váltás (${oldId} -> ${newId}) - Fájl törlése.`);
       selectedFile.value = null;
@@ -93,7 +105,7 @@ watch(() => props.component, (newComponent) => {
 
 }, { immediate: true, deep: true });
 
-// Automatikus ID generálás (Csak új elemnél, és ha NINCS fájl feltöltve)
+// Automatikus ID generálás
 watch(() => editableComponent.value.name, (newName) => {
   if (props.isNew && newName && !isProcessing.value && !selectedFile.value) {
     editableComponent.value.id = newName.toLowerCase()
@@ -116,31 +128,13 @@ async function handleFileChange(event: Event) {
 
   try {
     const analysis = await analyzeModel(file);
-
-    // 1. Fájlnév tisztítása (kiterjesztés nélkül)
     const rawName = file.name.replace(/\.glb$/i, '');
-
-    // 2. Stilizált Név (Megjelenítéshez)
-    // - Alsóvonalak cseréje szóközre
-    // - Szavak kezdőbetűinek nagybetűsítése (opcionális, de szebb)
-    const stylizedName = rawName
-      .replace(/_/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-
-    // 3. Biztonságos Fájlnév (Mentéshez)
-    // - Marad az eredeti kisbetűsítés + alsóvonalas logika a fájlrendszer miatt
+    const stylizedName = rawName.replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
     const safeFileName = rawName.toLowerCase().replace(/\s+/g, '_');
-
-    // FONTOS: NEM VÁLTOZTATJUK MEG AZ ID-t!
-    // Ha megváltoztatnánk, a Vue újrarenderelné az egész komponenst, és elveszne a fájl.
-    // Csak a nevet és a modellt frissítjük.
 
     editableComponent.value = {
       ...editableComponent.value,
-      name: stylizedName, // A név változhat
-      // id: baseName, // <--- EZT KIVETTÜK! Az ID marad a régi.
-
+      name: stylizedName,
       model: `/models/${props.componentType}/${safeFileName}`,
       materialTarget: analysis.materialNames[0] || '',
       materialOptions: analysis.materialNames,
@@ -163,11 +157,7 @@ async function handleFileChange(event: Event) {
     } as ComponentConfig;
 
     modelMaterialOptions.value = analysis.materialNames;
-
-    // Zászló felhúzása (hogy a watcher ne töröljön, amikor visszajön az adat)
     isInternalUpdate.value = true;
-
-    console.log("📤 Preview küldése...");
     emit('preview', file, editableComponent.value as ComponentConfig);
 
   } catch (error) {
@@ -183,9 +173,15 @@ function saveChanges() {
   if (editableComponent.value) {
     const componentToSave = JSON.parse(JSON.stringify(editableComponent.value));
 
-    if (!useMaterialSource.value) delete componentToSave.materialSource;
+    // Ha nem korpusz, akkor kezeljük az anyag forrást
+    if (componentToSave.componentType !== 'corpuses') {
+      if (!useMaterialSource.value) delete componentToSave.materialSource;
+    }
+    // Ha korpusz, akkor töröljük a materialSource-t, mert ott kategória van helyette
+    else {
+      delete componentToSave.materialSource;
+    }
 
-    // 🔥 BIZTONSÁGI HÁLÓ: Ha valahogy mégis üres lenne, töltsük ki mentés előtt
     if (!componentToSave.componentType) {
       componentToSave.componentType = props.componentType || 'others';
     }
@@ -265,7 +261,7 @@ function deleteItem() {
           <input type="number" v-model="editableComponent.price" placeholder="0" class="admin-input" />
         </div>
 
-        <!-- Típus (ComponentType) - Átlátszó háttérrel és eltolt nyíllal -->
+        <!-- Típus (ComponentType) -->
         <div class="flex flex-col gap-1">
           <label class="admin-label text-xs uppercase tracking-wider text-gray-400">
             Típus (ComponentType)
@@ -277,7 +273,6 @@ function deleteItem() {
                 {{ opt.label }}
               </option>
             </select>
-            <!-- Egyedi Nyíl Ikon (Balrább tolva: right-4) -->
             <div class="pointer-events-none absolute inset-y-0 right-4 flex items-center text-gray-400">
               <svg class="h-4 w-4 fill-current" viewBox="0 0 20 20">
                 <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
@@ -286,23 +281,18 @@ function deleteItem() {
           </div>
         </div>
 
-        <!-- 3. SOR: Méretek (Egy sorban a 3 mező) -->
+        <!-- 3. SOR: Méretek -->
         <div class="col-span-2 grid grid-cols-3 gap-4 bg-gray-900/30 p-3 rounded border border-gray-700/30">
-          <!-- Szélesség -->
           <div class="flex flex-col gap-1">
             <label class="admin-label text-xs tracking-wider text-gray-400 text-center">SZÉLESSÉG (mm)</label>
             <input type="number" v-model.number="editableComponent.properties!.width" placeholder="pl. 600"
               class="admin-input text-center" />
           </div>
-
-          <!-- Magasság -->
           <div class="flex flex-col gap-1">
             <label class="admin-label text-xs tracking-wider text-gray-400 text-center">MAGASSÁG (mm)</label>
             <input type="number" v-model.number="editableComponent.properties!.height" placeholder="pl. 720"
               class="admin-input text-center" />
           </div>
-
-          <!-- Mélység -->
           <div class="flex flex-col gap-1">
             <label class="admin-label text-xs tracking-wider text-gray-400 text-center">MÉLYSÉG (mm)</label>
             <input type="number" v-model.number="editableComponent.properties!.depth" placeholder="pl. 510"
@@ -361,8 +351,31 @@ function deleteItem() {
               class="admin-input w-full" />
           </div>
 
-          <!-- 3. Anyag Öröklés -->
-          <div class="flex flex-col h-full justify-between gap-1">
+          <!-- 3. MEZŐ: KATEGÓRIA (Ha Korpusz) VAGY ANYAG ÖRÖKLÉS (Minden más) -->
+
+          <!-- A: KATEGÓRIA VÁLASZTÓ (Csak Korpusz) -->
+          <div v-if="editableComponent.componentType === 'corpuses'" class="flex flex-col h-full justify-between gap-1">
+            <div>
+              <label class="admin-label text-xs uppercase tracking-wider text-yellow-500">Kategória</label>
+              <p class="text-[10px] text-gray-400 mb-1">Milyen típusú bútorhoz való ez a korpusz?</p>
+            </div>
+            <div class="relative">
+              <select v-model="editableComponent.category"
+                class="admin-input w-full appearance-none bg-transparent border-gray-600 focus:border-yellow-500 cursor-pointer pr-10 text-gray-200">
+                <option v-for="cat in availableFurnitureCategories" :key="cat" :value="cat" class="bg-gray-800">
+                  {{ cat }}
+                </option>
+              </select>
+              <div class="pointer-events-none absolute inset-y-0 right-4 flex items-center text-gray-400">
+                <svg class="h-4 w-4 fill-current" viewBox="0 0 20 20">
+                  <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <!-- B: ANYAG ÖRÖKLÉS (Minden más) -->
+          <div v-else class="flex flex-col h-full justify-between gap-1">
             <div>
               <label
                 class="flex items-center gap-2 cursor-pointer admin-label text-xs uppercase tracking-wider text-yellow-500">

@@ -437,7 +437,7 @@ const dimensions = computed(() => {
   // --- 3. MUNKAPULT HOZZÁADÁSA ---
   // Feltételezzük, hogy az alsószekrényeknek van pultja
   // (Vagy vizsgálhatnánk, hogy van-e 'worktops' csoportja, de ez a kategória check gyorsabb)
-  if (currentConfig.value.category === 'bottom_cabinet') {
+  if (currentConfig.value.category === 'bottom_cabinets') {
     // Kinyerjük az értéket (Override VAGY Globális) - Méterben van!
     const wThickMeter = selectedObject.value.userData.worktopThicknessOverride ?? proceduralStore.worktop.thickness;
     h += wThickMeter * 1000; // Átváltjuk mm-re és hozzáadjuk

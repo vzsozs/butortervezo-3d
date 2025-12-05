@@ -74,6 +74,17 @@ const hasUnsavedChanges = computed(() => {
   return JSON.stringify(editingFurniture.value) !== JSON.stringify(originalFurniture.value);
 });
 
+// --- SEGÉDFÜGGVÉNY A KATEGÓRIA NÉV TISZTÍTÁSÁHOZ ---
+function sanitizeCategoryName(name: string): string {
+  return name
+    .toLowerCase()                 // Kisbetűsítés
+    .normalize('NFD')              // Ékezetek szétválasztása (pl. é -> e + ')
+    .replace(/[\u0300-\u036f]/g, '') // Ékezetek eltávolítása
+    .replace(/\s+/g, '_')          // Szóközök cseréje aláhúzásra
+    .replace(/[^\w_]/g, '');       // Minden egyéb speciális karakter törlése
+}
+
+
 // --- JAVÍTÁS: STÍLUS MENTÉS ---
 function handleSaveStyles() {
   // Stílusok mentése
@@ -236,16 +247,32 @@ function handleSelectFurniture(furniture: FurnitureConfig | null) {
     furnitureEditorKey.value = undefined;
   }
 }
-function handleCreateNewFurniture() {
+
+function handleCreateNewFurniture(categoryInput?: string | any) {
+  let category = 'bottom_cabinets';
+  let displayCategoryName = 'bottom_cabinets'; // Ezt használjuk a bútor nevében (szép név)
+
+  if (typeof categoryInput === 'string' && categoryInput) {
+    displayCategoryName = categoryInput; // Pl: "Felső Polcok"
+    category = sanitizeCategoryName(categoryInput); // Pl: "felso_polcok"
+  }
+
   confirmAndProceed(() => {
     const tempId = `new_${Date.now()}`;
-    const newFurniture = { id: tempId, name: 'Új bútor', category: 'bottom_cabinets', componentSlots: [] };
+    const newFurniture = {
+      id: tempId,
+      // A névben maradhat az eredeti, olvasható formátum, hogy tudd mit hoztál létre
+      name: category === 'bottom_cabinets' ? 'Új bútor' : `Új ${displayCategoryName} elem`,
+      category: category, // Az adatbázisba a tisztított technikai név kerül
+      componentSlots: []
+    };
     editingFurniture.value = newFurniture;
     originalFurniture.value = JSON.parse(JSON.stringify(newFurniture));
     isNewFurniture.value = true;
     furnitureEditorKey.value = tempId;
   });
 }
+
 function changeTab(tab: 'furniture' | 'components' | 'global' | 'styles' | 'materials' | 'procedural') {
   confirmAndProceed(() => {
     activeTab.value = tab;
@@ -404,25 +431,18 @@ function handleSaveComponentsToServer() {
         <p class="text-xs text-blue-400 mb-4">{{ appVersion }}</p>
         <div class="flex border-b border-gray-700">
           <button @click="changeTab('furniture')"
-            :class="['px-4 py-2 font-semibold', activeTab === 'furniture' ? 'border-b-2 border-blue-500 text-white' : 'text-gray-400']">Bútor
-            Szerkesztő</button>
+            :class="['px-4 py-2 font-semibold', activeTab === 'furniture' ? 'border-b-2 border-blue-500 text-white' : 'text-gray-400']">Bútorszerkesztő</button>
           <button @click="changeTab('components')"
-            :class="['px-4 py-2 font-semibold', activeTab === 'components' ? 'border-b-2 border-blue-500 text-white' : 'text-gray-400']">Komponens
-            Szerkesztő</button>
-          <button @click="changeTab('global')"
-            :class="['px-4 py-2 font-semibold', activeTab === 'global' ? 'border-b-2 border-blue-500 text-white' : 'text-gray-400']">Globális
-            Beállítások</button>
+            :class="['px-4 py-2 font-semibold', activeTab === 'components' ? 'border-b-2 border-blue-500 text-white' : 'text-gray-400']">Komponensszerkesztő</button>
           <button @click="changeTab('styles')"
             :class="['px-4 py-2 font-semibold', activeTab === 'styles' ? 'border-b-2 border-blue-500 text-white' : 'text-gray-400']">Stílus
-            Manager
-          </button>
+            manager</button>
           <button @click="changeTab('materials')"
             :class="['px-4 py-2 font-semibold', activeTab === 'materials' ? 'border-b-2 border-blue-500 text-white' : 'text-gray-400']">Anyag
-            Szerkesztő</button>
-          <button @click="changeTab('procedural')"
-            :class="['px-4 py-2 font-semibold', activeTab === 'procedural' ? 'border-b-2 border-blue-500 text-white' : 'text-gray-400']">
-            Konstrukció
-          </button>
+            szerkesztő</button>
+          <button @click="changeTab('global')"
+            :class="['px-4 py-2 font-semibold', activeTab === 'global' ? 'border-b-2 border-blue-500 text-white' : 'text-gray-400']">Általános
+            beállítások</button>
         </div>
       </div>
 
@@ -455,7 +475,8 @@ function handleSaveComponentsToServer() {
           <div class="col-span-4 self-start sticky top-8">
             <AdminSidePanel v-if="activeTab === 'furniture'" ref="adminSidePanelRef" :furniture-list="allFurniture"
               :selected-furniture="editingFurniture" @update:selected-furniture="handleSelectFurniture"
-              @create-new="handleCreateNewFurniture" @save-changes="handleSaveChanges" @slot-clicked="handleSlotClicked"
+              @create-new="handleCreateNewFurniture" @create-category="handleCreateNewFurniture"
+              @save-changes="handleSaveChanges" @slot-clicked="handleSlotClicked"
               @attachment-clicked="handleAttachmentClicked" />
             <ComponentSidePanel v-if="activeTab === 'components'" :component-database="allComponents"
               :selected-component="selectedComponent" :preview-config="componentPreviewConfig"
@@ -466,7 +487,7 @@ function handleSaveComponentsToServer() {
           <!-- Jobb oldali sáv (Editor) -->
           <div class="col-span-8">
 
-            <!-- Bútor Szerkesztő -->
+            <!-- Bútorszerkesztő -->
             <div v-if="activeTab === 'furniture'">
               <!-- JAVÍTÁS: Bekötöttük a @toggle-xray eseményt -->
               <FurnitureEditor v-if="editingFurniture" ref="furnitureEditorRef" :key="furnitureEditorKey"
@@ -478,7 +499,7 @@ function handleSaveComponentsToServer() {
               </div>
             </div>
 
-            <!-- Komponens Szerkesztő -->
+            <!-- Komponensszerkesztő -->
             <div v-if="activeTab === 'components'">
               <ComponentEditor v-if="selectedComponent" :key="componentEditorKey" :component="selectedComponent"
                 :is-new="isNewComponent" :component-type="selectedComponentType" @save="handleSaveComponent"

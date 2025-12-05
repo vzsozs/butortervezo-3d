@@ -17,7 +17,35 @@ const emit = defineEmits<{
   (e: 'create-category', categoryName: string): void;
 }>();
 
-const componentTypes = computed(() => Object.keys(props.componentDatabase));
+// --- KERESÉS LOGIKA (ÚJ) ---
+const searchQuery = ref('');
+
+// Computed property a szűréshez.
+// Ha van keresőszó, végigmegy az adatbázison és csak azokat a komponenseket/kategóriákat adja vissza, ahol van találat.
+const filteredDatabase = computed(() => {
+  if (!searchQuery.value.trim()) {
+    return props.componentDatabase;
+  }
+
+  const query = searchQuery.value.toLowerCase();
+  const result: ComponentDatabase = {};
+
+  for (const [type, components] of Object.entries(props.componentDatabase)) {
+    const filteredComponents = components.filter(c =>
+      c.name.toLowerCase().includes(query) ||
+      c.id.toLowerCase().includes(query)
+    );
+
+    if (filteredComponents.length > 0) {
+      result[type] = filteredComponents;
+    }
+  }
+  return result;
+});
+
+// A kategóriák listája most már a szűrt adatbázisból jön
+const componentTypes = computed(() => Object.keys(filteredDatabase.value));
+
 const newCategoryName = ref('');
 const scrollContainer = ref<HTMLElement | null>(null);
 
@@ -53,7 +81,8 @@ function createCategory() {
 </script>
 
 <template>
-  <div class="admin-panel flex flex-col p-4 max-h-[calc(100vh-4rem)]">
+  <div class="admin-panel flex flex-col border border-gray-700 p-4 max-h-[calc(100vh-4rem)]">
+
 
     <!-- 1. FELSŐ SZEKCIÓ: PREVIEW -->
     <div class="flex-shrink-0 mb-4">
@@ -70,7 +99,20 @@ function createCategory() {
 
     <!-- 2. KÖZÉPSŐ SZEKCIÓ: LISTA -->
     <div class="flex-1 min-h-0 flex flex-col overflow-hidden">
-      <h2 class="section-header flex-shrink-0">Adatbázis</h2>
+      <h2 class="section-header flex-shrink-0">Komponensek</h2>
+
+      <!-- ÚJ KERESŐMEZŐ -->
+      <div class="flex-shrink-0 mb-3">
+        <div class="relative">
+          <input v-model="searchQuery" type="text" placeholder="Keresés név vagy ID alapján..."
+            class="admin-input w-full text-sm pl-8 border border-gray-600 rounded bg-gray-800 text-gray-200 focus:outline-none focus:border-blue-700 focus:ring-1 focus:ring-blue-700 placeholder-gray-500" />
+          <svg class="w-4 h-4 absolute left-2.5 top-1/2 transform -translate-y-1/2 text-gray-500" fill="none"
+            stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+          </svg>
+        </div>
+      </div>
 
       <div ref="scrollContainer" class="overflow-y-auto space-y-2 pr-2 custom-scrollbar">
         <CollapsibleCategory v-for="type in componentTypes" :key="type" :title="type" start-open>
@@ -81,9 +123,9 @@ function createCategory() {
             </button>
           </div>
 
-          <div v-for="component in props.componentDatabase[type]" :key="component.id"
-            @click="selectComponent(component, type)" class="p-2 rounded cursor-pointer border-l-4 transition-all mb-1"
-            :class="[
+          <!-- Itt a filteredDatabase-t használjuk a props.componentDatabase helyett -->
+          <div v-for="component in filteredDatabase[type]" :key="component.id" @click="selectComponent(component, type)"
+            class="p-2 rounded cursor-pointer border-l-4 transition-all mb-1" :class="[
               props.selectedComponent?.id === component.id
                 ? 'bg-gray-700 border-blue-500 shadow-md'
                 : 'bg-gray-800 border-transparent hover:bg-gray-700 hover:border-gray-600'
@@ -97,7 +139,7 @@ function createCategory() {
         </CollapsibleCategory>
 
         <div v-if="componentTypes.length === 0" class="text-center text-gray-500 py-4 text-sm">
-          Nincsenek kategóriák. Hozz létre egyet lent!
+          {{ searchQuery ? 'Nincs találat a keresésre.' : 'Nincsenek kategóriák. Hozz létre egyet lent!' }}
         </div>
       </div>
     </div>
@@ -109,16 +151,21 @@ function createCategory() {
         <form @submit.prevent="createCategory" class="flex gap-2">
           <input type="text" v-model="newCategoryName" placeholder="pl. shelves"
             class="admin-input flex-grow text-sm" />
-          <button type="submit" class="admin-btn-secondary text-sm whitespace-nowrap">Létrehoz</button>
+          <button type="submit"
+            class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 border border-gray-600 rounded text-sm transition-colors whitespace-nowrap">
+            Létrehoz
+          </button>
         </form>
       </div>
 
-      <button @click="emit('save-to-server')" class="w-full admin-btn flex justify-center items-center gap-2 py-3">
+      <!-- MÓDOSÍTOTT GOMB: DISABLED ÉS ÁTNEVEZVE -->
+      <button disabled
+        class="w-full admin-btn flex justify-center items-center gap-2 py-3 opacity-50 cursor-not-allowed bg-gray-700 hover:bg-gray-700 border-gray-600 text-gray-400">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-            d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path>
+            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
         </svg>
-        Adatbázis Mentése (JSON)
+        Hamarosan
       </button>
     </div>
   </div>
