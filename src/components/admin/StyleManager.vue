@@ -97,96 +97,113 @@ function getStyleName(id?: string) {
 </script>
 
 <template>
-  <div class="flex h-full bg-[#1e1e1e] text-gray-200">
-    <!-- 1. SIDEBAR -->
-    <div class="w-1/4 border-r border-gray-700 flex flex-col">
-      <div class="p-4 border-b border-gray-700 bg-gray-800">
+  <div class="grid grid-cols-12 gap-6 h-full">
+    <!-- 1. SIDEBAR: STÍLUSOK LISTÁJA -->
+    <div class="col-span-4 bg-gray-900 rounded-lg p-4 flex flex-col h-full border border-gray-700">
+      <div class="mb-4 border-b border-gray-700 pb-4">
         <h2 class="text-lg font-bold text-white mb-2">Stílusok</h2>
         <div class="flex gap-2">
-          <input v-model="newStyleName" placeholder="Új stílus neve..."
-            class="w-full bg-[#2a2a2a] border border-gray-600 rounded px-2 py-1 text-sm focus:border-blue-500 outline-none"
+          <input v-model="newStyleName" placeholder="Új stílus neve..." class="admin-input"
             @keyup.enter="createStyle" />
           <button @click="createStyle"
-            class="bg-blue-600 hover:bg-blue-500 px-3 py-1 rounded text-white text-sm">+</button>
+            class="bg-blue-600 hover:bg-blue-500 px-3 py-1 rounded text-white text-sm font-bold transition-colors">+</button>
         </div>
       </div>
-      <div class="flex-1 overflow-y-auto p-2 space-y-1">
+
+      <div class="flex-1 overflow-y-auto custom-scrollbar space-y-1">
         <div v-for="style in configStore.styles" :key="style.id" @click="selectedStyleId = style.id"
-          class="p-3 rounded cursor-pointer transition-colors flex justify-between items-center group"
-          :class="selectedStyleId === style.id ? 'bg-blue-900/40 border border-blue-500/50' : 'hover:bg-gray-800 border border-transparent'">
-          <span class="font-medium">{{ style.name }}</span>
-          <span class="text-xs text-gray-500 bg-gray-900 px-2 py-0.5 rounded-full">
+          class="p-3 rounded cursor-pointer transition-colors flex justify-between items-center group border border-transparent"
+          :class="selectedStyleId === style.id ? 'bg-gray-800 border-blue-500' : 'hover:bg-gray-800'">
+          <span class="font-medium text-gray-200">{{ style.name }}</span>
+          <span class="text-xs text-gray-500 bg-gray-950 px-2 py-0.5 rounded-full">
             {{allComponents.filter(c => c.styleId === style.id).length}}
           </span>
         </div>
       </div>
     </div>
 
-    <!-- 2. MAIN -->
-    <div class="flex-1 flex flex-col" v-if="selectedStyleId">
-      <div class="p-4 border-b border-gray-700 bg-gray-800 flex justify-between items-center">
-        <div>
-          <h3 class="text-xl font-bold text-white"><span class="text-gray-400">Szerkesztés:</span> {{ activeStyle?.name
-            }}</h3>
-          <p class="text-xs text-gray-400 mt-1">Jelöld ki azokat az elemeket, amik ebbe a stílusba tartoznak.</p>
+    <!-- 2. MAIN: SZERKESZTŐ -->
+    <div class="col-span-8 bg-gray-900 rounded-lg p-6 border border-gray-700 h-full flex flex-col">
+      <div v-if="selectedStyleId" class="flex flex-col h-full">
+        <!-- HEADER -->
+        <div class="flex justify-between items-start mb-6 border-b border-gray-700 pb-4">
+          <div>
+            <h3 class="text-xl font-bold text-white flex items-center gap-2">
+              <span class="text-gray-500 font-normal text-base">Szerkesztés:</span>
+              {{ activeStyle?.name }}
+            </h3>
+            <p class="text-xs text-gray-400 mt-1">Jelöld ki azokat az elemeket, amik ebbe a stílusba tartoznak.</p>
+          </div>
+          <div class="flex gap-2">
+            <button @click="deleteActiveStyle" class="admin-btn-danger text-xs px-3 py-1">Törlés</button>
+          </div>
         </div>
-        <div class="flex gap-2">
-          <button @click="removeFromStyle" :disabled="selectedComponentIds.size === 0"
-            class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm disabled:opacity-50">Leválasztás</button>
-          <button @click="assignSelectedToStyle" :disabled="selectedComponentIds.size === 0"
-            class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded text-sm font-bold disabled:opacity-50">Hozzárendelés
-            ({{ selectedComponentIds.size }})</button>
-          <button @click="deleteActiveStyle"
-            class="ml-4 text-red-400 hover:text-red-300 text-sm underline">Törlés</button>
+
+        <!-- FILTERS & ACTIONS -->
+        <div class="flex gap-4 mb-4 items-center bg-gray-800/50 p-3 rounded border border-gray-700">
+          <select v-model="filterType" class="admin-select w-40">
+            <option value="all">Minden Típus</option>
+            <option v-for="type in availableTypes" :key="type" :value="type">{{ type }}</option>
+          </select>
+          <input v-model="searchQuery" placeholder="Keresés..." class="admin-input flex-1" />
+
+          <div class="flex gap-2 border-l border-gray-600 pl-4">
+            <button @click="removeFromStyle" :disabled="selectedComponentIds.size === 0"
+              class="admin-btn-secondary disabled:opacity-50 disabled:cursor-not-allowed">Leválasztás</button>
+            <button @click="assignSelectedToStyle" :disabled="selectedComponentIds.size === 0"
+              class="admin-btn disabled:opacity-50 disabled:cursor-not-allowed">
+              Hozzárendelés ({{ selectedComponentIds.size }})
+            </button>
+          </div>
+        </div>
+
+        <!-- TABLE -->
+        <div class="flex-1 overflow-y-auto custom-scrollbar border border-gray-700 rounded bg-gray-800">
+          <table class="w-full text-left text-sm border-collapse">
+            <thead class="text-gray-400 bg-gray-900 sticky top-0 z-10">
+              <tr>
+                <th class="p-3 w-10 border-b border-gray-700"></th>
+                <th class="p-3 border-b border-gray-700">Név / ID</th>
+                <th class="p-3 border-b border-gray-700">Típus</th>
+                <th class="p-3 border-b border-gray-700">Méretek</th>
+                <th class="p-3 border-b border-gray-700">Jelenlegi Stílus</th>
+                <th class="p-3 border-b border-gray-700 text-right"></th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-700">
+              <tr v-for="comp in filteredComponents" :key="comp.id"
+                class="hover:bg-gray-700/50 cursor-pointer transition-colors"
+                :class="{ 'bg-blue-900/20': selectedComponentIds.has(comp.id) }" @click="toggleSelection(comp.id)">
+                <td class="p-3 text-center">
+                  <input type="checkbox" :checked="selectedComponentIds.has(comp.id)" class="checkbox-styled"
+                    @click.stop="toggleSelection(comp.id)" />
+                </td>
+                <td class="p-3">
+                  <div class="font-bold text-gray-200">{{ comp.name }}</div>
+                  <div class="text-[10px] text-gray-500 font-mono">{{ comp.id }}</div>
+                </td>
+                <td class="p-3 text-gray-400">{{ comp.componentType }}</td>
+                <td class="p-3 text-gray-500 font-mono text-xs">
+                  {{ comp.properties?.width || '?' }} x {{ comp.properties?.height || '?' }}
+                </td>
+                <td class="p-3">
+                  <span class="px-2 py-1 rounded text-xs border"
+                    :class="comp.styleId ? (comp.styleId === selectedStyleId ? 'bg-green-900/30 text-green-400 border-green-800' : 'bg-gray-700 text-gray-400 border-gray-600') : 'text-gray-600 italic border-transparent'">
+                    {{ getStyleName(comp.styleId) }}
+                  </span>
+                </td>
+                <td class="p-3 text-right">
+                  <span v-if="comp.styleId === selectedStyleId" class="text-green-500 font-bold">✓</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
-      <div class="p-4 flex gap-4 bg-gray-900/50 border-b border-gray-700">
-        <select v-model="filterType" class="bg-[#2a2a2a] border border-gray-600 rounded px-3 py-1 text-sm">
-          <option value="all">Minden Típus</option>
-          <option v-for="type in availableTypes" :key="type" :value="type">{{ type }}</option>
-        </select>
-        <input v-model="searchQuery" placeholder="Keresés..."
-          class="flex-1 bg-[#2a2a2a] border border-gray-600 rounded px-3 py-1 text-sm" />
-      </div>
-
-      <div class="flex-1 overflow-y-auto p-4">
-        <table class="w-full text-left text-sm border-collapse">
-          <thead class="text-gray-500 border-b border-gray-700">
-            <tr>
-              <th class="p-2 w-10"></th>
-              <th class="p-2">Név / ID</th>
-              <th class="p-2">Típus</th>
-              <th class="p-2">Méretek</th>
-              <th class="p-2">Stílus</th>
-              <th class="p-2 text-right"></th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="comp in filteredComponents" :key="comp.id"
-              class="border-b border-gray-800 hover:bg-gray-800/50 cursor-pointer" @click="toggleSelection(comp.id)">
-              <td class="p-2 text-center"><input type="checkbox" :checked="selectedComponentIds.has(comp.id)"
-                  class="cursor-pointer" @click.stop="toggleSelection(comp.id)" /></td>
-              <td class="p-2">
-                <div class="font-bold text-gray-300">{{ comp.name }}</div>
-                <div class="text-[10px] text-gray-500 font-mono">{{ comp.id }}</div>
-              </td>
-              <td class="p-2 text-gray-400">{{ comp.componentType }}</td>
-              <td class="p-2 text-gray-400 font-mono">{{ comp.properties?.width || '?' }} x {{ comp.properties?.height
-                || '?' }}</td>
-              <td class="p-2"><span class="px-2 py-1 rounded text-xs"
-                  :class="comp.styleId ? (comp.styleId === selectedStyleId ? 'bg-green-900 text-green-300' : 'bg-gray-700 text-gray-400') : 'text-gray-600 italic'">{{
-                    getStyleName(comp.styleId) }}</span></td>
-              <td class="p-2 text-right"><span v-if="comp.styleId === selectedStyleId"
-                  class="text-green-500 font-bold">✓</span></td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-    <div v-else class="flex-1 flex items-center justify-center text-gray-500">
-      <div class="text-center">
-        <p class="text-lg">⬅️ Válassz vagy hozz létre egy stílust.</p>
+      <div v-else class="flex-1 flex flex-col items-center justify-center text-gray-500">
+        <div class="text-4xl mb-4">🎨</div>
+        <p class="text-lg">Válassz vagy hozz létre egy stílust a bal oldalon.</p>
       </div>
     </div>
   </div>
