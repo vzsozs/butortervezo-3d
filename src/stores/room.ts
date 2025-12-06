@@ -3,42 +3,157 @@ import { ref } from 'vue'
 
 export interface RoomOpening {
   id: string
-  type: 'door' | 'window'
-  wallIndex: number // 0: Front, 1: Right, 2: Back, 3: Left
-  position: number // Távolság a fal bal szélétől (mm)
+  // ÚJ TÍPUS: 'opening'
+  type: 'door' | 'window' | 'opening'
+  wallIndex: number
+  position: number
   width: number
   height: number
-  elevation: number // Ablaknál parapet magasság
+  elevation: number
 }
 
 export const useRoomStore = defineStore('room', () => {
   // --- STATE ---
 
-  // Szoba méretei (mm)
   const roomDimensions = ref({
-    width: 4000, // Szélesség (X tengely)
-    depth: 3000, // Mélység (Z tengely)
-    height: 2600, // Belmagasság (Y tengely)
+    width: 6000,
+    depth: 4000,
+    height: 2600,
   })
 
-  // Nyílászárók listája
   const openings = ref<RoomOpening[]>([])
+
+  // --- SEGÉDFÜGGVÉNYEK ---
+
+  function getWallLength(wallIndex: number): number {
+    return wallIndex === 0 || wallIndex === 2
+      ? roomDimensions.value.width
+      : roomDimensions.value.depth
+  }
+
+  function validateOpening(op: RoomOpening) {
+    const wallLength = getWallLength(op.wallIndex)
+    const margin = 2
+
+    // 0. NEGATÍV ÉRTÉKEK SZŰRÉSE (ÚJ)
+    if (op.width < 100) op.width = 100 // Minimum szélesség
+    if (op.height < 100) op.height = 100 // Minimum magasság
+    if (op.elevation < 0) op.elevation = 0
+
+    // 1. ÜTKÖZÉSVIZSGÁLAT
+    const neighbors = openings.value.filter((o) => o.wallIndex === op.wallIndex && o.id !== op.id)
+
+    for (const neighbor of neighbors) {
+      const opEnd = op.position + op.width
+      const neighborEnd = neighbor.position + neighbor.width
+
+      if (op.position < neighborEnd + margin && opEnd > neighbor.position - margin) {
+        const opCenter = op.position + op.width / 2
+        const neighborCenter = neighbor.position + neighbor.width / 2
+
+        if (opCenter < neighborCenter) {
+          op.position = neighbor.position - op.width - margin
+        } else {
+          op.position = neighborEnd + margin
+        }
+      }
+    }
+
+    // 2. FAL HATÁROK
+    if (op.width > wallLength - margin * 2) {
+      op.width = wallLength - margin * 2
+    }
+    if (op.position < margin) {
+      op.position = margin
+    }
+    if (op.position + op.width > wallLength - margin) {
+      op.position = wallLength - op.width - margin
+    }
+    if (op.elevation + op.height > roomDimensions.value.height) {
+      if (op.height > roomDimensions.value.height) op.height = roomDimensions.value.height
+      op.elevation = roomDimensions.value.height - op.height
+    }
+  }
 
   // --- ACTIONS ---
 
   function setDimensions(width: number, depth: number, height: number) {
-    roomDimensions.value = { width, depth, height }
+    // Negatív értékek szűrése itt is
+    roomDimensions.value = {
+      width: Math.max(1000, width),
+      depth: Math.max(1000, depth),
+      height: Math.max(2000, height),
+    }
+    openings.value.forEach((op) => validateOpening(op))
   }
 
-  function addOpening(type: 'door' | 'window') {
+  // OKOS HOZZÁADÁS
+  // Most már elfogadja az 'opening' típust is
+  function addOpening(type: 'door' | 'window' | 'opening') {
     const id = `${type}_${Date.now()}`
+    const wallIndex = 0
+    const wallLength = getWallLength(wallIndex)
+    const margin = 2
+    const minSize = 100
 
-    // Default értékek típus szerint
-    const newOpening: RoomOpening =
-      type === 'door'
-        ? { id, type, wallIndex: 0, position: 1000, width: 900, height: 2100, elevation: 0 }
-        : { id, type, wallIndex: 0, position: 1000, width: 1200, height: 1200, elevation: 900 }
+    const itemsOnWall = openings.value
+      .filter((o) => o.wallIndex === wallIndex)
+      .sort((a, b) => a.position - b.position)
 
+    let bestGap = { start: margin, length: 0 }
+    let currentPos = margin
+
+    for (const item of itemsOnWall) {
+      const gapLength = item.position - margin - currentPos
+      if (gapLength > bestGap.length) {
+        bestGap = { start: currentPos, length: gapLength }
+      }
+      currentPos = item.position + item.width + margin
+    }
+
+    const lastGapLength = wallLength - margin - currentPos
+    if (lastGapLength > bestGap.length) {
+      bestGap = { start: currentPos, length: lastGapLength }
+    }
+
+    if (bestGap.length < minSize) {
+      alert('Nincs elég hely a falon új elem elhelyezéséhez!')
+      return
+    }
+
+    // MÉRETEK BEÁLLÍTÁSA TÍPUS SZERINT
+    let defaultWidth = 900 // Ajtó alap
+    let defaultHeight = 2100
+    let defaultElevation = 0
+
+    if (type === 'window') {
+      defaultWidth = 1200
+      defaultHeight = 1200
+      defaultElevation = 900
+    } else if (type === 'opening') {
+      defaultWidth = 2000 // Kicsit szélesebb átjáró
+      defaultHeight = 3000
+      defaultElevation = 0 // Földig ér
+    }
+
+    let finalWidth = defaultWidth
+    if (bestGap.length < defaultWidth) {
+      finalWidth = bestGap.length
+    }
+
+    const finalPos = bestGap.start + bestGap.length / 2 - finalWidth / 2
+
+    const newOpening: RoomOpening = {
+      id,
+      type,
+      wallIndex,
+      position: finalPos,
+      width: finalWidth,
+      height: defaultHeight,
+      elevation: defaultElevation,
+    }
+
+    validateOpening(newOpening)
     openings.value.push(newOpening)
   }
 
@@ -49,7 +164,9 @@ export const useRoomStore = defineStore('room', () => {
   function updateOpening(id: string, updates: Partial<RoomOpening>) {
     const index = openings.value.findIndex((o) => o.id === id)
     if (index !== -1) {
-      openings.value[index] = { ...openings.value[index], ...updates } as RoomOpening
+      const updatedOpening = { ...openings.value[index], ...updates } as RoomOpening
+      validateOpening(updatedOpening)
+      openings.value[index] = updatedOpening
     }
   }
 

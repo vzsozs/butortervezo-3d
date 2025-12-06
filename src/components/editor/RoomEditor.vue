@@ -5,8 +5,21 @@ import { storeToRefs } from 'pinia';
 const roomStore = useRoomStore();
 const { roomDimensions, openings } = storeToRefs(roomStore);
 
-// Falak nevei a könnyebb tájékozódáshoz
 const wallNames = ['Elülső fal', 'Jobb fal', 'Hátsó fal', 'Bal fal'];
+const inputClass = "bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-gray-200 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all w-full";
+
+// Ikon segédfüggvény
+function getIcon(type: string) {
+  if (type === 'door') return '🚪';
+  if (type === 'window') return '🪟';
+  return '⛩️'; // Falnyílás ikon
+}
+
+function getName(type: string) {
+  if (type === 'door') return 'Ajtó';
+  if (type === 'window') return 'Ablak';
+  return 'Falnyílás';
+}
 
 </script>
 
@@ -20,15 +33,22 @@ const wallNames = ['Elülső fal', 'Jobb fal', 'Hátsó fal', 'Bal fal'];
       <div class="grid grid-cols-2 gap-3">
         <div class="flex flex-col gap-1">
           <label class="text-xs text-gray-400">Szélesség (X)</label>
-          <input type="number" v-model.number="roomDimensions.width" class="admin-input" />
+          <!-- Itt a setDimensions-t hívjuk meg változáskor, mert az tartalmazza a validálást -->
+          <input type="number" v-model.number="roomDimensions.width"
+            @input="roomStore.setDimensions(roomDimensions.width, roomDimensions.depth, roomDimensions.height)"
+            step="50" min="1000" class="admin-input w-full py-1" />
         </div>
         <div class="flex flex-col gap-1">
           <label class="text-xs text-gray-400">Hosszúság (Z)</label>
-          <input type="number" v-model.number="roomDimensions.depth" class="admin-input" />
+          <input type="number" v-model.number="roomDimensions.depth"
+            @input="roomStore.setDimensions(roomDimensions.width, roomDimensions.depth, roomDimensions.height)"
+            step="50" min="1000" class="admin-input w-full py-1" />
         </div>
         <div class="flex flex-col gap-1 col-span-2">
           <label class="text-xs text-gray-400">Belmagasság (Y)</label>
-          <input type="number" v-model.number="roomDimensions.height" class="admin-input" />
+          <input type="number" v-model.number="roomDimensions.height"
+            @input="roomStore.setDimensions(roomDimensions.width, roomDimensions.depth, roomDimensions.height)"
+            step="50" min="1500" class="admin-input w-full py-1" />
         </div>
       </div>
     </div>
@@ -36,16 +56,23 @@ const wallNames = ['Elülső fal', 'Jobb fal', 'Hátsó fal', 'Bal fal'];
     <!-- 2. NYÍLÁSZÁRÓK HOZZÁADÁSA -->
     <div class="space-y-3 pt-4 border-t border-gray-700">
       <h3 class="font-semibold text-gray-200 uppercase text-xs tracking-wider">Új Elem Hozzáadása</h3>
-      <div class="grid grid-cols-2 gap-3">
+      <!-- Most már 3 oszlopos a grid -->
+      <div class="grid grid-cols-3 gap-2">
         <button @click="roomStore.addOpening('door')"
-          class="flex flex-col items-center justify-center p-3 bg-gray-800 border border-gray-600 rounded hover:bg-gray-700 hover:border-blue-500 transition-all group">
-          <span class="text-2xl mb-1 group-hover:scale-110 transition-transform">🚪</span>
-          <span class="text-xs text-gray-300">Ajtó</span>
+          class="flex flex-col items-center justify-center p-2 bg-gray-800 border border-gray-600 rounded hover:bg-gray-700 hover:border-blue-500 transition-all group">
+          <span class="text-xl mb-1 group-hover:scale-110 transition-transform">🚪</span>
+          <span class="text-[10px] text-gray-300">Ajtó</span>
         </button>
         <button @click="roomStore.addOpening('window')"
-          class="flex flex-col items-center justify-center p-3 bg-gray-800 border border-gray-600 rounded hover:bg-gray-700 hover:border-blue-500 transition-all group">
-          <span class="text-2xl mb-1 group-hover:scale-110 transition-transform">🪟</span>
-          <span class="text-xs text-gray-300">Ablak</span>
+          class="flex flex-col items-center justify-center p-2 bg-gray-800 border border-gray-600 rounded hover:bg-gray-700 hover:border-blue-500 transition-all group">
+          <span class="text-xl mb-1 group-hover:scale-110 transition-transform">🪟</span>
+          <span class="text-[10px] text-gray-300">Ablak</span>
+        </button>
+        <!-- ÚJ GOMB: FALNYÍLÁS -->
+        <button @click="roomStore.addOpening('opening')"
+          class="flex flex-col items-center justify-center p-2 bg-gray-800 border border-gray-600 rounded hover:bg-gray-700 hover:border-blue-500 transition-all group">
+          <span class="text-xl mb-1 group-hover:scale-110 transition-transform">⛩️</span>
+          <span class="text-[10px] text-gray-300">Falnyílás</span>
         </button>
       </div>
     </div>
@@ -66,8 +93,8 @@ const wallNames = ['Elülső fal', 'Jobb fal', 'Hátsó fal', 'Bal fal'];
         <!-- Fejléc -->
         <div class="flex justify-between items-center mb-2">
           <div class="flex items-center gap-2">
-            <span class="text-lg">{{ item.type === 'door' ? '🚪' : '🪟' }}</span>
-            <span class="font-bold text-sm text-gray-200">{{ item.type === 'door' ? 'Ajtó' : 'Ablak' }}</span>
+            <span class="text-lg">{{ getIcon(item.type) }}</span>
+            <span class="font-bold text-sm text-gray-200">{{ getName(item.type) }}</span>
           </div>
           <button @click="roomStore.removeOpening(item.id)" class="text-gray-500 hover:text-red-400 transition-colors">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -84,7 +111,8 @@ const wallNames = ['Elülső fal', 'Jobb fal', 'Hátsó fal', 'Bal fal'];
           <!-- Melyik falon? -->
           <div class="col-span-2">
             <label class="text-gray-500 block mb-1">Elhelyezkedés (Fal)</label>
-            <select v-model.number="item.wallIndex" class="admin-input w-full py-1">
+            <select v-model.number="item.wallIndex"
+              @change="roomStore.updateOpening(item.id, { wallIndex: item.wallIndex })" :class="inputClass">
               <option v-for="(name, idx) in wallNames" :key="idx" :value="idx">{{ name }}</option>
             </select>
           </div>
@@ -92,25 +120,36 @@ const wallNames = ['Elülső fal', 'Jobb fal', 'Hátsó fal', 'Bal fal'];
           <!-- Pozíció -->
           <div>
             <label class="text-gray-500 block mb-1">Pozíció (mm)</label>
-            <input type="number" v-model.number="item.position" class="admin-input w-full py-1" />
+            <!-- @input esemény: Minden gépelésnél/nyílnyomásnál validálunk -->
+            <input type="number" v-model.number="item.position"
+              @input="roomStore.updateOpening(item.id, { position: item.position })" step="50" min="50"
+              class="admin-input w-full py-1" />
           </div>
 
           <!-- Szélesség -->
           <div>
             <label class="text-gray-500 block mb-1">Szélesség</label>
-            <input type="number" v-model.number="item.width" class="admin-input w-full py-1" />
+            <input type="number" v-model.number="item.width"
+              @input="roomStore.updateOpening(item.id, { width: item.width })" step="50" min="50"
+              class="admin-input w-full py-1" />
           </div>
 
           <!-- Magasság -->
           <div>
             <label class="text-gray-500 block mb-1">Magasság</label>
-            <input type="number" v-model.number="item.height" class="admin-input w-full py-1" />
+            <input type="number" v-model.number="item.height"
+              @input="roomStore.updateOpening(item.id, { height: item.height })" step="50" min="50"
+              class="admin-input w-full py-1" />
           </div>
 
-          <!-- Parapet (csak ablaknál) -->
-          <div v-if="item.type === 'window'">
-            <label class="text-gray-500 block mb-1">Parapet</label>
-            <input type="number" v-model.number="item.elevation" class="admin-input w-full py-1" />
+          <!-- Parapet / Küszöb (Ablaknál és Falnyílásnál is látszik) -->
+          <div v-if="item.type === 'window' || item.type === 'opening'">
+            <label class="text-gray-500 block mb-1">
+              {{ item.type === 'window' ? 'Parapet' : 'Küszöb / Alja' }}
+            </label>
+            <input type="number" v-model.number="item.elevation"
+              @input="roomStore.updateOpening(item.id, { elevation: item.elevation })" step="50" min="0"
+              class="admin-input w-full py-1" />
           </div>
 
         </div>
@@ -119,9 +158,3 @@ const wallNames = ['Elülső fal', 'Jobb fal', 'Hátsó fal', 'Bal fal'];
 
   </div>
 </template>
-
-<style scoped>
-.admin-input {
-  @apply bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-gray-200 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all;
-}
-</style>
