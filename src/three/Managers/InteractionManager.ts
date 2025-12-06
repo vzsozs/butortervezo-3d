@@ -44,13 +44,11 @@ export default class InteractionManager {
 
   // --- SEGÉDFÜGGVÉNY A MAGASSÁGHOZ ---
   private getLiftHeight(object: Group): number {
-    // JAVÍTÁS: A configStore-t az experience-ből érjük el, ami biztosan inicializálva van
     const configStore = this.experience.configStore
     let maxLift = 0
 
     // 1. Megnézzük a bútor saját configját (ha van)
     const furnitureConfig = object.userData.config
-    // JAVÍTÁS: properties.height ellenőrzése
     if (furnitureConfig && furnitureConfig.height) {
       maxLift = furnitureConfig.height
     } else if (furnitureConfig && furnitureConfig.properties?.height) {
@@ -65,11 +63,7 @@ export default class InteractionManager {
         const componentDef = configStore.getComponentById(componentId)
 
         if (componentDef) {
-          // JAVÍTÁS: properties.height ellenőrzése (és mm -> méter konverzió!)
-          // Mivel az adatbázisban mm-ben van (pl. 150), de a 3D-ben méter kell (0.15).
           const heightMM = componentDef.properties?.height || (componentDef as any).height || 0
-
-          // Ha ez egy láb, akkor valószínűleg ez emeli meg a bútort
           if (componentDef.componentType === 'legs' || componentDef.id.includes('leg')) {
             maxLift = Math.max(maxLift, heightMM / 1000)
           }
@@ -78,6 +72,30 @@ export default class InteractionManager {
     }
 
     return maxLift
+  }
+
+  private getTargetElevation(object: Group): number {
+    const config = object.userData.config
+    const category = config?.category
+
+    // Alsó szekrények: Mindig a láb magasságára
+    if (category === 'bottom_cabinets') {
+      return this.getLiftHeight(object)
+    }
+
+    // Ha már lerakott bútort mozgatunk, tartsuk meg a jelenlegi magasságát
+    // (Kivéve ha alsó szekrény, azt mindig a lábra igazítjuk)
+    if (!this.isDraggingNewObject) {
+      return object.position.y
+    }
+
+    // ÚJ felső szekrények: Alapértelmezett magasság (pl. 200cm)
+    if (category === 'top_cabinets' || category === 'wall_cabinets') {
+      return 2.0 // 200 cm
+    }
+
+    // Minden más: Földön (0)
+    return 0
   }
 
   // --- ESEMÉNYKEZELŐK ---
@@ -125,6 +143,42 @@ export default class InteractionManager {
       if (this.rulerStartPoint) this.onRulerMouseMove()
     }
 
+    // DRAG INDÍTÁSA MEGLÉVŐ OBJEKTUMRA
+    if (this.isMouseDown && !this.draggedObject && !this.isTransforming) {
+      const dist = this.mouseDownPosition.distanceTo(new Vector2(event.clientX, event.clientY))
+      if (dist > 5) {
+        this.experience.raycaster.setFromCamera(
+          this.experience.mouse,
+          this.experience.camera.instance,
+        )
+        const intersects = this.experience.raycaster.intersectObjects(
+          this.experience.experienceStore.placedObjects,
+          true,
+        )
+
+        if (intersects.length > 0 && intersects[0]) {
+          let targetObj: Object3D | null = intersects[0].object
+          let parentGroup: Group | null = null
+
+          while (targetObj) {
+            if (
+              this.experience.experienceStore.placedObjects.some(
+                (po) => po.uuid === targetObj?.uuid,
+              )
+            ) {
+              parentGroup = targetObj as Group
+              break
+            }
+            targetObj = targetObj.parent
+          }
+
+          if (parentGroup) {
+            this.startDraggingExistingObject(parentGroup)
+          }
+        }
+      }
+    }
+
     if (!this.draggedObject) return
 
     this.experience.raycaster.setFromCamera(this.experience.mouse, this.experience.camera.instance)
@@ -135,16 +189,9 @@ export default class InteractionManager {
     if (intersects.length > 0 && intersects[0]) {
       const point = intersects[0].point
 
-      const config = this.draggedObject.userData.config
-      const category = config?.category
-
-      // JAVÍTÁS: Itt hívjuk az új függvényt
-      const liftHeight = this.getLiftHeight(this.draggedObject)
-
-      // Ha alsó szekrény, akkor a láb magasságára emeljük
-      if (category === 'bottom_cabinets') {
-        point.y = liftHeight
-      }
+      // MAGASSÁG BEÁLLÍTÁSA
+      const targetY = this.getTargetElevation(this.draggedObject)
+      point.y = targetY
 
       const others = this.experience.experienceStore.placedObjects.filter(
         (o) => o.uuid !== this.draggedObject?.uuid,
@@ -242,9 +289,6 @@ export default class InteractionManager {
       if (slot.defaultComponent) defaultComponentState[slot.slotId] = slot.defaultComponent
     })
 
-    // --- ÚJ: GLOBÁLIS STÍLUSOK ALKALMAZÁSA ---
-    // (Eltávolítva: A család alapú stílusok megszűntek)
-
     const newObject = await this.experience.assetManager.buildFurnitureFromConfig(
       config,
       defaultComponentState,
@@ -260,18 +304,17 @@ export default class InteractionManager {
     newObject.userData.materialState = { ...globalMaterials }
     await this.experience.stateManager.applyMaterialsToObject(newObject)
 
-    const liftHeight = this.getLiftHeight(newObject)
+    this.isDraggingNewObject = true // Új objektum
+    const targetY = this.getTargetElevation(newObject)
 
-    // --- KIVETTÜK A HARDCODED FORGATÁST ---
     // newObject.rotation.y = -Math.PI / 2
-    newObject.position.set(0, liftHeight, 0)
+    newObject.position.set(0, targetY, 0)
 
-    this.isDraggingNewObject = true
     this.beginDrag(newObject)
   }
 
   public startDraggingExistingObject(object: Group) {
-    this.isDraggingNewObject = true
+    this.isDraggingNewObject = false // Meglévő objektum!
     this.beginDrag(object)
   }
 
