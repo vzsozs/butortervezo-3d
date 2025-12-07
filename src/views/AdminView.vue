@@ -250,7 +250,7 @@ function handleSelectFurniture(furniture: FurnitureConfig | null) {
 
 function handleCreateNewFurniture(categoryInput?: string | any) {
   let category: any = FurnitureCategory.BOTTOM_CABINET;
-  let displayCategoryName = FurnitureCategory.BOTTOM_CABINET; // Ezt használjuk a bútor nevében (szép név)
+  let displayCategoryName: string = FurnitureCategory.BOTTOM_CABINET; // Ezt használjuk a bútor nevében (szép név)
 
   if (typeof categoryInput === 'string' && categoryInput) {
     displayCategoryName = categoryInput; // Pl: "Felső Polcok"
