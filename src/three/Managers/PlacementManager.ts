@@ -8,7 +8,7 @@ const SNAP_INCREMENT = 0.1
 const MAX_SNAP_CHECK_DISTANCE = 0.3
 const UNIT_SCALE = 0.001
 
-type SnapAxis = 'x' | 'z'
+type SnapAxis = 'x' | 'z' | 'y'
 
 type SnapCandidate = {
   priority: number
@@ -286,6 +286,94 @@ export default class PlacementManager {
       })
     }
 
+    // --- C. Y-TENGELY SNAP (FELSŐ SZEKRÉNYEKHEZ) ---
+    const config = movingObject.userData.config
+    const isUpperCabinet =
+      config && (config.category === 'top_cabinets' || config.category === 'wall_cabinets')
+
+    const candidatesY: SnapCandidate[] = []
+
+    if (isUpperCabinet) {
+      // Csak más felső szekrényekhez igazítunk
+      const upperCabinets = otherObjects.filter((o) => {
+        const c = o.userData.config
+        return c && (c.category === 'top_cabinets' || c.category === 'wall_cabinets')
+      })
+
+      // A teljes doboz magasságát nézzük
+      const movingFullBox = this.getBoundingBox(movingObject, false)
+
+      const deltaBottom = movingFullBox.min.y - movingObject.position.y
+      const deltaTop = movingFullBox.max.y - movingObject.position.y
+
+      const currentProposedY = flatProposedPosition.y
+
+      for (const staticObject of upperCabinets) {
+        const staticBox = this.getBoundingBox(staticObject, false)
+
+        // Csak akkor snappelünk, ha "közel" vannak vízszintesen (hogy ne snappeljen a szoba másik végébe)
+        // A sík távolságát vesszük alapul (X-Z sík)
+        const distXZ = new Vector3(staticObject.position.x, 0, staticObject.position.z).distanceTo(
+          new Vector3(flatProposedPosition.x, 0, flatProposedPosition.z),
+        )
+
+        // Ha 3 méteren belül van, engedjük a snappet
+        if (distXZ < 3.0) {
+          // 1. ALJ-ALJ Igazítás (Bottom align)
+          const snapPosBottom = staticBox.min.y - deltaBottom
+          if (Math.abs(currentProposedY - snapPosBottom) < MAX_SNAP_CHECK_DISTANCE) {
+            candidatesY.push({
+              priority: 1,
+              value: snapPosBottom,
+              snapEdge: staticBox.min.y,
+              distance: Math.abs(currentProposedY - snapPosBottom),
+              targetObject: staticObject,
+              axis: 'y',
+            })
+          }
+
+          // 2. TETŐ-TETŐ Igazítás (Top align)
+          const snapPosTop = staticBox.max.y - deltaTop
+          if (Math.abs(currentProposedY - snapPosTop) < MAX_SNAP_CHECK_DISTANCE) {
+            candidatesY.push({
+              priority: 1,
+              value: snapPosTop,
+              snapEdge: staticBox.max.y,
+              distance: Math.abs(currentProposedY - snapPosTop),
+              targetObject: staticObject,
+              axis: 'y',
+            })
+          }
+
+          // 3. ALJ-TETŐ (Egymás alá pakolás)
+          const snapPosStackUnder = staticBox.min.y - deltaTop
+          if (Math.abs(currentProposedY - snapPosStackUnder) < MAX_SNAP_CHECK_DISTANCE) {
+            candidatesY.push({
+              priority: 2,
+              value: snapPosStackUnder,
+              snapEdge: staticBox.min.y,
+              distance: Math.abs(currentProposedY - snapPosStackUnder),
+              targetObject: staticObject,
+              axis: 'y',
+            })
+          }
+
+          // 4. TETŐ-ALJ (Egymás fölé pakolás)
+          const snapPosStackOver = staticBox.max.y - deltaBottom
+          if (Math.abs(currentProposedY - snapPosStackOver) < MAX_SNAP_CHECK_DISTANCE) {
+            candidatesY.push({
+              priority: 2,
+              value: snapPosStackOver,
+              snapEdge: staticBox.max.y,
+              distance: Math.abs(currentProposedY - snapPosStackOver),
+              targetObject: staticObject,
+              axis: 'y',
+            })
+          }
+        }
+      }
+    }
+
     // --- KIVÁLASZTÁS ---
 
     const sortFn = (a: SnapCandidate, b: SnapCandidate) => {
@@ -294,12 +382,17 @@ export default class PlacementManager {
     }
     candidatesX.sort(sortFn)
     candidatesZ.sort(sortFn)
+    candidatesY.sort(sortFn) // ÚJ
 
     let finalX = this.snapToGrid(flatProposedPosition.x)
     let finalZ = this.snapToGrid(flatProposedPosition.z)
 
+    // JAVÍTÁS: Alapból a proposed (célzott) Y-t használjuk, kivéve ha találunk snappet
+    let finalY = flatProposedPosition.y
+
     let usedCandidateX: SnapCandidate | null = null
     let usedCandidateZ: SnapCandidate | null = null
+    let usedCandidateY: SnapCandidate | null = null // ÚJ
 
     if (candidatesX.length > 0) {
       const bestX = candidatesX[0]
@@ -317,42 +410,65 @@ export default class PlacementManager {
       }
     }
 
+    if (candidatesY.length > 0) {
+      const bestY = candidatesY[0]
+      if (bestY) {
+        finalY = bestY.value
+        usedCandidateY = bestY
+      }
+    }
+
     // --- ÜTKÖZÉSVIZSGÁLAT (Kombinált) ---
-    let finalPos = new Vector3(finalX, fixedY, finalZ)
+    // JAVÍTÁS: Most már a finalY-t használjuk a fixedY helyett
+    let finalPos = new Vector3(finalX, finalY, finalZ)
 
     // Szigorú szoba határ (Full Box-szal!)
-    finalPos = this.constrainToRoom(movingObject, finalPos)
+    const constrainedPos = this.constrainToRoom(movingObject, finalPos)
+    // Megjegyzés: A constrainToRoom jelenleg nem módosítja az Y-t.
+    finalPos = constrainedPos
 
     if (this.isPositionColliding(movingObject, finalPos, otherObjects)) {
-      // 1. Próba: Csak X snap
-      const posXOnly = new Vector3(finalX, fixedY, this.snapToGrid(flatProposedPosition.z))
+      // 1. Próba: Csak X snap (Z elengedve, Y tartva)
+      const posXOnly = new Vector3(finalX, finalY, this.snapToGrid(flatProposedPosition.z))
       const constrainedX = this.constrainToRoom(movingObject, posXOnly)
 
       if (!this.isPositionColliding(movingObject, constrainedX, otherObjects)) {
         finalPos = constrainedX
         usedCandidateZ = null
       } else {
-        // 2. Próba: Csak Z snap
-        const posZOnly = new Vector3(this.snapToGrid(flatProposedPosition.x), fixedY, finalZ)
+        // 2. Próba: Csak Z snap (X elengedve, Y tartva)
+        const posZOnly = new Vector3(this.snapToGrid(flatProposedPosition.x), finalY, finalZ)
         const constrainedZ = this.constrainToRoom(movingObject, posZOnly)
 
         if (!this.isPositionColliding(movingObject, constrainedZ, otherObjects)) {
           finalPos = constrainedZ
           usedCandidateX = null
         } else {
-          // 3. Próba: Egyik sem (Grid)
+          // 3. Próba: Egyik sem (Grid) - Y marad snappelt
           const posNoSnap = new Vector3(
             this.snapToGrid(flatProposedPosition.x),
-            fixedY,
+            finalY,
             this.snapToGrid(flatProposedPosition.z),
           )
           finalPos = this.constrainToRoom(movingObject, posNoSnap)
-
-          if (this.isPositionColliding(movingObject, finalPos, otherObjects)) {
-            return this.constrainToRoom(movingObject, movingObject.position.clone())
-          }
           usedCandidateX = null
           usedCandidateZ = null
+
+          if (this.isPositionColliding(movingObject, finalPos, otherObjects)) {
+            // 4. Próba: Y snap elengedése (Vissza a proposed Y-ra)
+            const posNoSnapY = new Vector3(
+              this.snapToGrid(flatProposedPosition.x),
+              flatProposedPosition.y,
+              this.snapToGrid(flatProposedPosition.z),
+            )
+            finalPos = this.constrainToRoom(movingObject, posNoSnapY)
+            usedCandidateY = null
+
+            if (this.isPositionColliding(movingObject, finalPos, otherObjects)) {
+              // VÉGSŐ FALLBACK: Vissza az eredeti pozícióra
+              return this.constrainToRoom(movingObject, movingObject.position.clone())
+            }
+          }
         }
       }
     }
@@ -363,6 +479,9 @@ export default class PlacementManager {
     }
     if (usedCandidateZ) {
       this.drawSnapLine(usedCandidateZ, finalPos, 'z')
+    }
+    if (usedCandidateY) {
+      this.drawSnapLine(usedCandidateY, finalPos, 'y')
     }
 
     return finalPos
@@ -390,10 +509,15 @@ export default class PlacementManager {
       start.set(candidate.snapEdge, objectPos.y, objectPos.z - size)
       end.set(candidate.snapEdge, objectPos.y, objectPos.z + size)
       debugCandidate.snapPoint.x = candidate.snapEdge
-    } else {
+    } else if (axis === 'z') {
       start.set(objectPos.x - size, objectPos.y, candidate.snapEdge)
       end.set(objectPos.x + size, objectPos.y, candidate.snapEdge)
       debugCandidate.snapPoint.z = candidate.snapEdge
+    } else if (axis === 'y') {
+      // Keresztet rajzolunk a síkban (vízszintes vonal)
+      start.set(objectPos.x - size, candidate.snapEdge, objectPos.z)
+      end.set(objectPos.x + size, candidate.snapEdge, objectPos.z)
+      debugCandidate.snapPoint.y = candidate.snapEdge
     }
 
     const debugBox = new Box3().setFromPoints([start, end])

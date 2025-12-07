@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { type DisplayGroup } from '@/composables/inspector/useInspectorGrouping'
+import { ComponentType } from '@/config/furniture'
 import { useInspectorGrouping } from '@/composables/inspector/useInspectorGrouping'
 import {
   useMaterialSelection,
@@ -63,20 +64,28 @@ const {
         <!-- GRID LAYOUT -->
         <div class="grid grid-cols-3 gap-2 h-8">
 
-          <!-- 1. Dropdown -->
+          <!-- 1. Dropdown (Korpusznál NEM JELENIK MEG, helyette fix szöveg) -->
           <div class="col-span-2 relative">
-            <select :value="getCurrentControlValue(control)"
-              @change="e => handleUnifiedChange(control, (e.target as HTMLSelectElement).value)"
-              class="w-full h-full bg-[#2a2a2a] text-gray-200 text-xs rounded-md pl-2 pr-6 appearance-none border border-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors cursor-pointer hover:bg-[#333]">
-              <option v-for="opt in getOptionsForControl(control)" :key="opt.value" :value="opt.value">
-                {{ opt.label }}
-              </option>
-            </select>
-            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
-              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-              </svg>
-            </div>
+            <template v-if="group.id !== ComponentType.CORPUS">
+              <select :value="getCurrentControlValue(control)"
+                @change="e => handleUnifiedChange(control, (e.target as HTMLSelectElement).value)"
+                class="w-full h-full bg-[#2a2a2a] text-gray-200 text-xs rounded-md pl-2 pr-6 appearance-none border border-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors cursor-pointer hover:bg-[#333]">
+                <option v-for="opt in getOptionsForControl(control)" :key="opt.value" :value="opt.value">
+                  {{ opt.label }}
+                </option>
+              </select>
+              <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                </svg>
+              </div>
+            </template>
+            <template v-else>
+              <div
+                class="w-full h-full flex items-center px-2 text-gray-500 text-xs italic bg-[#2a2a2a] rounded-md border border-gray-700 opacity-50 cursor-not-allowed select-none">
+                Fix elem
+              </div>
+            </template>
           </div>
 
           <!-- 2. Material Button -->

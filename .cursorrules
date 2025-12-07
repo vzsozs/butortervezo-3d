@@ -9,15 +9,77 @@ Always answer in **Hungarian**, regardless of context, filenames, or prompt lang
 Never switch back to English unless the user explicitly asks for it.
 Translate all generated content (Tasks, Implementation Plans, File Generation) automatically to Hungarian.
 
+## Artifact Templates (IMPORTANT: USE THESE!)
+
+### Implementation Plan Template
+
+When creating an `implementation_plan.md`, use this structure and translate headings to Hungarian:
+
+```markdown
+# [Cél megnevezése]
+
+## Felhasználói felülvizsgálat szükséges (User Review Required)
+
+Document anything that requires user review.
+If none, omit this section.
+
+## Tervezett Változtatások (Proposed Changes)
+
+Group files by component.
+
+### [Komponens Neve]
+
+#### [MODIFY] [fájlnév]
+
+- Részletes leírás a változásról.
+
+## Ellenőrzési Terv (Verification Plan)
+
+### Manuális Ellenőrzés
+
+- [ ] Lépés 1
+- [ ] Lépés 2
+```
+
+### Task Template
+
+When creating `task.md`, use this structure:
+
+```markdown
+# Feladat: [Cél]
+
+- [ ] [Fő feladat 1] <!-- id: 0 -->
+  - [ ] [Részfeladat]
+- [ ] [Fő feladat 2] <!-- id: 1 -->
+```
+
+### Walkthrough Template
+
+When creating `walkthrough.md`, use this structure:
+
+```markdown
+# Végigvezetés: [Cél]
+
+## Elvégzett Módosítások
+
+Rövid összefoglaló a változásokról.
+
+### Kód változások
+
+Kiemelt módosítások magyarázata.
+
+## Ellenőrzés
+
+Dokumentált lépések az ellenőrzéshez.
+```
+
 ## Communication Style
 
 - Language: Hungarian (Magyar)
 - Tone: Professional, helpful, concise
 - Mielőtt kódot írnál, vázold fel a tervet lépésről lépésre, de röviden!
-- Az Implementation Planban mindig Magyarul írj!
-- Walkthrough: Mindig Magyarul írd le!
 - Mindig mindent Magyarul írd le!
-- Minden panelt amit generálsz magyarul írd le!!!!!! FONTOS!!!!
+- Minden panelt amit generálsz magyarul írd le!
 
 ## Coding Standards
 
@@ -25,12 +87,5 @@ Translate all generated content (Tasks, Implementation Plans, File Generation) a
 - Style: Composition API
 - 3D Engine: Three.js
 - Mindig magyarul kommentelj.
-- Mindig magyarul chatelj, beszélj velem.
 - Használj TypeScript-et, de kerüld az 'any' típust.
 - Tailwind CSS-t használj stílusozáshoz.
-
-## Project Specifics
-
--
-
-## Other Instructions
