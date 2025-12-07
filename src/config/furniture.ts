@@ -148,6 +148,13 @@ export interface FurnitureConfig {
   slotGroups?: SlotGroup[]
   price?: number
   height?: number
+  width?: number
+  depth?: number
+  dimensions?: {
+    width: number
+    height: number
+    depth: number
+  }
 }
 
 export interface ComponentDatabase {

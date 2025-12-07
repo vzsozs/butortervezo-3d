@@ -13,6 +13,7 @@ import {
   useMaterialSelection
 } from '@/composables/inspector/useInspectorLogic'
 import { useInspectorGrouping } from '@/composables/inspector/useInspectorGrouping'
+import type { SlotGroup } from '@/config/furniture'
 
 // Components
 import InspectorHeader from './inspector/InspectorHeader.vue'
@@ -32,7 +33,7 @@ const {
   furnitureDef
 } = useInspectorData()
 
-const slotGroups = ref<any[]>([])
+const slotGroups = ref<SlotGroup[]>([])
 watch(furnitureDef, (def) => {
   slotGroups.value = def?.slotGroups ?? []
 }, { immediate: true })

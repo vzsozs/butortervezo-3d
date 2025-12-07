@@ -10,23 +10,45 @@ import {
   type FurnitureConfig,
   type ComponentSlotConfig,
   type SlotGroup,
+  type MaterialConfig,
 } from '@/config/furniture'
 import type { InspectorControl } from './useInspectorGrouping'
+import type { Group, Mesh } from 'three'
+
+// --- TYPE DEFINITIONS ---
+export interface FurnitureUserData {
+  config?: FurnitureConfig
+  componentState?: Record<string, string>
+  materialState?: Record<string, string>
+  plinthHeightOverride?: number
+  worktopThicknessOverride?: number
+  initialized?: boolean
+  [key: string]: unknown
+}
+
+export type FurnitureObject = Group & {
+  userData: FurnitureUserData
+}
 
 // --- 1. INSPECTOR DATA ---
 export function useInspectorData() {
   const selectionStore = useSelectionStore()
   const configStore = useConfigStore()
 
-  const selectedObject = computed(() => selectionStore.selectedObject)
-  const currentConfig = computed(() => selectionStore.selectedObjectConfig)
+  const selectedObject = computed<FurnitureObject | null>(
+    () => selectionStore.selectedObject as FurnitureObject | null,
+  )
+  const currentConfig = computed<FurnitureConfig | null>(() => selectionStore.selectedObjectConfig)
 
   const furnitureDef = computed<FurnitureConfig | undefined>(() => {
     if (!currentConfig.value) return undefined
     return configStore.getFurnitureById(currentConfig.value.id) || currentConfig.value
   })
 
-  const currentState = computed(() => selectedObject.value?.userData.componentState || {})
+  // Ensure currentState is always a Record<string, string>
+  const currentState = computed<Record<string, string>>(
+    () => selectedObject.value?.userData.componentState || {},
+  )
 
   return {
     selectionStore,
@@ -57,8 +79,8 @@ export function useInspectorDraggable() {
 
 // --- 3. DIMENSIONS ---
 export function useDimensions(
-  selectedObject: Ref<any>,
-  currentConfig: Ref<any>,
+  selectedObject: Ref<FurnitureObject | null>,
+  currentConfig: Ref<FurnitureConfig | null>,
   currentState: Ref<Record<string, string>>,
 ) {
   const configStore = useConfigStore()
@@ -74,7 +96,8 @@ export function useDimensions(
       d = 0
 
     const corpusSlot = currentConfig.value.componentSlots?.find(
-      (s: any) => s.componentType === ComponentType.CORPUS || s.slotId.includes('corpus'),
+      (s: ComponentSlotConfig) =>
+        s.componentType === ComponentType.CORPUS || s.slotId.includes('corpus'),
     )
 
     if (corpusSlot) {
@@ -89,14 +112,17 @@ export function useDimensions(
       }
     }
 
-    const conf = currentConfig.value as any
+    // Use correct type for config access, handle legacy properties if needed
+    // FurnitureConfig should have dimensions according to updated types,
+    // but if we support legacy data, we might need adjustments.
+    const conf = currentConfig.value
     if (h === 0) h = conf.dimensions?.height || conf.height || 0
     if (w === 0) w = conf.dimensions?.width || conf.width || 0
     if (d === 0) d = conf.dimensions?.depth || conf.depth || 0
 
     // Lábazat
     const hasStandardLeg = Object.values(currentState.value).some(
-      (id: any) => typeof id === 'string' && id.includes(ProceduralConstants.LEG_STANDARD_ID),
+      (id) => typeof id === 'string' && id.includes(ProceduralConstants.LEG_STANDARD_ID),
     )
 
     if (hasStandardLeg) {
@@ -123,7 +149,7 @@ export function useDimensions(
 }
 
 // --- 4. PROMOTED PROPERTIES (Lábazat Override) ---
-export function usePromotedProperties(selectedObject: Ref<any>) {
+export function usePromotedProperties(selectedObject: Ref<FurnitureObject | null>) {
   const configStore = useConfigStore()
   const proceduralStore = useProceduralStore()
 
@@ -211,17 +237,21 @@ export function usePromotedProperties(selectedObject: Ref<any>) {
 }
 
 // --- 5. DOOR VISIBILITY (Ghost Mode) ---
-export function useDoorVisibility(selectedObject: Ref<any>, currentConfig: Ref<any>) {
+export function useDoorVisibility(
+  selectedObject: Ref<FurnitureObject | null>,
+  currentConfig: Ref<FurnitureConfig | null>,
+) {
   const areDoorsVisible = ref(true)
   const lastConfigId = ref<string | null>(null)
-  const lastKnownObject = ref<any>(null)
+  const lastKnownObject = ref<FurnitureObject | null>(null)
 
-  function forceRestoreVisibility(object: any) {
+  function forceRestoreVisibility(object: FurnitureObject) {
     if (!object) return
-    object.traverse((child: any) => {
-      if (!child.isMesh) return
-      const name = child.name.toLowerCase()
-      const slotId = (child.userData.slotId || '').toLowerCase()
+    object.traverse((child) => {
+      if (!(child as Mesh).isMesh) return
+      const mesh = child as Mesh
+      const name = mesh.name.toLowerCase()
+      const slotId = (mesh.userData.slotId || '').toLowerCase()
       const isFront =
         name.includes('front') ||
         slotId.includes('front') ||
@@ -230,9 +260,9 @@ export function useDoorVisibility(selectedObject: Ref<any>, currentConfig: Ref<a
       const isHandle = name.includes('handle') || slotId.includes('handle')
 
       if (isFront || isHandle) {
-        child.castShadow = true
-        const materials = Array.isArray(child.material) ? child.material : [child.material]
-        materials.forEach((mat: any) => {
+        mesh.castShadow = true
+        const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+        materials.forEach((mat) => {
           if (mat.userData.originalOpacity !== undefined) {
             mat.opacity = mat.userData.originalOpacity
             mat.transparent = mat.userData.originalTransparent
@@ -256,11 +286,12 @@ export function useDoorVisibility(selectedObject: Ref<any>, currentConfig: Ref<a
       if (!selectedObject.value) return
       const isGhostMode = !areDoorsVisible.value
 
-      selectedObject.value.traverse((child: any) => {
-        if (!child.isMesh) return
+      selectedObject.value.traverse((child) => {
+        if (!(child as Mesh).isMesh) return
+        const mesh = child as Mesh
 
-        const name = child.name.toLowerCase()
-        const slotId = (child.userData.slotId || '').toLowerCase()
+        const name = mesh.name.toLowerCase()
+        const slotId = (mesh.userData.slotId || '').toLowerCase()
 
         const isFront =
           name.includes('front') ||
@@ -272,10 +303,10 @@ export function useDoorVisibility(selectedObject: Ref<any>, currentConfig: Ref<a
         const isDrawerFront = name.includes('drawer') && name.includes('front')
 
         if (isFront || isHandle || isDrawerFront) {
-          child.castShadow = !isGhostMode
-          const materials = Array.isArray(child.material) ? child.material : [child.material]
+          mesh.castShadow = !isGhostMode
+          const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
 
-          materials.forEach((mat: any) => {
+          materials.forEach((mat) => {
             if (isGhostMode) {
               if (mat.userData.originalOpacity === undefined) {
                 mat.userData.originalOpacity = mat.opacity
@@ -347,7 +378,7 @@ export function useDoorVisibility(selectedObject: Ref<any>, currentConfig: Ref<a
 
 // --- 6. SHELF LOGIC ---
 export function useShelfLogic(
-  currentConfig: Ref<any>,
+  currentConfig: Ref<FurnitureConfig | null>,
   currentState: Ref<Record<string, string>>,
   areDoorsVisible: Ref<boolean>,
   applyDoorVisibility: () => void,
@@ -356,13 +387,13 @@ export function useShelfLogic(
   const selectionStore = useSelectionStore()
 
   function hasShelfSchema(group: SlotGroup): boolean {
-    return group.schemas.some((s: any) => s.type === 'shelf' || s.shelfConfig !== undefined)
+    return group.schemas.some((s) => s.type === 'shelf' || s.shelfConfig !== undefined)
   }
 
   function getMaxShelves(group: SlotGroup): number {
     if (!currentConfig.value) return 5
     const corpusSlotDef = currentConfig.value.componentSlots.find(
-      (s: any) => s.componentType === ComponentType.CORPUS,
+      (s) => s.componentType === ComponentType.CORPUS,
     )
     if (corpusSlotDef) {
       const activeCorpusId = currentState.value[corpusSlotDef.slotId]
@@ -382,13 +413,11 @@ export function useShelfLogic(
     if (!hasPhysicalShelves) return 0
 
     if (currentConfig.value && currentConfig.value.slotGroups) {
-      const dynamicGroup = currentConfig.value.slotGroups.find(
-        (g: any) => g.groupId === group.groupId,
-      )
+      const dynamicGroup = currentConfig.value.slotGroups.find((g) => g.groupId === group.groupId)
       if (dynamicGroup) {
-        const shelfSchema = dynamicGroup.schemas.find((s: any) => s.type === 'shelf')
-        if (shelfSchema && (shelfSchema as any).shelfConfig) {
-          return (shelfSchema as any).shelfConfig.count ?? 0
+        const shelfSchema = dynamicGroup.schemas.find((s) => s.type === 'shelf')
+        if (shelfSchema && shelfSchema.shelfConfig) {
+          return shelfSchema.shelfConfig.count ?? 0
         }
       }
     }
@@ -407,11 +436,11 @@ export function useShelfLogic(
       applyDoorVisibility()
     }
 
-    const storeGroup = config.slotGroups?.find((g: any) => g.groupId === group.groupId)
-    const shelfSchema = storeGroup?.schemas.find((s: any) => s.type === 'shelf')
+    const storeGroup = config.slotGroups?.find((g) => g.groupId === group.groupId)
+    const shelfSchema = storeGroup?.schemas.find((s) => s.type === 'shelf')
 
-    if (shelfSchema && (shelfSchema as any).shelfConfig) {
-      ;(shelfSchema as any).shelfConfig.count = safeCount
+    if (shelfSchema && shelfSchema.shelfConfig) {
+      shelfSchema.shelfConfig.count = safeCount
       selectionStore.applySchema(groupIndex, shelfSchema.id)
     }
   }
@@ -420,13 +449,13 @@ export function useShelfLogic(
 }
 
 // --- 7. LAYOUT LOGIC ---
-export function useLayoutLogic(selectedObject: Ref<any>) {
+export function useLayoutLogic(selectedObject: Ref<FurnitureObject | null>) {
   const selectionStore = useSelectionStore()
 
   function getLayoutDropdownValue(group: SlotGroup): string {
     const currentState = selectedObject.value?.userData.componentState || {}
     const layoutSchema = group.schemas.find((schema) => {
-      if ((schema as any).type === 'shelf') return false
+      if (schema.type === 'shelf') return false
       if (Object.keys(schema.apply).length === 0) return false
       for (const [slotId, compId] of Object.entries(schema.apply)) {
         if (currentState[slotId] !== compId) return false
@@ -436,7 +465,7 @@ export function useLayoutLogic(selectedObject: Ref<any>) {
 
     if (layoutSchema) return layoutSchema.id
     if (group.defaultSchemaId) return group.defaultSchemaId
-    const firstLayout = group.schemas.find((s: any) => (s as any).type !== 'shelf')
+    const firstLayout = group.schemas.find((s) => s.type !== 'shelf')
     return firstLayout ? firstLayout.id : ''
   }
 
@@ -445,7 +474,7 @@ export function useLayoutLogic(selectedObject: Ref<any>) {
   }
 
   function hasLayoutSchema(group: SlotGroup): boolean {
-    return group.schemas.some((s: any) => s.type !== 'shelf')
+    return group.schemas.some((s) => s.type !== 'shelf')
   }
 
   async function checkDefaults(
@@ -458,7 +487,7 @@ export function useLayoutLogic(selectedObject: Ref<any>) {
 
     for (const [index, group] of def.slotGroups.entries()) {
       if (!group.defaultSchemaId) continue
-      const defaultSchema = group.schemas.find((s: any) => s.id === group.defaultSchemaId)
+      const defaultSchema = group.schemas.find((s) => s.id === group.defaultSchemaId)
       if (!defaultSchema) continue
       const state = currentState
       let needsUpdate = false
@@ -472,8 +501,9 @@ export function useLayoutLogic(selectedObject: Ref<any>) {
         }
       }
       if (
-        (defaultSchema as any).type === 'shelf' &&
-        (defaultSchema as any).shelfConfig?.count > 0
+        defaultSchema.type === 'shelf' &&
+        defaultSchema.shelfConfig &&
+        defaultSchema.shelfConfig.count > 0
       ) {
         const hasShelves = Object.keys(state).some((k) => k.startsWith('shelf_'))
         if (!hasShelves) needsUpdate = true
@@ -499,7 +529,7 @@ function triggerMaterialUpdate() {
 
 export function useMaterialSelection(
   currentState: Ref<Record<string, string>>,
-  selectedObject: Ref<any>,
+  selectedObject: Ref<FurnitureObject | null>,
 ) {
   const configStore = useConfigStore()
   const selectionStore = useSelectionStore()
@@ -522,9 +552,9 @@ export function useMaterialSelection(
 
     if (allowedCats.length === 0) return configStore.materials
 
-    return configStore.materials.filter((mat: any) => {
+    return configStore.materials.filter((mat) => {
       const matCats = Array.isArray(mat.category) ? mat.category : [mat.category]
-      return matCats.some((c: any) => allowedCats.includes(c))
+      return matCats.some((c) => allowedCats.includes(c))
     })
   })
 
@@ -537,7 +567,8 @@ export function useMaterialSelection(
         selectedObject.value.userData.materialState = {}
       }
       activeMaterialControl.value.slots.forEach((slot) => {
-        selectedObject.value.userData.materialState[slot.slotId] = materialId
+        // Strict null check for userData in selectedObject
+        selectedObject.value!.userData.materialState![slot.slotId] = materialId
       })
     }
 
@@ -569,10 +600,12 @@ export function useMaterialSelection(
     return 'default_material'
   }
 
-  function getCurrentMaterial(slotId: string): any {
+  function getCurrentMaterial(
+    slotId: string,
+  ): MaterialConfig | { type: 'color'; value: string; name: string; thumbnail: string } {
     const matId = getCurrentMaterialId(slotId)
-    const found = configStore.materials.find((m: any) => m.id === matId)
-    const systemDefault = configStore.materials.find((m: any) => m.id === 'default_material')
+    const found = configStore.materials.find((m) => m.id === matId)
+    const systemDefault = configStore.materials.find((m) => m.id === 'default_material')
     return (
       found ||
       systemDefault || { type: 'color', value: '#cccccc', name: 'Loading...', thumbnail: '' }
@@ -589,7 +622,13 @@ export function useMaterialSelection(
 
   function getMatThumbnail(slotId: string): string {
     const mat = getCurrentMaterial(slotId)
-    return mat?.thumbnail || mat?.value || ''
+    if ('thumbnail' in mat && mat.thumbnail) {
+      return mat.thumbnail
+    }
+    if ('value' in mat && mat.value) {
+      return mat.value
+    }
+    return ''
   }
 
   function shouldShowMaterialSelector(slot: ComponentSlotConfig): boolean {

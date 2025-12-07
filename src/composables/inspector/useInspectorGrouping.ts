@@ -2,8 +2,13 @@ import { computed, type Ref } from 'vue'
 import { useConfigStore } from '@/stores/config'
 import { useSelectionStore } from '@/stores/selection'
 import { useProceduralStore } from '@/stores/procedural'
-import { ComponentType, type ComponentSlotConfig } from '@/config/furniture'
-import type { ComponentConfig } from '@/config/furniture'
+import {
+  ComponentType,
+  type ComponentSlotConfig,
+  type ComponentConfig,
+  type FurnitureConfig,
+  type FurnitureStyle,
+} from '@/config/furniture'
 
 export interface InspectorControl {
   id: string
@@ -20,8 +25,13 @@ export interface DisplayGroup {
   controls: InspectorControl[]
 }
 
+export interface GroupItem {
+  slot: ComponentSlotConfig
+  displayName: string
+}
+
 export function useInspectorGrouping(
-  currentConfig: Ref<any>,
+  currentConfig: Ref<FurnitureConfig | null>,
   currentState: Ref<Record<string, string>>,
 ) {
   const configStore = useConfigStore()
@@ -115,7 +125,7 @@ export function useInspectorGrouping(
     const state = currentState.value || {}
     if (slots.length === 0) return []
 
-    const rawGroups: Record<string, { slot: ComponentSlotConfig; displayName: string }[]> = {
+    const rawGroups: Record<string, GroupItem[]> = {
       [ComponentType.CORPUS]: [],
       [ComponentType.FRONT]: [],
       [ComponentType.DRAWER]: [],
@@ -135,7 +145,7 @@ export function useInspectorGrouping(
       [ComponentType.OTHER]: 'Egyéb Elemek',
     }
 
-    slots.forEach((slot: any) => {
+    slots.forEach((slot: ComponentSlotConfig) => {
       const activeComponentId = state[slot.slotId] || ''
       const isCorpus = slot.componentType === ComponentType.CORPUS
 
@@ -154,13 +164,15 @@ export function useInspectorGrouping(
       .filter(([_, items]) => items.length > 0)
       .map(([key, items]) => {
         const controls: InspectorControl[] = []
-        const shouldGroup = [
-          ComponentType.FRONT,
-          ComponentType.HANDLE,
-          ComponentType.SHELF,
-          ComponentType.LEG,
-          ComponentType.DRAWER,
-        ].includes(key as any)
+        const shouldGroup = (
+          [
+            ComponentType.FRONT,
+            ComponentType.HANDLE,
+            ComponentType.SHELF,
+            ComponentType.LEG,
+            ComponentType.DRAWER,
+          ] as ComponentType[]
+        ).includes(key as ComponentType) // Check if key is one of the types that should be grouped
 
         if (shouldGroup && items.length > 1) {
           const allSlots = items.map((i) => i.slot)
@@ -260,7 +272,7 @@ export function useInspectorGrouping(
     const type = normalizeType(rawType)
 
     if (type === ComponentType.FRONT) {
-      return configStore.styles.map((style: any) => ({
+      return configStore.styles.map((style: FurnitureStyle) => ({
         label: style.name,
         value: style.id,
       }))
