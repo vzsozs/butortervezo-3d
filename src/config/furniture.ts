@@ -167,6 +167,7 @@ export interface GlobalGroupConfig {
     enabled: boolean
     variants: StyleVariant[] // Itt vannak a csoportosított stílusok
   }
+
   construction?: {
     enabled: boolean
     // Lábakhoz (Range)
