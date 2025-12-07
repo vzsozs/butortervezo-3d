@@ -422,8 +422,8 @@
     ]
   },
   {
-    "id": "j_btor_teszt",
-    "name": "Új bútor teszt",
+    "id": "j_btor",
+    "name": "Új bútor",
     "category": "bottom_cabinets",
     "componentSlots": [
       {
@@ -477,7 +477,7 @@
           "z": 1
         },
         "attachToSlot": "corpus_1",
-        "useAttachmentPoint": "",
+        "useAttachmentPoint": "attach_front_full_L",
         "attachmentMapping": {
           "front_bottom_keretes_60_l": [
             "attach_front_full_L"
@@ -568,8 +568,8 @@
         "controlType": "schema_select",
         "schemas": [
           {
-            "id": "schema_1765098505961_qa48snvw7",
-            "name": "Bal",
+            "id": "schema_1765099733048_h0o2r1mlj",
+            "name": "Balos",
             "type": "front",
             "apply": {
               "root__attach_front_full_L": "front_bottom_keretes_60_l",
@@ -591,12 +591,12 @@
             }
           },
           {
-            "id": "schema_1765098543897_wzbpbjrfz",
-            "name": "Jobb",
+            "id": "schema_1765099782503_px73veu63",
+            "name": "Jobbos",
             "type": "front",
             "apply": {
               "root__attach_front_full_R": "front_bottom_keretes_60_r",
-              "root__attach_front_full_R__attach_handle_vertical_R": "handle_design"
+              "root__attach_front_full_R__attach_handle_vertical_R": "handle_standard"
             },
             "slotProperties": {
               "root__attach_front_full_R": {
@@ -607,15 +607,21 @@
               },
               "root__attach_front_full_R__attach_handle_vertical_R": {
                 "allowedComponents": [
-                  "handle_design",
-                  "handle_standard"
+                  "handle_standard",
+                  "handle_design"
                 ]
               }
             }
+          },
+          {
+            "id": "schema_1765099803817_qjkpep8o0",
+            "name": "Nyitott",
+            "type": "front",
+            "apply": {}
           }
         ],
         "controlledSlots": [],
-        "defaultSchemaId": "schema_1765098505961_qa48snvw7"
+        "defaultSchemaId": "schema_1765099733048_h0o2r1mlj"
       }
     ]
   }
