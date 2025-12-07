@@ -2,7 +2,7 @@
 import { ref, watch, computed } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useConfigStore } from '@/stores/config';
-import type { ComponentConfig } from '@/config/furniture';
+import { type ComponentConfig, ComponentType } from '@/config/furniture';
 import { useComponentImport } from '@/composables/useComponentImport';
 
 const props = defineProps<{
@@ -19,13 +19,13 @@ const emit = defineEmits<{
 }>();
 
 const componentTypeOptionsList = [
-  { value: 'corpuses', label: 'Korpusz' },
-  { value: 'fronts', label: 'Ajtó' },
-  { value: 'handles', label: 'Fogantyú' },
-  { value: 'legs', label: 'Láb' },
-  { value: 'shelves', label: 'Polc' },
-  { value: 'drawers', label: 'Fiók' },
-  { value: 'others', label: 'Egyéb' }
+  { value: ComponentType.CORPUS, label: 'Korpusz' },
+  { value: ComponentType.FRONT, label: 'Ajtó' },
+  { value: ComponentType.HANDLE, label: 'Fogantyú' },
+  { value: ComponentType.LEG, label: 'Láb' },
+  { value: ComponentType.SHELF, label: 'Polc' },
+  { value: ComponentType.DRAWER, label: 'Fiók' },
+  { value: ComponentType.OTHER, label: 'Egyéb' }
 ];
 
 // --- STATE ---
@@ -162,7 +162,7 @@ function saveChanges() {
     const componentToSave = JSON.parse(JSON.stringify(editableComponent.value));
 
     // Ha nem korpusz, akkor kezeljük az anyag forrást
-    if (componentToSave.componentType !== 'corpuses') {
+    if (componentToSave.componentType !== ComponentType.CORPUS) {
       if (!useMaterialSource.value) delete componentToSave.materialSource;
     }
     // Ha korpusz, akkor töröljük a materialSource-t, mert ott kategória van helyette
@@ -342,7 +342,8 @@ function deleteItem() {
           <!-- 3. MEZŐ: KATEGÓRIA (Ha Korpusz) VAGY ANYAG ÖRÖKLÉS (Minden más) -->
 
           <!-- A: KATEGÓRIA VÁLASZTÓ (Csak Korpusz) -->
-          <div v-if="editableComponent.componentType === 'corpuses'" class="flex flex-col h-full justify-between gap-1">
+          <div v-if="editableComponent.componentType === ComponentType.CORPUS"
+            class="flex flex-col h-full justify-between gap-1">
             <div>
               <label class="admin-label text-xs uppercase tracking-wider text-yellow-500">Kategória</label>
               <p class="text-[10px] text-gray-400 mb-1">Milyen típusú bútorhoz való ez a korpusz?</p>

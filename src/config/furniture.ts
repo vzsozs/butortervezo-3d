@@ -1,6 +1,19 @@
 // src/config/furniture.ts
 
 // --- FIZIKAI TULAJDONSÁGOK ---
+
+export const ComponentType = {
+  CORPUS: 'corpuses',
+  FRONT: 'fronts',
+  HANDLE: 'handles',
+  LEG: 'legs',
+  SHELF: 'shelves',
+  DRAWER: 'drawers',
+  OTHER: 'others',
+} as const
+
+export type ComponentType = (typeof ComponentType)[keyof typeof ComponentType]
+
 export interface ComponentProperties {
   width?: number
   height?: number

@@ -1,5 +1,5 @@
 import { analyzeModel } from '@/three/Utils/ModelAnalyzer'
-import type { ComponentConfig } from '@/config/furniture'
+import { type ComponentConfig, ComponentType } from '@/config/furniture'
 
 export function useComponentImport() {
   /**
@@ -10,7 +10,7 @@ export function useComponentImport() {
    */
   async function processGlbFile(
     file: File,
-    defaultType: string = 'others',
+    defaultType: string = ComponentType.OTHER,
   ): Promise<{ config: ComponentConfig; materialNames: string[] }> {
     try {
       // 1. Modell elemzése
@@ -26,11 +26,12 @@ export function useComponentImport() {
         const allowedTypes: string[] = []
         const lowerName = name.toLowerCase()
 
-        if (lowerName.includes('shelf')) allowedTypes.push('shelves')
-        if (lowerName.includes('leg')) allowedTypes.push('legs')
-        if (lowerName.includes('front') || lowerName.includes('door')) allowedTypes.push('fronts')
-        if (lowerName.includes('drawer')) allowedTypes.push('drawers')
-        if (lowerName.includes('handle')) allowedTypes.push('handles')
+        if (lowerName.includes('shelf')) allowedTypes.push(ComponentType.SHELF)
+        if (lowerName.includes('leg')) allowedTypes.push(ComponentType.LEG)
+        if (lowerName.includes('front') || lowerName.includes('door'))
+          allowedTypes.push(ComponentType.FRONT)
+        if (lowerName.includes('drawer')) allowedTypes.push(ComponentType.DRAWER)
+        if (lowerName.includes('handle')) allowedTypes.push(ComponentType.HANDLE)
 
         return { id: name, allowedComponentTypes: allowedTypes }
       })

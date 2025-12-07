@@ -4,6 +4,7 @@ import { defineStore } from 'pinia'
 import type { Group } from 'three'
 import { ref, computed, shallowRef, triggerRef } from 'vue'
 import type { FurnitureConfig, ComponentSlotConfig } from '@/config/furniture'
+import { ComponentType } from '@/config/furniture'
 import Experience from '@/three/Experience'
 import { useConfigStore } from '@/stores/config'
 
@@ -212,11 +213,11 @@ export const useSelectionStore = defineStore('selection', () => {
       // Törlési lista (state cleanup)
       const targetTypes = new Set<string>()
       if (schema.type === 'front') {
-        targetTypes.add('fronts')
-        targetTypes.add('handles')
-        targetTypes.add('drawers')
+        targetTypes.add(ComponentType.FRONT)
+        targetTypes.add(ComponentType.HANDLE)
+        targetTypes.add(ComponentType.DRAWER)
       } else if (schema.type === 'shelf') {
-        targetTypes.add('shelves')
+        targetTypes.add(ComponentType.SHELF)
       }
 
       Object.values(schema.apply).forEach((compId) => {
@@ -240,7 +241,7 @@ export const useSelectionStore = defineStore('selection', () => {
           const compDef = configStore.getComponentById(currentCompId)
           const slotType = staticSlotDef?.componentType || compDef?.componentType
 
-          if (slotType === 'corpuses') return
+          if (slotType === ComponentType.CORPUS) return
 
           // JAVÍTÁS: Polc módosításnál NE töröljük az attach_ slotokat (ajtók, stb.)
           // Csak akkor törlünk attach_ slotot, ha NEM polc sémát alkalmazunk,
@@ -274,7 +275,9 @@ export const useSelectionStore = defineStore('selection', () => {
 
       // 3. 🛠️ CONFIG PATCHELÉS (Slotok kezelése)
       const newConfig = JSON.parse(JSON.stringify(selectedObjectConfig.value)) as FurnitureConfig
-      const corpusSlot = newConfig.componentSlots.find((s) => s.componentType === 'corpuses')
+      const corpusSlot = newConfig.componentSlots.find(
+        (s) => s.componentType === ComponentType.CORPUS,
+      )
       const corpusSlotId = corpusSlot ? corpusSlot.slotId : 'corpus_1'
 
       // A) Fix slotok (pl. fogantyú) hozzáadása
@@ -330,7 +333,7 @@ export const useSelectionStore = defineStore('selection', () => {
         const newSlotDef: ComponentSlotConfig = {
           slotId: slotId,
           name: `Auto Shelf ${slotId}`,
-          componentType: 'shelves',
+          componentType: ComponentType.SHELF,
           allowedComponents: [currentComponentState[slotId]],
           defaultComponent: currentComponentState[slotId],
           attachToSlot: corpusSlotId,

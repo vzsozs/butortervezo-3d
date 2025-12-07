@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, inject, type Ref } from 'vue';
-import type { FurnitureConfig, ComponentSlotConfig } from '@/config/furniture';
+import { type FurnitureConfig, type ComponentSlotConfig, ComponentType } from '@/config/furniture';
 import { useConfigStore } from '@/stores/config';
 import { storeToRefs } from 'pinia';
 import SlotNode from './SlotNode.vue';
@@ -26,12 +26,12 @@ const editableFurniture = inject<Ref<FurnitureConfig | null>>('editableFurniture
 
 // --- SLOT TEMPLATES ---
 const slotTemplates: Record<string, { name: string, type: string, prefix: string }> = {
-  corpus: { name: 'Korpusz', type: 'corpuses', prefix: 'corpus' },
-  front: { name: 'Ajtó', type: 'fronts', prefix: 'front' },
-  handle: { name: 'Fogantyú', type: 'handles', prefix: 'handle' },
-  leg: { name: 'Láb', type: 'legs', prefix: 'leg' },
-  shelf: { name: 'Polc', type: 'shelves', prefix: 'shelf' },
-  drawer: { name: 'Fiók', type: 'drawers', prefix: 'drawer' },
+  corpus: { name: 'Korpusz', type: ComponentType.CORPUS, prefix: 'corpus' },
+  front: { name: 'Ajtó', type: ComponentType.FRONT, prefix: 'front' },
+  handle: { name: 'Fogantyú', type: ComponentType.HANDLE, prefix: 'handle' },
+  leg: { name: 'Láb', type: ComponentType.LEG, prefix: 'leg' },
+  shelf: { name: 'Polc', type: ComponentType.SHELF, prefix: 'shelf' },
+  drawer: { name: 'Fiók', type: ComponentType.DRAWER, prefix: 'drawer' },
 };
 
 const templateOrder = ['corpus', 'front', 'handle', 'leg', 'shelf', 'drawer'];
@@ -82,15 +82,15 @@ function addSlotFromTemplate(template: { name: string, type: string, prefix: str
     useAttachmentPoint: '',
   };
 
-  if (newSlot.componentType === 'handles') {
+  if (newSlot.componentType === ComponentType.HANDLE) {
     const parent = editableFurniture.value.componentSlots.find(s =>
-      s.componentType === 'fronts' || s.componentType === 'drawers'
+      s.componentType === ComponentType.FRONT || s.componentType === ComponentType.DRAWER
     );
     if (parent) {
       newSlot.attachToSlot = parent.slotId;
     }
   }
-  else if (newSlot.componentType !== 'corpuses') {
+  else if (newSlot.componentType !== ComponentType.CORPUS) {
     const corpus = editableFurniture.value.componentSlots.find(s => s.slotId.includes('corpus'));
     if (corpus) {
       newSlot.attachToSlot = corpus.slotId;

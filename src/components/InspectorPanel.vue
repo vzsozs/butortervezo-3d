@@ -4,6 +4,7 @@ import { useDraggable } from '@vueuse/core'
 import { useSelectionStore } from '@/stores/selection'
 import { useConfigStore } from '@/stores/config'
 import type { ComponentSlotConfig, SlotGroup, FurnitureConfig, ComponentConfig } from '@/config/furniture'
+import { ComponentType } from '@/config/furniture'
 import { useProceduralStore } from '@/stores/procedural' // <--- ÚJ
 
 const selectionStore = useSelectionStore()
@@ -331,7 +332,7 @@ function hasLayoutSchema(group: SlotGroup): boolean {
 function getMaxShelves(group: SlotGroup): number {
   if (!currentConfig.value) return 5;
 
-  const corpusSlotDef = currentConfig.value.componentSlots.find(s => s.componentType === 'corpuses');
+  const corpusSlotDef = currentConfig.value.componentSlots.find(s => s.componentType === ComponentType.CORPUS);
 
   if (corpusSlotDef) {
     const activeCorpusId = currentState.value[corpusSlotDef.slotId];
@@ -405,7 +406,7 @@ const dimensions = computed(() => {
   // --- 1. ALAP MÉRETEK (KORPUSZ) ---
   let w = 0, h = 0, d = 0;
 
-  const corpusSlot = currentConfig.value.componentSlots.find(s => s.componentType === 'corpuses' || s.slotId.includes('corpus'));
+  const corpusSlot = currentConfig.value.componentSlots.find(s => s.componentType === ComponentType.CORPUS || s.slotId.includes('corpus'));
 
   if (corpusSlot) {
     const corpusId = currentState.value[corpusSlot.slotId];
@@ -479,14 +480,14 @@ function resolveGroupKey(slot: ComponentSlotConfig, activeComponentId: string): 
     const comp = configStore.getComponentById(activeComponentId);
     if (comp?.componentType) {
       const group = normalizeType(comp.componentType);
-      if (group !== 'others') return group;
+      if (group !== ComponentType.OTHER) return group;
     }
   }
 
   // 2. Ha a slot definícióban van típus
   if (slot.componentType) {
     const group = normalizeType(slot.componentType);
-    if (group !== 'others') return group;
+    if (group !== ComponentType.OTHER) return group;
   }
 
   // 3. ID alapú detektálás (Hierarchia kezeléssel!)
@@ -495,32 +496,32 @@ function resolveGroupKey(slot: ComponentSlotConfig, activeComponentId: string): 
   const localId = fullId.split('__').pop() || fullId;
 
   // Fontos: A sorrend számít, de a localId miatt már biztonságosabb
-  if (localId.includes('handle') || localId.includes('fogantyu')) return 'handles';
-  if (localId.includes('leg') || localId.includes('lab')) return 'legs';
-  if (localId.includes('drawer') || localId.includes('fiok')) return 'drawers';
+  if (localId.includes('handle') || localId.includes('fogantyu')) return ComponentType.HANDLE;
+  if (localId.includes('leg') || localId.includes('lab')) return ComponentType.LEG;
+  if (localId.includes('drawer') || localId.includes('fiok')) return ComponentType.DRAWER;
 
   // A 'front' vizsgálatnál kizárjuk, ha csak a szülő nevében szerepelt (bár a split már megoldotta)
-  if (localId.includes('door') || localId.includes('front') || localId.includes('ajto')) return 'fronts';
+  if (localId.includes('door') || localId.includes('front') || localId.includes('ajto')) return ComponentType.FRONT;
 
-  if (localId.includes('shelf') || localId.includes('polc')) return 'shelves';
-  if (localId.includes('corpus') || localId.includes('korpusz')) return 'corpuses';
+  if (localId.includes('shelf') || localId.includes('polc')) return ComponentType.SHELF;
+  if (localId.includes('corpus') || localId.includes('korpusz')) return ComponentType.CORPUS;
 
-  return 'others';
+  return ComponentType.OTHER;
 }
 
 function normalizeType(type: string | undefined): string {
-  if (!type) return 'others';
+  if (!type) return ComponentType.OTHER;
   const t = type.toLowerCase();
 
   const map: Record<string, string> = {
-    'front': 'fronts', 'fronts': 'fronts', 'door': 'fronts', 'doors': 'fronts',
-    'drawer': 'drawers', 'drawers': 'drawers',
-    'leg': 'legs', 'legs': 'legs',
-    'handle': 'handles', 'handles': 'handles',
-    'shelf': 'shelves', 'shelves': 'shelves',
-    'corpus': 'corpuses', 'corpuses': 'corpuses'
+    'front': ComponentType.FRONT, 'fronts': ComponentType.FRONT, 'door': ComponentType.FRONT, 'doors': ComponentType.FRONT,
+    'drawer': ComponentType.DRAWER, 'drawers': ComponentType.DRAWER,
+    'leg': ComponentType.LEG, 'legs': ComponentType.LEG,
+    'handle': ComponentType.HANDLE, 'handles': ComponentType.HANDLE,
+    'shelf': ComponentType.SHELF, 'shelves': ComponentType.SHELF,
+    'corpus': ComponentType.CORPUS, 'corpuses': ComponentType.CORPUS
   };
-  return map[t] || 'others';
+  return map[t] || ComponentType.OTHER;
 }
 
 const displayGroups = computed<DisplayGroup[]>(() => {
@@ -531,24 +532,25 @@ const displayGroups = computed<DisplayGroup[]>(() => {
   // 1. Gyűjtés
   // JAVÍTÁS: Explicit típusdefiníció a rawGroups-hoz, hogy ne legyen 'undefined' hiba
   const rawGroups: Record<string, { slot: ComponentSlotConfig, displayName: string }[]> = {
-    corpuses: [], fronts: [], drawers: [], handles: [], legs: [], shelves: [], others: []
+    [ComponentType.CORPUS]: [], [ComponentType.FRONT]: [], [ComponentType.DRAWER]: [],
+    [ComponentType.HANDLE]: [], [ComponentType.LEG]: [], [ComponentType.SHELF]: [], [ComponentType.OTHER]: []
   };
 
   const groupLabels: Record<string, string> = {
-    corpuses: 'Korpusz', fronts: 'Ajtók / Frontok', drawers: 'Fiókok',
-    handles: 'Fogantyúk', legs: 'Lábak', shelves: 'Polcok', others: 'Egyéb Elemek'
+    [ComponentType.CORPUS]: 'Korpusz', [ComponentType.FRONT]: 'Ajtók / Frontok', [ComponentType.DRAWER]: 'Fiókok',
+    [ComponentType.HANDLE]: 'Fogantyúk', [ComponentType.LEG]: 'Lábak', [ComponentType.SHELF]: 'Polcok', [ComponentType.OTHER]: 'Egyéb Elemek'
   };
 
   slots.forEach(slot => {
     const activeComponentId = state[slot.slotId] || '';
-    const isCorpus = slot.componentType === 'corpuses';
+    const isCorpus = slot.componentType === ComponentType.CORPUS;
 
     if (!activeComponentId && !isCorpus) return;
 
     let groupKey = resolveGroupKey(slot, activeComponentId);
 
     // Biztonsági ellenőrzés: ha a kulcs nincs a listában, menjen az others-be
-    if (!rawGroups[groupKey]) groupKey = 'others';
+    if (!rawGroups[groupKey]) groupKey = ComponentType.OTHER;
 
     rawGroups[groupKey]?.push({
       slot: slot,
@@ -561,7 +563,7 @@ const displayGroups = computed<DisplayGroup[]>(() => {
     .filter(([_, items]) => items.length > 0)
     .map(([key, items]) => {
       const controls: InspectorControl[] = [];
-      const shouldGroup = ['fronts', 'handles', 'shelves', 'legs', 'drawers'].includes(key);
+      const shouldGroup = [ComponentType.FRONT, ComponentType.HANDLE, ComponentType.SHELF, ComponentType.LEG, ComponentType.DRAWER].includes(key as any);
 
       if (shouldGroup && items.length > 1) {
         // --- ÖSSZEVONT NÉZET ---
@@ -617,7 +619,7 @@ function handleUnifiedChange(control: InspectorControl, newValue: string) {
   const comp = configStore.getComponentById(currentId || '');
   const type = normalizeType(comp?.componentType || control.referenceSlot.componentType);
 
-  const isStyleChange = type === 'fronts';
+  const isStyleChange = type === ComponentType.FRONT;
 
   // 📦 VÁLTOZÁSOK GYŰJTÉSE
   const updates: Record<string, string> = {};
@@ -665,7 +667,7 @@ function getOptionsForControl(control: InspectorControl) {
   const type = normalizeType(rawType);
 
   // A) AJTÓK -> STÍLUSOK LISTÁZÁSA
-  if (type === 'fronts') {
+  if (type === ComponentType.FRONT) {
     return configStore.styles.map(style => ({
       label: style.name,
       value: style.id
@@ -700,7 +702,7 @@ function getCurrentControlValue(control: InspectorControl): string {
   const type = normalizeType(comp?.componentType || control.referenceSlot.componentType);
 
   // Ha Ajtó, akkor a STÍLUS ID kell a legördülőnek
-  if (type === 'fronts') {
+  if (type === ComponentType.FRONT) {
     return comp?.styleId || '';
   }
 
@@ -713,8 +715,8 @@ function generateNiceName(slotId: string, type: string): string {
   let name = "Elem";
 
   const typeNames: Record<string, string> = {
-    fronts: "Ajtó", handles: "Fogantyú", legs: "Láb",
-    drawers: "Fiók", shelves: "Polc", corpuses: "Korpusz"
+    [ComponentType.FRONT]: "Ajtó", [ComponentType.HANDLE]: "Fogantyú", [ComponentType.LEG]: "Láb",
+    [ComponentType.DRAWER]: "Fiók", [ComponentType.SHELF]: "Polc", [ComponentType.CORPUS]: "Korpusz"
   };
   if (typeNames[type]) name = typeNames[type];
 
