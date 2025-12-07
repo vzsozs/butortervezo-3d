@@ -191,3 +191,9 @@ export interface MaterialConfig {
     [key: string]: any
   }
 }
+
+export interface GeneralSettings {
+  upperCabinet: {
+    defaultElevation: number
+  }
+}

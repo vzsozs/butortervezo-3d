@@ -81,6 +81,11 @@ const constructionMaxMm = computed({
   }
 });
 
+const upperCabinetElevationMm = computed({
+  get: () => Math.round(configStore.generalSettings.upperCabinet.defaultElevation * 1000),
+  set: (val) => configStore.generalSettings.upperCabinet.defaultElevation = val / 1000
+});
+
 // Ellenőrizzük, hogy lábakat szerkesztünk-e
 const isLegGroup = computed(() => editingData.value.targets?.includes('legs')); // Vagy 'leg_slot', ahogy elnevezted
 const isWorktopGroup = computed(() => editingData.value.targets?.some(t => t.includes('worktop')));
@@ -219,6 +224,11 @@ function removeVariant(index: number) {
 
 function saveProcedural() {
   emit('save-procedural');
+}
+
+function saveAllSettings() {
+  configStore.saveGeneralSettings();
+  saveProcedural();
 }
 </script>
 
@@ -482,16 +492,29 @@ function saveProcedural() {
             </div>
           </div>
 
+          <!-- FELSŐ SZEKRÉNYEK -->
+          <div class="bg-gray-800 p-6 rounded-lg border border-gray-700">
+            <h3 class="text-xl font-bold mb-4 text-yellow-400 border-b border-gray-700 pb-2">Felső szekrények</h3>
+            <div class="space-y-5">
+              <div>
+                <label class="block text-sm text-gray-400 font-bold mb-1">Alapértelmezett magasság a talajtól
+                  (mm)</label>
+                <p class="text-xs text-gray-500 mb-2">Hova kerüljön a felső szekrény alja alapértelmezetten.</p>
+                <input type="number" step="1" v-model="upperCabinetElevationMm" class="admin-input">
+              </div>
+            </div>
+          </div>
+
         </div>
 
         <div class="max-w-5xl mx-auto mt-6 flex justify-end">
-          <button @click="saveProcedural" class="admin-btn flex items-center gap-2 bg-green-700 hover:bg-green-600">
-            <span v-html="SaveIcon"></span> Mentés (Konstrukció)
+          <button @click="saveAllSettings" class="admin-btn flex items-center gap-2 bg-blue-600 hover:bg-blue-500">
+            <span v-html="SaveIcon"></span> Mentés
           </button>
         </div>
       </div>
-
     </div>
+
   </div>
 </template>
 

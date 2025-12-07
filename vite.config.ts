@@ -150,6 +150,7 @@ export default defineConfig({
               'materials.json',
               'styles.json',
               'procedural.json',
+              'general.json',
             ]
 
             if (!filename || !data || !allowedFiles.includes(filename)) {

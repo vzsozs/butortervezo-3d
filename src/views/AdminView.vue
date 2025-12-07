@@ -128,7 +128,7 @@ function handleSaveProceduralSettings() {
 }
 
 async function saveDatabase(
-  filename: 'furniture.json' | 'components.json' | 'globalSettings.json' | 'styles.json' | 'procedural.json',
+  filename: 'furniture.json' | 'components.json' | 'globalSettings.json' | 'styles.json' | 'procedural.json' | 'general.json',
   data: FurnitureConfig[] | ComponentDatabase | any
 ) {
   try {

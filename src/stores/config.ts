@@ -9,6 +9,7 @@ import type {
   ComponentDatabase,
   MaterialConfig,
   FurnitureStyle, // <--- ÚJ IMPORT
+  GeneralSettings,
 } from '@/config/furniture'
 
 export const useConfigStore = defineStore('config', () => {
@@ -19,6 +20,11 @@ export const useConfigStore = defineStore('config', () => {
 
   // --- ÚJ STATE: STÍLUSOK ---
   const styles = ref<FurnitureStyle[]>([])
+
+  // --- ÚJ STATE: ÁLTALÁNOS BEÁLLÍTÁSOK ---
+  const generalSettings = ref<GeneralSettings>({
+    upperCabinet: { defaultElevation: 1.5 },
+  })
 
   const furnitureCategories = computed(() => {
     const categories: Record<string, { name: string; items: FurnitureConfig[] }> = {
@@ -147,17 +153,39 @@ export const useConfigStore = defineStore('config', () => {
     }
   }
 
+  // --- GENERAL SETTINGS ---
+  async function saveGeneralSettings() {
+    try {
+      const response = await fetch('/api/save-database', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          filename: 'general.json',
+          data: generalSettings.value,
+        }),
+      })
+
+      if (!response.ok) throw new Error(await response.text())
+      console.log('General Settings sikeresen mentve!')
+      // Opcionális: visszajelzés a felhasználónak (pl. toast), de itt most csak logolunk
+    } catch (error) {
+      console.error('Hiba a General Settings mentésekor:', error)
+      alert('Hiba a mentés során!')
+    }
+  }
+
   // --- BETÖLTÉS ---
   async function loadAllData() {
     try {
       // Hozzáadtuk a styles.json-t is a betöltéshez
-      const [furnitureRes, componentsRes, globalSettingsRes, materialsRes, stylesRes] =
+      const [furnitureRes, componentsRes, globalSettingsRes, materialsRes, stylesRes, generalRes] =
         await Promise.all([
           fetch('/database/furniture.json'),
           fetch('/database/components.json'),
           fetch('/database/globalSettings.json'),
           fetch('/database/materials.json'),
           fetch('/database/styles.json').catch(() => null), // Ha nincs még file, ne haljon meg
+          fetch('/database/general.json').catch(() => null),
         ])
 
       furnitureList.value = await furnitureRes.json()
@@ -176,6 +204,14 @@ export const useConfigStore = defineStore('config', () => {
       } else {
         // Alapértelmezett, ha nincs fájl
         styles.value = []
+      }
+
+      // General Settings betöltése
+      if (generalRes && generalRes.ok) {
+        const data = await generalRes.json()
+        if (data.upperCabinet) {
+          generalSettings.value.upperCabinet = data.upperCabinet
+        }
       }
 
       console.log('Adatbázis sikeresen betöltve.')
@@ -270,5 +306,8 @@ export const useConfigStore = defineStore('config', () => {
     addFurniture,
     updateFurniture,
     deleteFurniture,
+    // General
+    generalSettings,
+    saveGeneralSettings,
   }
 })

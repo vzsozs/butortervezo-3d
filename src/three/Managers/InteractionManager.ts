@@ -85,7 +85,7 @@ export default class InteractionManager {
     }
 
     if (category === 'top_cabinets' || category === 'wall_cabinets') {
-      return 2.0
+      return this.experience.configStore.generalSettings.upperCabinet.defaultElevation
     }
 
     return 0
