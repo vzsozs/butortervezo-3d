@@ -3,7 +3,7 @@ import { ref, watch, computed } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useConfigStore } from '@/stores/config';
 import type { ComponentConfig } from '@/config/furniture';
-import { analyzeModel } from '@/three/Utils/ModelAnalyzer';
+import { useComponentImport } from '@/composables/useComponentImport';
 
 const props = defineProps<{
   component: Partial<ComponentConfig> | null;
@@ -42,6 +42,9 @@ const isInternalUpdate = ref(false);
 const isProcessing = ref(false);
 const modelMaterialOptions = ref<string[]>([]);
 const useMaterialSource = ref(false);
+
+// Composable
+const { processGlbFile } = useComponentImport();
 
 // Elérhető típusok
 const componentTypeOptions = computed(() => Object.keys(storeComponents.value));
@@ -127,36 +130,21 @@ async function handleFileChange(event: Event) {
   isProcessing.value = true;
 
   try {
-    const analysis = await analyzeModel(file);
-    const rawName = file.name.replace(/\.glb$/i, '');
-    const stylizedName = rawName.replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
-    const safeFileName = rawName.toLowerCase().replace(/\s+/g, '_');
+    // Használjuk a composable-t a feldolgozáshoz
+    const { config, materialNames } = await processGlbFile(file, props.componentType);
 
+    // Összefésüljük a meglévő adatokkal (pl. ha már volt ID vagy egyéb beállítás)
+    // De a modellből jövő adatok (méretek, pontok) felülírják a régieket
     editableComponent.value = {
       ...editableComponent.value,
-      name: stylizedName,
-      model: `/models/${props.componentType}/${safeFileName}`,
-      materialTarget: analysis.materialNames[0] || '',
-      materialOptions: analysis.materialNames,
-      properties: {
-        ...editableComponent.value.properties,
-        height: analysis.height ? Math.round(analysis.height * 1000) : 0,
-        width: analysis.width ? Math.round(analysis.width * 1000) : 0,
-        depth: analysis.depth ? Math.round(analysis.depth * 1000) : 0,
-      },
-      attachmentPoints: analysis.attachmentPointNames.map(name => {
-        const allowedTypes: string[] = [];
-        const lowerName = name.toLowerCase();
-        if (lowerName.includes('shelf')) allowedTypes.push('shelves');
-        if (lowerName.includes('leg')) allowedTypes.push('legs');
-        if (lowerName.includes('front') || lowerName.includes('door')) allowedTypes.push('fronts');
-        if (lowerName.includes('drawer')) allowedTypes.push('drawers');
-        if (lowerName.includes('handle')) allowedTypes.push('handles');
-        return { id: name, allowedComponentTypes: allowedTypes };
-      }),
-    } as ComponentConfig;
+      ...config,
+      // Az ID-t ne írjuk felül, ha már van, kivéve ha üres
+      id: editableComponent.value.id || config.id,
+      // A nevet is csak akkor, ha üres (vagy a composable generálta)
+      name: editableComponent.value.name || config.name,
+    };
 
-    modelMaterialOptions.value = analysis.materialNames;
+    modelMaterialOptions.value = materialNames;
     isInternalUpdate.value = true;
     emit('preview', file, editableComponent.value as ComponentConfig);
 
