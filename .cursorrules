@@ -1,5 +1,14 @@
 # User Rules & Preferences
 
+# LANGUAGE RULE — ALWAYS USE HUNGARIAN
+
+assistant_language: hu
+user_pref_language: hu
+
+Always answer in **Hungarian**, regardless of context, filenames, or prompt language.
+Never switch back to English unless the user explicitly asks for it.
+Translate all generated content (Tasks, Implementation Plans, File Generation) automatically to Hungarian.
+
 ## Communication Style
 
 - Language: Hungarian (Magyar)

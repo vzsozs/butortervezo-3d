@@ -34,20 +34,20 @@ function getName(type: string) {
         <div class="flex flex-col gap-1">
           <label class="text-xs text-gray-400">Szélesség (X)</label>
           <!-- Itt a setDimensions-t hívjuk meg változáskor, mert az tartalmazza a validálást -->
-          <input type="number" v-model.number="roomDimensions.width"
-            @input="roomStore.setDimensions(roomDimensions.width, roomDimensions.depth, roomDimensions.height)"
+          <input type="number" v-model.lazy.number="roomDimensions.width"
+            @change="roomStore.setDimensions(roomDimensions.width, roomDimensions.depth, roomDimensions.height)"
             step="50" min="1000" class="admin-input w-full py-1" />
         </div>
         <div class="flex flex-col gap-1">
           <label class="text-xs text-gray-400">Hosszúság (Z)</label>
-          <input type="number" v-model.number="roomDimensions.depth"
-            @input="roomStore.setDimensions(roomDimensions.width, roomDimensions.depth, roomDimensions.height)"
+          <input type="number" v-model.lazy.number="roomDimensions.depth"
+            @change="roomStore.setDimensions(roomDimensions.width, roomDimensions.depth, roomDimensions.height)"
             step="50" min="1000" class="admin-input w-full py-1" />
         </div>
         <div class="flex flex-col gap-1 col-span-2">
           <label class="text-xs text-gray-400">Belmagasság (Y)</label>
-          <input type="number" v-model.number="roomDimensions.height"
-            @input="roomStore.setDimensions(roomDimensions.width, roomDimensions.depth, roomDimensions.height)"
+          <input type="number" v-model.lazy.number="roomDimensions.height"
+            @change="roomStore.setDimensions(roomDimensions.width, roomDimensions.depth, roomDimensions.height)"
             step="50" min="1500" class="admin-input w-full py-1" />
         </div>
       </div>
@@ -121,24 +121,24 @@ function getName(type: string) {
           <div>
             <label class="text-gray-500 block mb-1">Pozíció (mm)</label>
             <!-- @input esemény: Minden gépelésnél/nyílnyomásnál validálunk -->
-            <input type="number" v-model.number="item.position"
-              @input="roomStore.updateOpening(item.id, { position: item.position })" step="50" min="50"
+            <input type="number" v-model.lazy.number="item.position"
+              @change="roomStore.updateOpening(item.id, { position: item.position })" step="50" min="50"
               class="admin-input w-full py-1" />
           </div>
 
           <!-- Szélesség -->
           <div>
             <label class="text-gray-500 block mb-1">Szélesség</label>
-            <input type="number" v-model.number="item.width"
-              @input="roomStore.updateOpening(item.id, { width: item.width })" step="50" min="50"
+            <input type="number" v-model.lazy.number="item.width"
+              @change="roomStore.updateOpening(item.id, { width: item.width })" step="50" min="50"
               class="admin-input w-full py-1" />
           </div>
 
           <!-- Magasság -->
           <div>
             <label class="text-gray-500 block mb-1">Magasság</label>
-            <input type="number" v-model.number="item.height"
-              @input="roomStore.updateOpening(item.id, { height: item.height })" step="50" min="50"
+            <input type="number" v-model.lazy.number="item.height"
+              @change="roomStore.updateOpening(item.id, { height: item.height })" step="50" min="50"
               class="admin-input w-full py-1" />
           </div>
 
@@ -147,8 +147,8 @@ function getName(type: string) {
             <label class="text-gray-500 block mb-1">
               {{ item.type === 'window' ? 'Parapet' : 'Küszöb / Alja' }}
             </label>
-            <input type="number" v-model.number="item.elevation"
-              @input="roomStore.updateOpening(item.id, { elevation: item.elevation })" step="50" min="0"
+            <input type="number" v-model.lazy.number="item.elevation"
+              @change="roomStore.updateOpening(item.id, { elevation: item.elevation })" step="50" min="0"
               class="admin-input w-full py-1" />
           </div>
 

@@ -127,8 +127,8 @@ export const useRoomStore = defineStore('room', () => {
     let defaultElevation = 0
 
     if (type === 'window') {
-      defaultWidth = 1200
-      defaultHeight = 1200
+      defaultWidth = 1100
+      defaultHeight = 1100
       defaultElevation = 900
     } else if (type === 'opening') {
       defaultWidth = 2000 // Kicsit szélesebb átjáró

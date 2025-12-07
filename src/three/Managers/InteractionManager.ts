@@ -315,6 +315,13 @@ export default class InteractionManager {
 
   public startDraggingDuplicatedObject(object: Group) {
     this.isDraggingNewObject = true
+
+    // 🔥 JAVÍTÁS: Kezdő magasság beállítása
+    // Ez biztosítja, hogy a felsőszekrények felvegyék a defaultElevation-t,
+    // az alsószekrények pedig a lábak magasságát (a getTargetElevation kezeli).
+    const targetY = this.getTargetElevation(object)
+    object.position.y = targetY
+
     this.beginDrag(object)
   }
 
