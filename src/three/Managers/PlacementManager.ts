@@ -17,12 +17,6 @@ type SnapCandidate = {
 export default class PlacementManager {
   constructor(private experience: Experience) {}
 
-  /**
-   * Ellenőrzi, hogy a pozíció ütközik-e más bútorokkal VAGY kilóg-e a szobából.
-   */
-  /**
-   * Ellenőrzi, hogy a pozíció ütközik-e más bútorokkal VAGY kilóg-e a szobából.
-   */
   private isPositionColliding(
     movingObject: Group,
     position: Vector3,
@@ -32,7 +26,6 @@ export default class PlacementManager {
     const tolerance = new Vector3(0.001, 0.001, 0.001)
     movingBox.expandByVector(tolerance.negate())
 
-    // 1. Bútor-Bútor ütközés
     for (const staticObject of objectsToCompare) {
       if (movingObject === staticObject) continue
       const staticBox = new Box3().setFromObject(staticObject)
@@ -40,21 +33,6 @@ export default class PlacementManager {
         return true
       }
     }
-
-    // 2. Szoba határainak ellenőrzése
-    const roomStore = useRoomStore()
-    const halfWidth = (roomStore.roomDimensions.width * UNIT_SCALE) / 2
-    const halfDepth = (roomStore.roomDimensions.depth * UNIT_SCALE) / 2
-
-    if (
-      movingBox.min.x < -halfWidth + 0.001 ||
-      movingBox.max.x > halfWidth - 0.001 ||
-      movingBox.min.z < -halfDepth + 0.001 ||
-      movingBox.max.z > halfDepth - 0.001
-    ) {
-      return true
-    }
-
     return false
   }
 
@@ -62,9 +40,6 @@ export default class PlacementManager {
     return Math.round(value / SNAP_INCREMENT) * SNAP_INCREMENT
   }
 
-  /**
-   * Kényszeríti a pozíciót, hogy a bútor a szobán belül maradjon.
-   */
   private constrainToRoom(movingObject: Group, position: Vector3): Vector3 {
     const roomStore = useRoomStore()
     const halfWidth = (roomStore.roomDimensions.width * UNIT_SCALE) / 2
@@ -74,18 +49,21 @@ export default class PlacementManager {
 
     const deltaLeft = currentBox.min.x - movingObject.position.x
     const deltaRight = currentBox.max.x - movingObject.position.x
+    // A deltaBack-et itt sem használjuk a hátsó falhoz, mert ott a Pivot a mérvadó!
     const deltaBack = currentBox.min.z - movingObject.position.z
     const deltaFront = currentBox.max.z - movingObject.position.z
 
     const constrained = position.clone()
 
-    // X tengely clamp
+    // X Clamp
     const minX = -halfWidth - deltaLeft
     const maxX = halfWidth - deltaRight
     constrained.x = MathUtils.clamp(constrained.x, minX, maxX)
 
-    // Z tengely clamp
-    const minZ = -halfDepth - deltaBack
+    // Z Clamp
+    // JAVÍTÁS: A hátsó falnál (minZ) közvetlenül a falhoz (-halfDepth) igazítunk.
+    // Nem vonjuk le a deltaBack-et, mert a pivot pont a "szent", nem a doboz hátulja.
+    const minZ = -halfDepth
     const maxZ = halfDepth - deltaFront
     constrained.z = MathUtils.clamp(constrained.z, minZ, maxZ)
 
@@ -97,10 +75,13 @@ export default class PlacementManager {
     proposedPosition: Vector3,
     objectsToCompare: Group[],
   ): Vector3 {
-    // 1. LÉPÉS: Tiszta lap
     this.experience.debug.hideAll()
 
-    const currentY = proposedPosition.y
+    // Y Rögzítés
+    const fixedY = movingObject.position.y
+    const flatProposedPosition = proposedPosition.clone()
+    flatProposedPosition.y = fixedY
+
     const candidates: SnapCandidate[] = []
     const otherObjects = objectsToCompare.filter((obj) => obj.uuid !== movingObject.uuid)
 
@@ -112,7 +93,7 @@ export default class PlacementManager {
     const currentBox = new Box3().setFromObject(movingObject)
     const deltaLeft = currentBox.min.x - movingObject.position.x
     const deltaRight = currentBox.max.x - movingObject.position.x
-    const deltaBack = currentBox.min.z - movingObject.position.z
+    // TS HIBA JAVÍTVA: deltaBack törölve, mert nem használtuk
     const deltaFront = currentBox.max.z - movingObject.position.z
 
     // --- 1. PRIORITÁS: BÚTORHOZ IGAZÍTÁS ---
@@ -120,33 +101,37 @@ export default class PlacementManager {
       const staticBox = new Box3().setFromObject(staticObject)
 
       // Jobb oldalra
-      const snapPosRight = proposedPosition.clone()
+      const snapPosRight = flatProposedPosition.clone()
       snapPosRight.x = staticBox.max.x - deltaLeft
-      if (Math.abs(proposedPosition.z - staticObject.position.z) < 0.5) {
+
+      if (Math.abs(flatProposedPosition.z - staticObject.position.z) < 0.5) {
         snapPosRight.z = staticObject.position.z
       }
-      if (Math.abs(proposedPosition.x - snapPosRight.x) < MAX_SNAP_CHECK_DISTANCE) {
+
+      if (Math.abs(flatProposedPosition.x - snapPosRight.x) < MAX_SNAP_CHECK_DISTANCE) {
         candidates.push({
           priority: 1,
           position: snapPosRight,
-          snapPoint: new Vector3(staticBox.max.x, currentY, snapPosRight.z),
-          distance: proposedPosition.distanceTo(snapPosRight),
+          snapPoint: new Vector3(staticBox.max.x, fixedY, snapPosRight.z),
+          distance: flatProposedPosition.distanceTo(snapPosRight),
           targetObject: staticObject,
         })
       }
 
       // Bal oldalra
-      const snapPosLeft = proposedPosition.clone()
+      const snapPosLeft = flatProposedPosition.clone()
       snapPosLeft.x = staticBox.min.x - deltaRight
-      if (Math.abs(proposedPosition.z - staticObject.position.z) < 0.5) {
+
+      if (Math.abs(flatProposedPosition.z - staticObject.position.z) < 0.5) {
         snapPosLeft.z = staticObject.position.z
       }
-      if (Math.abs(proposedPosition.x - snapPosLeft.x) < MAX_SNAP_CHECK_DISTANCE) {
+
+      if (Math.abs(flatProposedPosition.x - snapPosLeft.x) < MAX_SNAP_CHECK_DISTANCE) {
         candidates.push({
           priority: 1,
           position: snapPosLeft,
-          snapPoint: new Vector3(staticBox.min.x, currentY, snapPosLeft.z),
-          distance: proposedPosition.distanceTo(snapPosLeft),
+          snapPoint: new Vector3(staticBox.min.x, fixedY, snapPosLeft.z),
+          distance: flatProposedPosition.distanceTo(snapPosLeft),
           targetObject: staticObject,
         })
       }
@@ -155,53 +140,54 @@ export default class PlacementManager {
     // --- 2. PRIORITÁS: FALHOZ IGAZÍTÁS ---
 
     // Bal Fal
-    const snapPosWallLeft = proposedPosition.clone()
+    const snapPosWallLeft = flatProposedPosition.clone()
     snapPosWallLeft.x = -roomHalfWidth - deltaLeft
-    if (Math.abs(proposedPosition.x - snapPosWallLeft.x) < MAX_SNAP_CHECK_DISTANCE) {
+    if (Math.abs(flatProposedPosition.x - snapPosWallLeft.x) < MAX_SNAP_CHECK_DISTANCE) {
       candidates.push({
         priority: 2,
         position: snapPosWallLeft,
-        snapPoint: new Vector3(-roomHalfWidth, currentY, proposedPosition.z),
-        distance: proposedPosition.distanceTo(snapPosWallLeft),
+        snapPoint: new Vector3(-roomHalfWidth, fixedY, flatProposedPosition.z),
+        distance: flatProposedPosition.distanceTo(snapPosWallLeft),
         targetObject: 'Wall Left',
       })
     }
 
     // Jobb Fal
-    const snapPosWallRight = proposedPosition.clone()
+    const snapPosWallRight = flatProposedPosition.clone()
     snapPosWallRight.x = roomHalfWidth - deltaRight
-    if (Math.abs(proposedPosition.x - snapPosWallRight.x) < MAX_SNAP_CHECK_DISTANCE) {
+    if (Math.abs(flatProposedPosition.x - snapPosWallRight.x) < MAX_SNAP_CHECK_DISTANCE) {
       candidates.push({
         priority: 2,
         position: snapPosWallRight,
-        snapPoint: new Vector3(roomHalfWidth, currentY, proposedPosition.z),
-        distance: proposedPosition.distanceTo(snapPosWallRight),
+        snapPoint: new Vector3(roomHalfWidth, fixedY, flatProposedPosition.z),
+        distance: flatProposedPosition.distanceTo(snapPosWallRight),
         targetObject: 'Wall Right',
       })
     }
 
-    // Hátsó Fal
-    const snapPosWallBack = proposedPosition.clone()
-    snapPosWallBack.z = -roomHalfDepth - deltaBack
-    if (Math.abs(proposedPosition.z - snapPosWallBack.z) < MAX_SNAP_CHECK_DISTANCE) {
+    // Hátsó Fal (PIVOT SNAP)
+    const snapPosWallBack = flatProposedPosition.clone()
+    snapPosWallBack.z = -roomHalfDepth
+
+    if (Math.abs(flatProposedPosition.z - snapPosWallBack.z) < MAX_SNAP_CHECK_DISTANCE) {
       candidates.push({
         priority: 2,
         position: snapPosWallBack,
-        snapPoint: new Vector3(proposedPosition.x, currentY, -roomHalfDepth),
-        distance: proposedPosition.distanceTo(snapPosWallBack),
+        snapPoint: new Vector3(flatProposedPosition.x, fixedY, -roomHalfDepth),
+        distance: Math.abs(flatProposedPosition.z - snapPosWallBack.z),
         targetObject: 'Wall Back',
       })
     }
 
     // Első Fal
-    const snapPosWallFront = proposedPosition.clone()
+    const snapPosWallFront = flatProposedPosition.clone()
     snapPosWallFront.z = roomHalfDepth - deltaFront
-    if (Math.abs(proposedPosition.z - snapPosWallFront.z) < MAX_SNAP_CHECK_DISTANCE) {
+    if (Math.abs(flatProposedPosition.z - snapPosWallFront.z) < MAX_SNAP_CHECK_DISTANCE) {
       candidates.push({
         priority: 2,
         position: snapPosWallFront,
-        snapPoint: new Vector3(proposedPosition.x, currentY, roomHalfDepth),
-        distance: proposedPosition.distanceTo(snapPosWallFront),
+        snapPoint: new Vector3(flatProposedPosition.x, fixedY, roomHalfDepth),
+        distance: flatProposedPosition.distanceTo(snapPosWallFront),
         targetObject: 'Wall Front',
       })
     }
@@ -223,36 +209,43 @@ export default class PlacementManager {
             ? new Box3().setFromObject(bestValidSnap.targetObject)
             : new Box3()
 
-        this.experience.debug.updateSnapHelpers(debugBox, bestValidSnap as any)
+        let safeTarget = bestValidSnap.targetObject
+        if (typeof safeTarget === 'string') {
+          safeTarget = new Group()
+          safeTarget.position.copy(bestValidSnap.snapPoint)
+        }
+
+        const safeCandidate = {
+          ...bestValidSnap,
+          targetObject: safeTarget,
+        }
+
+        this.experience.debug.updateSnapHelpers(debugBox, safeCandidate as any)
         return bestValidSnap.position
       }
     }
 
-    // --- 3. PRIORITÁS: GRID + ÜTKÖZÉS BLOKKOLÁS ---
-
+    // --- 3. GRID FALLBACK ---
     let finalPos = new Vector3(
-      this.snapToGrid(proposedPosition.x),
-      currentY,
-      this.snapToGrid(proposedPosition.z),
+      this.snapToGrid(flatProposedPosition.x),
+      fixedY,
+      this.snapToGrid(flatProposedPosition.z),
     )
 
-    // 1. Ellenőrizzük a rácsra igazított pozíciót
     if (this.isPositionColliding(movingObject, finalPos, otherObjects)) {
-      // 2. Ha a rács ütközik, megnézzük az eredeti egérpozíciót (hátha két rácspont között elfér)
-      if (this.isPositionColliding(movingObject, proposedPosition, otherObjects)) {
-        // 3. Ha az egérpozíció is ütközik, akkor BLOKKOLJUK a mozgást.
-        // Visszaadjuk a bútor JELENLEGI pozícióját (ahol most áll).
-        // Így a bútor "megakad" az akadály előtt.
+      if (this.isPositionColliding(movingObject, flatProposedPosition, otherObjects)) {
         finalPos = movingObject.position.clone()
       } else {
-        // Ha az egérpozíció jó (nem ütközik), akkor azt használjuk (finommozgás)
-        finalPos = proposedPosition.clone()
+        finalPos = flatProposedPosition.clone()
       }
     }
 
-    // --- 4. FALON BELÜL TARTÁS (Clamp) ---
-    // Bármi is jött ki (Grid, Proposed vagy Blocked), kényszerítjük, hogy a szobán belül maradjon.
+    // --- CONSTRAIN ---
     finalPos = this.constrainToRoom(movingObject, finalPos)
+
+    if (this.isPositionColliding(movingObject, finalPos, otherObjects)) {
+      return movingObject.position.clone()
+    }
 
     return finalPos
   }

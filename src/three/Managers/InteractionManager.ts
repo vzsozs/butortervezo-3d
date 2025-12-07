@@ -47,7 +47,6 @@ export default class InteractionManager {
     const configStore = this.experience.configStore
     let maxLift = 0
 
-    // 1. Megnézzük a bútor saját configját (ha van)
     const furnitureConfig = object.userData.config
     if (furnitureConfig && furnitureConfig.height) {
       maxLift = furnitureConfig.height
@@ -55,7 +54,6 @@ export default class InteractionManager {
       maxLift = furnitureConfig.properties.height
     }
 
-    // 2. Megnézzük a komponenseket (pl. lábak)
     const componentState = object.userData.componentState
     if (componentState) {
       for (const slotId in componentState) {
@@ -78,23 +76,18 @@ export default class InteractionManager {
     const config = object.userData.config
     const category = config?.category
 
-    // Alsó szekrények: Mindig a láb magasságára
     if (category === 'bottom_cabinets') {
       return this.getLiftHeight(object)
     }
 
-    // Ha már lerakott bútort mozgatunk, tartsuk meg a jelenlegi magasságát
-    // (Kivéve ha alsó szekrény, azt mindig a lábra igazítjuk)
     if (!this.isDraggingNewObject) {
       return object.position.y
     }
 
-    // ÚJ felső szekrények: Alapértelmezett magasság (pl. 200cm)
     if (category === 'top_cabinets' || category === 'wall_cabinets') {
-      return 2.0 // 200 cm
+      return 2.0
     }
 
-    // Minden más: Földön (0)
     return 0
   }
 
@@ -183,6 +176,7 @@ export default class InteractionManager {
 
     this.experience.raycaster.setFromCamera(this.experience.mouse, this.experience.camera.instance)
 
+    // VISSZAÁLLÍTVA: Az összes objektumot vizsgáljuk, nem a síkot
     const intersectables = [...this.experience.intersectableObjects]
     const intersects = this.experience.raycaster.intersectObjects(intersectables)
 
@@ -204,8 +198,15 @@ export default class InteractionManager {
 
       this.draggedObject.position.copy(finalPosition)
       this.experience.debug.updateMovingObject(this.draggedObject)
+
+      // ÚJ: Kijelölés (sárga doboz) frissítése mozgatás közben
+      if (this.experience.selectionStore.selectedObject === this.draggedObject) {
+        this.experience.debug.selectionBoxHelper.setFromObject(this.draggedObject)
+      }
     }
   }
+
+  // ... (A többi metódus változatlan: onKeyDown, handleClick, selectObject, deselectObject, startPlacementMode, startDraggingExistingObject, beginDrag, onFurnitureDragEnd, handleTransformStart, handleTransformEnd, setTransformMode, Ruler logika, handleDelete, handleEscape, setObjectOpacity, setupWatchers, addEventListeners, removeEventListeners) ...
 
   private onKeyDown = (event: KeyboardEvent) => {
     if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement)
@@ -227,8 +228,6 @@ export default class InteractionManager {
         break
     }
   }
-
-  // --- LOGIKA ---
 
   private handleClick(_event: MouseEvent) {
     this.experience.raycaster.setFromCamera(this.experience.mouse, this.experience.camera.instance)
@@ -274,8 +273,6 @@ export default class InteractionManager {
     this.experience.camera.transformControls.detach()
   }
 
-  // --- DRAG & DROP INDÍTÁS ---
-
   public async startPlacementMode() {
     const activeId = this.experience.settingsStore.activeFurnitureId
     if (!activeId) return
@@ -283,7 +280,6 @@ export default class InteractionManager {
     const config = this.experience.configManager.getFurnitureById(activeId)
     if (!config) return
 
-    // 1. Alapértelmezett komponensek
     const defaultComponentState: Record<string, string> = {}
     config.componentSlots.forEach((slot) => {
       if (slot.defaultComponent) defaultComponentState[slot.slotId] = slot.defaultComponent
@@ -299,22 +295,20 @@ export default class InteractionManager {
       newObject.userData.componentState = defaultComponentState
     }
 
-    // 2. Globális Anyagok
     const globalMaterials = this.experience.settingsStore.globalMaterialSettings
     newObject.userData.materialState = { ...globalMaterials }
     await this.experience.stateManager.applyMaterialsToObject(newObject)
 
-    this.isDraggingNewObject = true // Új objektum
+    this.isDraggingNewObject = true
     const targetY = this.getTargetElevation(newObject)
 
-    // newObject.rotation.y = -Math.PI / 2
     newObject.position.set(0, targetY, 0)
 
     this.beginDrag(newObject)
   }
 
   public startDraggingExistingObject(object: Group) {
-    this.isDraggingNewObject = false // Meglévő objektum!
+    this.isDraggingNewObject = false
     this.beginDrag(object)
   }
 
@@ -349,8 +343,6 @@ export default class InteractionManager {
     this.isDraggingNewObject = false
     window.removeEventListener('mousemove', this.onMouseMove)
   }
-
-  // --- TRANSFORM CONTROLS ---
 
   public handleTransformStart() {
     this.isTransforming = true
@@ -387,8 +379,6 @@ export default class InteractionManager {
       }
     }
   }
-
-  // --- RULER LOGIKA ---
 
   private startRulerMode() {
     if (!this.floatingDot) {
@@ -549,8 +539,6 @@ export default class InteractionManager {
     div.style.fontSize = '12px'
     return new CSS2DObject(div)
   }
-
-  // --- EGYÉB ---
 
   public handleDelete() {
     const selectedObject = this.experience.selectionStore.selectedObject
