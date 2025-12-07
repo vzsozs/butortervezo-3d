@@ -5,6 +5,7 @@ import { useExperienceStore } from '@/stores/experience'
 import { useConfigStore } from '@/stores/config'
 import { useProceduralStore } from '@/stores/procedural'
 import { useSettingsStore } from '@/stores/settings'
+import { FurnitureCategory, GlobalGroupTarget, ProceduralConstants } from '@/config/furniture'
 import { watch } from 'vue'
 
 export default class ProceduralManager {
@@ -33,7 +34,9 @@ export default class ProceduralManager {
   // --- ANYAG KERESŐ ---
   private getWorktopMaterial(): THREE.Material {
     // 1. Megkeressük a csoportot, ami a 'worktops'-ot vezérli
-    const worktopGroup = this.configStore.globalGroups.find((g) => g.targets.includes('worktops'))
+    const worktopGroup = this.configStore.globalGroups.find((g) =>
+      g.targets.includes(GlobalGroupTarget.WORKTOP),
+    )
 
     if (worktopGroup) {
       // 2. Megnézzük, mi van kiválasztva a SettingsStore-ban ehhez a csoporthoz
@@ -160,12 +163,12 @@ export default class ProceduralManager {
     if (!corpusConfig) return false
 
     for (const group of this.configStore.globalGroups) {
-      if (group.targets.includes('legs') || group.targets.includes('leg_slot')) {
+      if (group.targets.includes(GlobalGroupTarget.LEG) || group.targets.includes(GlobalGroupTarget.LEG_SLOT)) {
         const selectedVariantId = this.settingsStore.globalComponentSettings[group.id]
         if (!selectedVariantId) continue
 
         const variant = group.style.variants.find((v) => v.id === selectedVariantId)
-        if (variant && variant.componentIds.includes('leg_standard')) {
+        if (variant && variant.componentIds.includes(ProceduralConstants.LEG_STANDARD_ID)) {
           return true
         }
       }
@@ -173,7 +176,7 @@ export default class ProceduralManager {
 
     const state = obj.userData.componentState || {}
     const values = Object.values(state)
-    if (values.some((val: any) => typeof val === 'string' && val.includes('leg_standard'))) {
+    if (values.some((val: any) => typeof val === 'string' && val.includes(ProceduralConstants.LEG_STANDARD_ID))) {
       return true
     }
 
@@ -196,7 +199,7 @@ export default class ProceduralManager {
       if (typeof componentId !== 'string') continue
 
       // Ha a komponens ID-ja 'leg_standard'
-      if (componentId.includes('leg_standard')) {
+      if (componentId.includes(ProceduralConstants.LEG_STANDARD_ID)) {
         return true
       }
     }
@@ -225,9 +228,12 @@ export default class ProceduralManager {
 
           // Ha ez egy láb (kategória vagy ID alapján), akkor ez emeli a bútort
           // Figyeljük a 'legs' kategóriát VAGY ha az ID-ban benne van a 'leg'
-          if ((componentDef as any).category === 'legs' || componentDef.id.includes('leg')) {
+          if (
+            (componentDef as any).category === FurnitureCategory.LEG ||
+            componentDef.id.includes('leg')
+          ) {
             // Nem standard láb esetén vesszük a magasságot
-            if (!componentDef.id.includes('leg_standard')) {
+            if (!componentDef.id.includes(ProceduralConstants.LEG_STANDARD_ID)) {
               maxLift = Math.max(maxLift, heightMM / 1000)
             }
           }
@@ -276,10 +282,13 @@ export default class ProceduralManager {
   private toggleLegVisibility(cabinet: THREE.Object3D, visible: boolean) {
     cabinet.traverse((child) => {
       const name = child.name.toLowerCase()
-      if (name.includes('leg_standard')) {
+      if (name.includes(ProceduralConstants.LEG_STANDARD_ID)) {
         child.visible = visible
       }
-      if (child.userData.componentId && child.userData.componentId.includes('leg_standard')) {
+      if (
+        child.userData.componentId &&
+        child.userData.componentId.includes(ProceduralConstants.LEG_STANDARD_ID)
+      ) {
         child.visible = visible
       }
     })
@@ -293,7 +302,7 @@ export default class ProceduralManager {
     // Mivel most már több is lehet, név alapján keresünk
     const toRemove: THREE.Object3D[] = []
     this.scene.traverse((child) => {
-      if (child.name === 'ProceduralPlinth') toRemove.push(child)
+      if (child.name === ProceduralConstants.MESH_PLINTH) toRemove.push(child)
     })
     toRemove.forEach((child) => {
       this.scene.remove(child)
@@ -382,7 +391,7 @@ export default class ProceduralManager {
       })
 
       const mesh = new THREE.Mesh(geometry, inheritedMaterial)
-      mesh.name = 'ProceduralPlinth' // Fontos a törléshez
+      mesh.name = ProceduralConstants.MESH_PLINTH // Fontos a törléshez
       mesh.rotation.x = -Math.PI / 2
       mesh.position.y = 0
 
@@ -398,7 +407,7 @@ export default class ProceduralManager {
     for (const componentId of Object.values(state)) {
       if (typeof componentId !== 'string') continue
       const compConfig = this.configStore.getComponentById(componentId)
-      if (compConfig && (compConfig as any).category === 'bottom_cabinets') {
+      if (compConfig && (compConfig as any).category === FurnitureCategory.BOTTOM_CABINET) {
         return compConfig
       }
     }
@@ -470,7 +479,7 @@ export default class ProceduralManager {
     // 1. Takarítás
     const toRemove: THREE.Object3D[] = []
     this.scene.traverse((child) => {
-      if (child.name === 'ProceduralWorktop') toRemove.push(child)
+      if (child.name === ProceduralConstants.MESH_WORKTOP) toRemove.push(child)
     })
     toRemove.forEach((child) => {
       this.scene.remove(child)
@@ -562,7 +571,7 @@ export default class ProceduralManager {
       const material = this.getWorktopMaterial()
 
       const mesh = new THREE.Mesh(geometry, material)
-      mesh.name = 'ProceduralWorktop'
+      mesh.name = ProceduralConstants.MESH_WORKTOP
       mesh.rotation.x = -Math.PI / 2
 
       // Pozicionálás: A csoport magassága + pici emelés (Z-fighting ellen)

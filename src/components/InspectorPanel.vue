@@ -4,7 +4,7 @@ import { useDraggable } from '@vueuse/core'
 import { useSelectionStore } from '@/stores/selection'
 import { useConfigStore } from '@/stores/config'
 import type { ComponentSlotConfig, SlotGroup, FurnitureConfig, ComponentConfig } from '@/config/furniture'
-import { ComponentType } from '@/config/furniture'
+import { ComponentType, FurnitureCategory, ProceduralConstants } from '@/config/furniture'
 import { useProceduralStore } from '@/stores/procedural' // <--- ÚJ
 
 const selectionStore = useSelectionStore()
@@ -202,6 +202,11 @@ function selectMaterial(materialId: string) {
 
   // Küldés a store-nak
   selectionStore.changeMaterials(updates);
+
+  // 🔥 JAVÍTÁS: Értesítjük a ProceduralManagert
+  setTimeout(() => {
+    proceduralStore.triggerUpdate();
+  }, 50);
 
   closeMaterialSelector();
 }
@@ -427,7 +432,7 @@ const dimensions = computed(() => {
 
   // --- 2. LÁBAZAT HOZZÁADÁSA ---
   // Megnézzük, van-e standard láb a jelenlegi állapotban
-  const hasStandardLeg = Object.values(currentState.value).some((id: any) => typeof id === 'string' && id.includes('leg_standard'));
+  const hasStandardLeg = Object.values(currentState.value).some((id: any) => typeof id === 'string' && id.includes(ProceduralConstants.LEG_STANDARD_ID));
 
   if (hasStandardLeg) {
     // Kinyerjük az értéket (Override VAGY Globális) - Méterben van!
@@ -438,7 +443,7 @@ const dimensions = computed(() => {
   // --- 3. MUNKAPULT HOZZÁADÁSA ---
   // Feltételezzük, hogy az alsószekrényeknek van pultja
   // (Vagy vizsgálhatnánk, hogy van-e 'worktops' csoportja, de ez a kategória check gyorsabb)
-  if (currentConfig.value.category === 'bottom_cabinets') {
+  if (currentConfig.value.category === FurnitureCategory.BOTTOM_CABINET) {
     // Kinyerjük az értéket (Override VAGY Globális) - Méterben van!
     const wThickMeter = selectedObject.value.userData.worktopThicknessOverride ?? proceduralStore.worktop.thickness;
     h += wThickMeter * 1000; // Átváltjuk mm-re és hozzáadjuk
@@ -879,7 +884,7 @@ function isControlStandardLeg(control: InspectorControl): boolean {
   if (!firstSlot) return false;
 
   const currentId = selectedObject.value?.userData.componentState?.[firstSlot.slotId];
-  return currentId ? currentId.includes('leg_standard') : false;
+  return currentId ? currentId.includes(ProceduralConstants.LEG_STANDARD_ID) : false;
 }
 
 // 3. JAVÍTOTT CSÚSZKA LOGIKA (Belső állapottal a sima mozgásért)

@@ -2,7 +2,7 @@
 import { ref, watch, computed } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useConfigStore } from '@/stores/config';
-import { type ComponentConfig, ComponentType } from '@/config/furniture';
+import { type ComponentConfig, ComponentType, FurnitureCategory } from '@/config/furniture';
 import { useComponentImport } from '@/composables/useComponentImport';
 
 const props = defineProps<{
@@ -63,7 +63,7 @@ const availableMaterialCategories = computed(() => {
 const availableFurnitureCategories = computed(() => {
   const cats = new Set<string>();
   // Alapértelmezettek, hogy biztosan legyen valami
-  cats.add('bottom_cabinets');
+  cats.add(FurnitureCategory.BOTTOM_CABINET);
 
   if (furnitureList.value) {
     furnitureList.value.forEach(f => {

@@ -1,7 +1,8 @@
 import { Group, Vector3, Box3, MathUtils, Mesh } from 'three'
+import { FurnitureCategory } from '@/config/furniture'
+import { useProceduralStore } from '../../stores/procedural'
 import Experience from '../Experience'
 import { useRoomStore } from '../../stores/room'
-import { useProceduralStore } from '../../stores/procedural'
 
 const SNAP_INCREMENT = 0.1
 const MAX_SNAP_CHECK_DISTANCE = 0.3
@@ -41,7 +42,7 @@ export default class PlacementManager {
 
     // 2. "Virtuális" kiterjesztés a munkalap miatt
     const config = object.userData.config
-    if (config && config.category === 'bottom_cabinets') {
+    if (config && config.category === FurnitureCategory.BOTTOM_CABINET) {
       const proceduralStore = useProceduralStore()
       const worktopConf = proceduralStore.worktop
 

@@ -1,8 +1,10 @@
+```
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useConfigStore } from '@/stores/config';
 import { useProceduralStore } from '@/stores/procedural';
+import { GlobalGroupTarget } from '@/config/furniture';
 import type { GlobalGroupConfig } from '@/config/furniture';
 
 // IKONOK
@@ -36,7 +38,7 @@ const availableSlotTypes = computed(() => {
   const types = new Set(dynamicTypes);
 
   // 3. MANUÁLISAN HOZZÁADJUK A HIÁNYZÓKAT
-  types.add('worktops');
+  types.add(GlobalGroupTarget.WORKTOP);
   types.add('legs'); // Biztos, ami biztos, ezt is berakjuk fixre
 
   // 4. Visszaalakítjuk tömbbé és ábécé sorrendbe rendezzük

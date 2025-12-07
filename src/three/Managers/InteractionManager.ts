@@ -12,6 +12,7 @@ import {
   SphereGeometry,
   MeshBasicMaterial,
 } from 'three'
+import { FurnitureCategory } from '@/config/furniture'
 import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js'
 import Experience from '../Experience'
 
@@ -76,7 +77,7 @@ export default class InteractionManager {
     const config = object.userData.config
     const category = config?.category
 
-    if (category === 'bottom_cabinets') {
+    if (category === FurnitureCategory.BOTTOM_CABINET) {
       return this.getLiftHeight(object)
     }
 
@@ -378,7 +379,7 @@ export default class InteractionManager {
     const selectedObject = this.experience.selectionStore.selectedObject
     if (selectedObject && mode === 'translate') {
       const category = selectedObject.userData.config?.category
-      if (category === 'bottom_cabinets') {
+      if (category === FurnitureCategory.BOTTOM_CABINET) {
         // @ts-expect-error - showY
         controls.showY = false
       }

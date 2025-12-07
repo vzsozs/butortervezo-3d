@@ -14,6 +14,32 @@ export const ComponentType = {
 
 export type ComponentType = (typeof ComponentType)[keyof typeof ComponentType]
 
+export const FurnitureCategory = {
+  BOTTOM_CABINET: 'bottom_cabinets',
+  TOP_CABINET: 'top_cabinets',
+  TALL_CABINET: 'tall_cabinets',
+  LEG: 'legs',
+  WORKTOP: 'worktops',
+} as const
+
+export type FurnitureCategory = (typeof FurnitureCategory)[keyof typeof FurnitureCategory]
+
+export const GlobalGroupTarget = {
+  WORKTOP: 'worktops',
+  LEG: 'legs',
+  LEG_SLOT: 'leg_slot',
+  FRONT: 'fronts',
+  DRAWER: 'drawers',
+} as const
+
+export type GlobalGroupTarget = (typeof GlobalGroupTarget)[keyof typeof GlobalGroupTarget]
+
+export const ProceduralConstants = {
+  LEG_STANDARD_ID: 'leg_standard',
+  MESH_PLINTH: 'ProceduralPlinth',
+  MESH_WORKTOP: 'ProceduralWorktop',
+} as const
+
 export interface ComponentProperties {
   width?: number
   height?: number

@@ -3,6 +3,7 @@ import { ref } from 'vue';
 import { useSettingsStore } from '@/stores/settings';
 import { useConfigStore } from '@/stores/config';
 import { useProceduralStore } from '@/stores/procedural';
+import { ProceduralConstants, GlobalGroupTarget } from '@/config/furniture';
 import type { GlobalGroupConfig } from '@/config/furniture';
 import RoomEditor from '@/components/editor/RoomEditor.vue'; // ÚJ IMPORT
 
@@ -44,7 +45,7 @@ function isStandardLegSelected(group: GlobalGroupConfig): boolean {
   if (!selectedVariantId) return false;
   const variant = group.style.variants.find(v => v.id === selectedVariantId);
   if (!variant) return false;
-  return variant.componentIds.includes('leg_standard');
+  return variant.componentIds.includes(ProceduralConstants.LEG_STANDARD_ID);
 }
 </script>
 
@@ -104,7 +105,7 @@ function isStandardLegSelected(group: GlobalGroupConfig): boolean {
             </h3>
 
             <div class="grid gap-2"
-              :class="((group.style.enabled || (group.construction?.enabled && group.targets.includes('worktops'))) && group.material.enabled) ? 'grid-cols-2' : 'grid-cols-1'">
+              :class="((group.style.enabled || (group.construction?.enabled && group.targets.includes(GlobalGroupTarget.WORKTOP))) && group.material.enabled) ? 'grid-cols-2' : 'grid-cols-1'">
 
               <!-- Stílus / Vastagság -->
               <div v-if="group.style.enabled">
@@ -124,7 +125,7 @@ function isStandardLegSelected(group: GlobalGroupConfig): boolean {
                   </div>
                 </div>
               </div>
-              <div v-else-if="group.construction?.enabled && group.targets.includes('worktops')">
+              <div v-else-if="group.construction?.enabled && group.targets.includes(GlobalGroupTarget.WORKTOP)">
                 <div class="relative group">
                   <select v-model="proceduralStore.worktop.thickness"
                     class="w-full bg-[#2a2a2a] border border-gray-700 text-gray-200 text-xs rounded-md py-2 pl-2 pr-4 appearance-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors cursor-pointer hover:bg-[#333]">

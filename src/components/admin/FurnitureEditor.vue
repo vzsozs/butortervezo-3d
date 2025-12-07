@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, provide, watch } from 'vue';
 import type { FurnitureConfig } from '@/config/furniture';
+import { FurnitureCategory } from '@/config/furniture'
 import { useFurnitureComposer } from '@/composables/useFurnitureComposer';
 import FurnitureGeneralTab from './FurnitureGeneralTab.vue';
 import FurnitureLayoutTab from './FurnitureLayoutTab.vue';
@@ -37,7 +38,7 @@ watch(() => props.furniture, (newVal) => {
     editableFurniture.value = {
       id: `furniture_${Date.now()}`,
       name: 'Új Bútor',
-      category: 'bottom_cabinets',
+      category: FurnitureCategory.BOTTOM_CABINET,
       componentSlots: [],
       slotGroups: [],
       price: 0

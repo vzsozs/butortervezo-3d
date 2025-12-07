@@ -2,7 +2,7 @@
 import { ref, onMounted, watch, computed } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useConfigStore } from '@/stores/config';
-import type { FurnitureConfig, ComponentConfig, ComponentDatabase } from '@/config/furniture';
+import { FurnitureCategory, type FurnitureConfig, type ComponentConfig, type ComponentDatabase } from '@/config/furniture';
 import ComponentEditor from '@/components/admin/ComponentEditor.vue';
 import FurnitureEditor from '@/components/admin/FurnitureEditor.vue';
 import AdminSidePanel from '@/components/admin/AdminSidePanel.vue';
@@ -249,8 +249,8 @@ function handleSelectFurniture(furniture: FurnitureConfig | null) {
 }
 
 function handleCreateNewFurniture(categoryInput?: string | any) {
-  let category = 'bottom_cabinets';
-  let displayCategoryName = 'bottom_cabinets'; // Ezt használjuk a bútor nevében (szép név)
+  let category: any = FurnitureCategory.BOTTOM_CABINET;
+  let displayCategoryName = FurnitureCategory.BOTTOM_CABINET; // Ezt használjuk a bútor nevében (szép név)
 
   if (typeof categoryInput === 'string' && categoryInput) {
     displayCategoryName = categoryInput; // Pl: "Felső Polcok"
@@ -262,7 +262,7 @@ function handleCreateNewFurniture(categoryInput?: string | any) {
     const newFurniture = {
       id: tempId,
       // A névben maradhat az eredeti, olvasható formátum, hogy tudd mit hoztál létre
-      name: category === 'bottom_cabinets' ? 'Új bútor' : `Új ${displayCategoryName} elem`,
+      name: category === FurnitureCategory.BOTTOM_CABINET ? 'Új bútor' : `Új ${displayCategoryName} elem`,
       category: category, // Az adatbázisba a tisztított technikai név kerül
       componentSlots: []
     };
