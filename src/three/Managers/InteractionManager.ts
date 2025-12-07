@@ -376,19 +376,31 @@ export default class InteractionManager {
     const controls = this.experience.camera.transformControls
     controls.setMode(mode)
 
-    // @ts-expect-error - showX
-    controls.showX = true
-    // @ts-expect-error - showY
-    controls.showY = true
-    // @ts-expect-error - showZ
-    controls.showZ = true
+    if (mode === 'rotate') {
+      // Forgatásnál csak az Y (függőleges) tengely engedélyezett
+      // @ts-expect-error - TransformControls
+      controls.showX = false
+      // @ts-expect-error - TransformControls
+      controls.showY = true
+      // @ts-expect-error - TransformControls
+      controls.showZ = false
+    } else {
+      // Mozgatásnál (translate) minden tengely engedélyezett (alapértelmezés)
+      // @ts-expect-error - showX
+      controls.showX = true
+      // @ts-expect-error - showY
+      controls.showY = true
+      // @ts-expect-error - showZ
+      controls.showZ = true
 
-    const selectedObject = this.experience.selectionStore.selectedObject
-    if (selectedObject && mode === 'translate') {
-      const category = selectedObject.userData.config?.category
-      if (category === FurnitureCategory.BOTTOM_CABINET) {
-        // @ts-expect-error - showY
-        controls.showY = false
+      // Itt jön az alsó szekrény specifikus tiltás (ha translate módban vagyunk)
+      const selectedObject = this.experience.selectionStore.selectedObject
+      if (selectedObject) {
+        const category = selectedObject.userData.config?.category
+        if (category === FurnitureCategory.BOTTOM_CABINET) {
+          // @ts-expect-error - showY
+          controls.showY = false
+        }
       }
     }
   }

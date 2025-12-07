@@ -30,7 +30,7 @@ export default class World {
 
     const floor = new Mesh(new PlaneGeometry(40, 40), floorMaterial)
     floor.rotation.x = -Math.PI / 2
-    floor.receiveShadow = true
+    floor.receiveShadow = false
     floor.position.y = -0.002
     this.scene.add(floor)
 
