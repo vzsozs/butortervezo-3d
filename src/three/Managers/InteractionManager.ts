@@ -11,6 +11,8 @@ import {
   LineDashedMaterial,
   SphereGeometry,
   MeshBasicMaterial,
+  Plane,
+  Ray,
 } from 'three'
 import { FurnitureCategory } from '@/config/furniture'
 import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js'
@@ -138,7 +140,12 @@ export default class InteractionManager {
     }
 
     // DRAG INDÍTÁSA MEGLÉVŐ OBJEKTUMRA
-    if (this.isMouseDown && !this.draggedObject && !this.isTransforming) {
+    if (
+      this.isMouseDown &&
+      !this.draggedObject &&
+      !this.isTransforming &&
+      !this.experience.settingsStore.isRulerModeActive
+    ) {
       const dist = this.mouseDownPosition.distanceTo(new Vector2(event.clientX, event.clientY))
       if (dist > 5) {
         this.experience.raycaster.setFromCamera(
@@ -334,7 +341,6 @@ export default class InteractionManager {
     }
 
     this.experience.camera.controls.enabled = false
-    window.addEventListener('mousemove', this.onMouseMove)
   }
 
   private onFurnitureDragEnd = (_event: MouseEvent) => {
@@ -354,7 +360,7 @@ export default class InteractionManager {
     this.experience.debug.hideAll()
     this.draggedObject = null
     this.isDraggingNewObject = false
-    window.removeEventListener('mousemove', this.onMouseMove)
+    this.isDraggingNewObject = false
   }
 
   public handleTransformStart() {
@@ -423,19 +429,58 @@ export default class InteractionManager {
 
   private onRulerHover() {
     if (!this.floatingDot) return
+    // 1. Gyűjtés: Globális padló (intersectableObjects) KIVÉTELE
+    // Csak a bútorok és a szoba elemei kellenek
+    // 1. Gyűjtés: Bútorok + Szoba + Procedurális elemek (Munkapult, Lábazat)
     const intersectableForRuler = [
-      ...this.experience.intersectableObjects,
       ...this.experience.experienceStore.placedObjects,
+      this.experience.roomManager.group,
+      ...this.experience.proceduralManager.getProceduralMeshes(),
     ]
     this.experience.raycaster.setFromCamera(this.experience.mouse, this.experience.camera.instance)
-    const intersects = this.experience.raycaster.intersectObjects(intersectableForRuler, true)
+    const rawIntersects = this.experience.raycaster.intersectObjects(intersectableForRuler, true)
 
-    if (intersects.length === 0 || !intersects[0]) {
+    // 2. Szűrés: Backface Culling ÉS 'RoomFloor' kiszűrése (geometriai padló)
+    const intersects = rawIntersects.filter((hit) => {
+      // Padló név szerinti szűrése
+      if (hit.object.name === 'RoomFloor') return false
+
+      if (!hit.face) return true
+      const dot = hit.face.normal
+        .clone()
+        .transformDirection(hit.object.matrixWorld)
+        .dot(this.experience.raycaster.ray.direction)
+      return dot < 0
+    })
+
+    // 3. Matematikai sík (Y=0) metszése fallback-ként
+    let currentPoint: Vector3 | null = null
+    let minDist = Infinity
+
+    // Legközelebbi érvényes tárgy találat
+    if (intersects.length > 0 && intersects[0]) {
+      currentPoint = intersects[0].point.clone()
+      minDist = intersects[0].distance
+    }
+
+    // Sík metszése
+    const plane = new Plane(new Vector3(0, 1, 0), 0)
+    const planeTarget = new Vector3()
+    const planeHit = this.experience.raycaster.ray.intersectPlane(plane, planeTarget)
+
+    // Ha van sík találat, és közelebb van (vagy nincs más találat) -> Használjuk
+    if (planeHit) {
+      const planeDist = planeTarget.distanceTo(this.experience.raycaster.ray.origin)
+      if (planeDist < minDist) {
+        currentPoint = planeTarget
+      }
+    }
+
+    if (!currentPoint) {
       this.floatingDot.visible = false
       return
     }
 
-    let currentPoint = intersects[0].point.clone()
     const snapPoint = this.findClosestSnapPoint(currentPoint)
     if (snapPoint) currentPoint = snapPoint
 
@@ -453,15 +498,45 @@ export default class InteractionManager {
       return
 
     const intersectableForRuler = [
-      ...this.experience.intersectableObjects,
       ...this.experience.experienceStore.placedObjects,
+      this.experience.roomManager.group,
+      ...this.experience.proceduralManager.getProceduralMeshes(),
     ]
     this.experience.raycaster.setFromCamera(this.experience.mouse, this.experience.camera.instance)
-    const intersects = this.experience.raycaster.intersectObjects(intersectableForRuler, true)
+    const rawIntersects = this.experience.raycaster.intersectObjects(intersectableForRuler, true)
 
-    if (intersects.length === 0 || !intersects[0]) return
+    const intersects = rawIntersects.filter((hit) => {
+      if (hit.object.name === 'RoomFloor') return false
+      if (!hit.face) return true
+      const dot = hit.face.normal
+        .clone()
+        .transformDirection(hit.object.matrixWorld)
+        .dot(this.experience.raycaster.ray.direction)
+      return dot < 0
+    })
 
-    let currentPoint = intersects[0].point.clone()
+    // 3. Matematikai sík / Tárgy választás
+    let currentPoint: Vector3 | null = null
+    let minDist = Infinity
+
+    if (intersects.length > 0 && intersects[0]) {
+      currentPoint = intersects[0].point.clone()
+      minDist = intersects[0].distance
+    }
+
+    const plane = new Plane(new Vector3(0, 1, 0), 0)
+    const planeTarget = new Vector3()
+    const planeHit = this.experience.raycaster.ray.intersectPlane(plane, planeTarget)
+
+    if (planeHit) {
+      const planeDist = planeTarget.distanceTo(this.experience.raycaster.ray.origin)
+      if (planeDist < minDist) {
+        currentPoint = planeTarget
+      }
+    }
+
+    if (!currentPoint) return
+
     const snapPoint = this.findClosestSnapPoint(currentPoint)
     if (snapPoint) currentPoint = snapPoint
 
@@ -521,7 +596,37 @@ export default class InteractionManager {
   }
 
   private getFurnitureCorners(furniture: Group): Vector3[] {
-    const box = new Box3().setFromObject(furniture)
+    const points: Vector3[] = []
+
+    // 1. Fő befoglaló
+    const mainBox = new Box3().setFromObject(furniture)
+
+    // HEURISZTIKA: Ha alsó szekrény, és van munkapultja (feltételezzük),
+    // akkor megnöveljük a dobozt felfelé 4cm-rel (munkapult vastagság),
+    // és kicsit oldalra (túlnyúlás). Így a snap oda ugrik, ahol a munkapult sarka LENNE.
+    // Ez sokkal pontosabb, mint a merged mesh-en keresgélni.
+    const config = furniture.userData.config
+    if (config?.category === FurnitureCategory.BOTTOM_CABINET) {
+      // Standard Munkapult: +4cm magas, +2cm mélység (elöl), +1.5cm oldal (ha szélső - ezt nehéz tudni)
+      // Egyszerűsítés: Csak magasságot adunk hozzá, és picit a mélységet.
+      // A Box3.max.y a bútor teteje. Ehhez adunk.
+      if (mainBox.max.y > 0.5) {
+        // Csak ha nem valami lapos vacak
+        mainBox.max.y += 0.04 // +4cm
+        mainBox.max.z += 0.02 // +2cm előre
+        mainBox.min.x -= 0.015
+        mainBox.max.x += 0.015
+      }
+    }
+
+    if (!mainBox.isEmpty()) {
+      points.push(...this.getBoxCorners(mainBox))
+    }
+
+    return points
+  }
+
+  private getBoxCorners(box: Box3): Vector3[] {
     return [
       new Vector3(box.min.x, box.min.y, box.min.z),
       new Vector3(box.min.x, box.min.y, box.max.z),
@@ -579,8 +684,8 @@ export default class InteractionManager {
       this.draggedObject = null
       this.isDraggingNewObject = false
       this.experience.settingsStore.setActiveFurnitureId(null)
+      this.experience.settingsStore.setActiveFurnitureId(null)
       this.experience.camera.controls.enabled = true
-      window.removeEventListener('mousemove', this.onMouseMove)
     } else if (this.experience.settingsStore.isRulerModeActive) {
       this.stopRulerMode()
       this.experience.settingsStore.toggleRulerMode()
@@ -625,6 +730,7 @@ export default class InteractionManager {
   public addEventListeners() {
     this.experience.canvas.addEventListener('mousedown', this.onMouseDown)
     this.experience.canvas.addEventListener('mouseup', this.onMouseUp)
+    window.addEventListener('mousemove', this.onMouseMove)
     window.addEventListener('keydown', this.onKeyDown)
   }
 

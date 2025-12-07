@@ -12,6 +12,10 @@ export default class RoomManager {
   private roomGroup: THREE.Group
   private roomStore: ReturnType<typeof useRoomStore>
 
+  public get group() {
+    return this.roomGroup
+  }
+
   private wallMaterial: THREE.MeshBasicMaterial
   private shadowMaterial: THREE.ShadowMaterial
   private floorMaterial: THREE.MeshStandardMaterial
@@ -90,6 +94,7 @@ export default class RoomManager {
     floor.position.y = 0
     floor.receiveShadow = true
     floor.castShadow = false
+    floor.name = 'RoomFloor' // JAVÍTÁS: Név adása a szűréshez
     this.addEdges(floor, floorGeo)
     this.roomGroup.add(floor)
 

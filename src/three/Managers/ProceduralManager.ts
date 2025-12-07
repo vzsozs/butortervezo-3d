@@ -19,6 +19,19 @@ export default class ProceduralManager {
   private worktopMesh: THREE.Mesh | null = null
   private plinthMesh: THREE.Mesh | null = null
 
+  public getProceduralMeshes(): THREE.Object3D[] {
+    const meshes: THREE.Object3D[] = []
+    this.scene.traverse((child) => {
+      if (
+        child.name === ProceduralConstants.MESH_WORKTOP ||
+        child.name === ProceduralConstants.MESH_PLINTH
+      ) {
+        meshes.push(child)
+      }
+    })
+    return meshes
+  }
+
   private debugHelpers: THREE.Group = new THREE.Group()
 
   private defaultWorktopMaterial: THREE.Material = new THREE.MeshStandardMaterial({
