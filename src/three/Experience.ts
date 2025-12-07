@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-this-alias */
 // src/three/Experience.ts
 
 import { toRaw, markRaw } from 'vue'
@@ -42,8 +41,6 @@ import { useHistoryStore, type SceneState } from '@/stores/history'
 import { useConfigStore } from '@/stores/config'
 import type { FurnitureConfig, ComponentConfig } from '@/config/furniture'
 
-let instance: Experience | null = null
-
 export default class Experience {
   public canvas!: HTMLDivElement
   public scene!: Scene
@@ -76,19 +73,10 @@ export default class Experience {
   public configStore = useConfigStore()
 
   private isDestroyed = false
+  private static instance: Experience | null = null
 
   private constructor(canvas: HTMLDivElement) {
-    // --- ZOMBI GYILKOS ---
-    if ((window as any)._experienceInstance) {
-      console.warn('⚠️ Zombi Experience észlelve! Kényszerített leállítás...')
-      ;(window as any)._experienceInstance.destroy()
-    }
-    ;(window as any)._experienceInstance = this
-    // -------------------------------------------------------------
-
-    if (instance) return instance
-    instance = this
-
+    Experience.instance = this
     this.canvas = canvas
     this.scene = new Scene()
     this.scene.background = new Color('#1e1e1e') // Háttérszín beállítása
@@ -125,12 +113,15 @@ export default class Experience {
   }
 
   public static getInstance(canvas?: HTMLDivElement): Experience {
-    if (!instance && canvas) instance = new Experience(canvas)
-    else if (instance && canvas && instance.canvas !== canvas) {
-      instance.destroy()
-      instance = new Experience(canvas)
-    } else if (!instance && !canvas) throw new Error('Experience not initialized.')
-    return instance!
+    if (!Experience.instance && canvas) {
+      Experience.instance = new Experience(canvas)
+    } else if (Experience.instance && canvas && Experience.instance.canvas !== canvas) {
+      Experience.instance.destroy()
+      Experience.instance = new Experience(canvas)
+    } else if (!Experience.instance && !canvas) {
+      throw new Error('Experience not initialized.')
+    }
+    return Experience.instance!
   }
 
   private onResize = () => {
@@ -685,9 +676,5 @@ export default class Experience {
         this.canvas.removeChild(canvasDom)
       }
     }
-
-    ;(window as any)._experienceInstance = null
-    instance = null
-    console.log('Experience destroyed')
   }
 }

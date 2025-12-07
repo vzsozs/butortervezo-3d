@@ -523,6 +523,18 @@ export default class AdminExperience extends EventTarget {
     this.renderer.domElement.removeEventListener('click', this.onClick)
     this.renderer.domElement.removeEventListener('mousemove', this.onMouseMove)
     cancelAnimationFrame(this.animationFrameId)
+
+    // Clean up scene objects
+    this.scene.traverse((child) => {
+      if (child instanceof Mesh) {
+        if (child.geometry) child.geometry.dispose()
+        if (child.material) {
+          const materials = Array.isArray(child.material) ? child.material : [child.material]
+          materials.forEach((m: any) => m.dispose && m.dispose())
+        }
+      }
+    })
+
     this.renderer.dispose()
     this.controls.dispose()
     if (this.renderer.domElement.parentElement === this.container) {

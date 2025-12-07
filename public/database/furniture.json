@@ -420,5 +420,132 @@
         "useAttachmentPoint": ""
       }
     ]
+  },
+  {
+    "id": "j_teszt_btor",
+    "name": "Új teszt bútor",
+    "category": "bottom_cabinets",
+    "componentSlots": [
+      {
+        "slotId": "corpus_1",
+        "name": "Korpusz 1",
+        "componentType": "corpuses",
+        "allowedComponents": [
+          "corpus_bottom_60"
+        ],
+        "defaultComponent": "corpus_bottom_60",
+        "position": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        },
+        "attachToSlot": "",
+        "useAttachmentPoint": ""
+      },
+      {
+        "slotId": "leg_1",
+        "name": "Láb 1",
+        "componentType": "legs",
+        "allowedComponents": [
+          "leg_standard",
+          "leg_design"
+        ],
+        "defaultComponent": "leg_standard",
+        "position": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        },
+        "attachToSlot": "corpus_1",
+        "useAttachmentPoint": "attach_leg_C",
+        "attachmentMapping": {
+          "leg_standard": [
+            "attach_leg_C"
+          ],
+          "leg_design": [
+            "attach_leg_FR",
+            "attach_leg_BL",
+            "attach_leg_FL",
+            "attach_leg_BR"
+          ]
+        }
+      }
+    ],
+    "slotGroups": [
+      {
+        "groupId": "layouts",
+        "name": "Layouts",
+        "controlType": "schema_select",
+        "schemas": [
+          {
+            "id": "schema_1765097442745_6mgxl5iq8",
+            "name": "Ajtó Elrendezés 1",
+            "type": "front",
+            "apply": {
+              "root__attach_front_full_L": "front_bottom_keretes_60_l",
+              "root__attach_front_full_L__attach_handle_vertical_L": "handle_standard"
+            },
+            "slotProperties": {
+              "root__attach_front_full_L": {
+                "allowedComponents": [
+                  "front_bottom_keretes_60_l",
+                  "front_bottom_sima_60_l"
+                ]
+              },
+              "root__attach_front_full_L__attach_handle_vertical_L": {
+                "allowedComponents": [
+                  "handle_standard",
+                  "handle_design"
+                ]
+              }
+            }
+          },
+          {
+            "id": "schema_1765097476403_rckh1omgp",
+            "name": "Ajtó Elrendezés 2",
+            "type": "front",
+            "apply": {
+              "root__attach_front_full_R": "front_bottom_keretes_60_r",
+              "root__attach_front_full_R__attach_handle_vertical_R": "handle_standard"
+            },
+            "slotProperties": {
+              "root__attach_front_full_R": {
+                "allowedComponents": [
+                  "front_bottom_keretes_60_r",
+                  "front_bottom_sima_60_r"
+                ]
+              },
+              "root__attach_front_full_R__attach_handle_vertical_R": {
+                "allowedComponents": [
+                  "handle_design",
+                  "handle_standard"
+                ]
+              }
+            }
+          }
+        ],
+        "controlledSlots": []
+      }
+    ]
   }
 ]

@@ -232,7 +232,7 @@ export default class StateManager {
           // Feltételezzük, hogy az InputManager-nek van startDragging vagy startPlacement metódusa.
           // Ha a te kódodban máshogy hívják (pl. setFloatingObject), írd át arra!
           if (this.experience.interactionManager) {
-            this.experience.interactionManager.startDraggingExistingObject(newObject)
+            this.experience.interactionManager.startDraggingDuplicatedObject(newObject)
           } else {
             // Fallback, ha valamiért mégsem érné el
             newObject.position.copy(originalObject.position).addScalar(0.2)

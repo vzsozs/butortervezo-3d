@@ -13,13 +13,13 @@ const sceneContainer = ref<HTMLDivElement | null>(null);
 let experience: Experience | null = null;
 
 const experienceStore = useExperienceStore();
-const persistenceStore = usePersistenceStore(); 
+const persistenceStore = usePersistenceStore();
 
 onMounted(() => {
   if (sceneContainer.value) {
     // Singleton példányosítás
     experience = Experience.getInstance(sceneContainer.value);
-    
+
     // Store bekötése
     experienceStore.setExperience(experience);
 
@@ -30,8 +30,8 @@ onMounted(() => {
 
 onUnmounted(() => {
   if (experience) {
-    experience.destroy();
-    experienceStore.setExperience(null);
+    experience.destroy()
+    experienceStore.setExperience(null)
   }
 });
 </script>

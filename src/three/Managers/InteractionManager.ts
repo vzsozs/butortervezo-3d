@@ -312,6 +312,11 @@ export default class InteractionManager {
     this.beginDrag(object)
   }
 
+  public startDraggingDuplicatedObject(object: Group) {
+    this.isDraggingNewObject = true
+    this.beginDrag(object)
+  }
+
   private beginDrag(object: Group) {
     this.draggedObject = object
     this.setObjectOpacity(object, 0.5)
