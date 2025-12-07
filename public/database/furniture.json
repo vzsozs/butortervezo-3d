@@ -422,8 +422,8 @@
     ]
   },
   {
-    "id": "j_teszt_btor",
-    "name": "Új teszt bútor",
+    "id": "j_btor_teszt",
+    "name": "Új bútor teszt",
     "category": "bottom_cabinets",
     "componentSlots": [
       {
@@ -451,6 +451,76 @@
         },
         "attachToSlot": "",
         "useAttachmentPoint": ""
+      },
+      {
+        "slotId": "front_1",
+        "name": "Ajtó 1",
+        "componentType": "fronts",
+        "allowedComponents": [
+          "front_bottom_keretes_60_l",
+          "front_bottom_sima_60_l"
+        ],
+        "defaultComponent": "front_bottom_keretes_60_l",
+        "position": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        },
+        "attachToSlot": "corpus_1",
+        "useAttachmentPoint": "",
+        "attachmentMapping": {
+          "front_bottom_keretes_60_l": [
+            "attach_front_full_L"
+          ],
+          "front_bottom_sima_60_l": [
+            "attach_front_full_L"
+          ]
+        }
+      },
+      {
+        "slotId": "handle_1",
+        "name": "Fogantyú 1",
+        "componentType": "handles",
+        "allowedComponents": [
+          "handle_standard",
+          "handle_design"
+        ],
+        "defaultComponent": "handle_standard",
+        "position": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        },
+        "attachToSlot": "front_1",
+        "useAttachmentPoint": "attach_handle_vertical_L",
+        "attachmentMapping": {
+          "handle_design": [
+            "attach_handle_vertical_L"
+          ],
+          "handle_standard": [
+            "attach_handle_vertical_L"
+          ]
+        }
       },
       {
         "slotId": "leg_1",
@@ -498,8 +568,8 @@
         "controlType": "schema_select",
         "schemas": [
           {
-            "id": "schema_1765097442745_6mgxl5iq8",
-            "name": "Ajtó Elrendezés 1",
+            "id": "schema_1765098505961_qa48snvw7",
+            "name": "Bal",
             "type": "front",
             "apply": {
               "root__attach_front_full_L": "front_bottom_keretes_60_l",
@@ -521,12 +591,12 @@
             }
           },
           {
-            "id": "schema_1765097476403_rckh1omgp",
-            "name": "Ajtó Elrendezés 2",
+            "id": "schema_1765098543897_wzbpbjrfz",
+            "name": "Jobb",
             "type": "front",
             "apply": {
               "root__attach_front_full_R": "front_bottom_keretes_60_r",
-              "root__attach_front_full_R__attach_handle_vertical_R": "handle_standard"
+              "root__attach_front_full_R__attach_handle_vertical_R": "handle_design"
             },
             "slotProperties": {
               "root__attach_front_full_R": {
@@ -544,7 +614,8 @@
             }
           }
         ],
-        "controlledSlots": []
+        "controlledSlots": [],
+        "defaultSchemaId": "schema_1765098505961_qa48snvw7"
       }
     ]
   }
