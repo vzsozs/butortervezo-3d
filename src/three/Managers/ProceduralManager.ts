@@ -23,13 +23,22 @@ export default class ProceduralManager {
     const meshes: THREE.Object3D[] = []
     this.scene.traverse((child) => {
       if (
-        child.name === ProceduralConstants.MESH_WORKTOP ||
-        child.name === ProceduralConstants.MESH_PLINTH
+        child.name.includes(ProceduralConstants.MESH_WORKTOP) ||
+        child.name.includes(ProceduralConstants.MESH_PLINTH)
       ) {
         meshes.push(child)
       }
     })
     return meshes
+  }
+
+  public setVisibility(visible: boolean) {
+    const meshes = this.getProceduralMeshes()
+    console.log(`[ProceduralManager] setVisibility(${visible}) - Found ${meshes.length} meshes`)
+    meshes.forEach((mesh) => {
+      mesh.visible = visible
+      console.log(` - Toggling: ${mesh.name} (${mesh.uuid}) to ${visible}`)
+    })
   }
 
   private debugHelpers: THREE.Group = new THREE.Group()
@@ -159,6 +168,7 @@ export default class ProceduralManager {
   }
 
   public update() {
+    this.excludedObject = null // Reset exclusion on full update
     this.debugHelpers.clear()
     this.fullUpdate()
   }
@@ -309,13 +319,21 @@ export default class ProceduralManager {
 
   // --- GENERÁLÓK ---
 
+  private excludedObject: THREE.Object3D | null = null
+
+  public regenerateExcluding(obj: THREE.Object3D) {
+    this.excludedObject = obj
+    this.fullUpdate()
+  }
+
   // --- GENERÁLÁS JAVÍTÁSA (Több magasság kezelése) ---
   private generatePlinth() {
     // 1. Takarítás: Töröljük a régi "ProceduralPlinth" nevű mesheket
     // Mivel most már több is lehet, név alapján keresünk
     const toRemove: THREE.Object3D[] = []
     this.scene.traverse((child) => {
-      if (child.name === ProceduralConstants.MESH_PLINTH) toRemove.push(child)
+      // Use includes for safety
+      if (child.name.includes(ProceduralConstants.MESH_PLINTH)) toRemove.push(child)
     })
     toRemove.forEach((child) => {
       this.scene.remove(child)
@@ -331,6 +349,9 @@ export default class ProceduralManager {
     const heightGroups = new Map<number, THREE.Object3D[]>()
 
     const cabinets = this.experienceStore.placedObjects.filter((obj) => {
+      // EXCLUSION CHECK
+      if (this.excludedObject && obj.uuid === this.excludedObject.uuid) return false
+
       const isBottom = this.getCorpusConfig(obj) !== null
       return isBottom && this.isStandardLegActive(obj)
     })
@@ -511,6 +532,9 @@ export default class ProceduralManager {
     const conf = this.proceduralStore.worktop
 
     const cabinets = this.experienceStore.placedObjects.filter((obj) => {
+      // EXCLUSION CHECK
+      if (this.excludedObject && obj.uuid === this.excludedObject.uuid) return false
+
       return this.getCorpusConfig(obj) !== null
     })
 

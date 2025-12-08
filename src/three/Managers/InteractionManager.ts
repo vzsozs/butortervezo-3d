@@ -336,6 +336,9 @@ export default class InteractionManager {
     this.draggedObject = object
     this.setObjectOpacity(object, 0.5)
 
+    // Exclude this object from procedural generation (hides its worktop/plinth but keeps others)
+    this.experience.proceduralManager.regenerateExcluding(object)
+
     if (!object.parent) {
       this.experience.scene.add(object)
     }
@@ -358,6 +361,8 @@ export default class InteractionManager {
     }
 
     this.experience.debug.hideAll()
+    // Regenerate procedural elements (which also makes them visible again)
+    this.experience.proceduralManager.update()
     this.draggedObject = null
     this.isDraggingNewObject = false
     this.isDraggingNewObject = false
@@ -369,6 +374,8 @@ export default class InteractionManager {
     const object = toRaw(this.experience.camera.transformControls.object)
     if (object) {
       this.dragStartPosition = object.position.clone()
+      // Exclude transformed object from procedural generation
+      this.experience.proceduralManager.regenerateExcluding(object)
     }
   }
 
@@ -376,6 +383,8 @@ export default class InteractionManager {
     this.isTransforming = false
     this.experience.historyStore.addState()
     this.dragStartPosition = null
+    // Regenerate everything (restores parts for the transformed object)
+    this.experience.proceduralManager.update()
   }
 
   public setTransformMode(mode: 'translate' | 'rotate') {
