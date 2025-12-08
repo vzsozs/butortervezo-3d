@@ -488,7 +488,14 @@ export default class ProceduralManager {
   }
 
   // --- MUNKAPULT GENERÁLÁS (Több magasság kezelése) ---
+  private worktopCornersCache = new Map<string, THREE.Vector3[]>()
+
+  public getWorktopCornersForCabinet(uuid: string): THREE.Vector3[] {
+    return this.worktopCornersCache.get(uuid) || []
+  }
+
   private generateWorktop() {
+    this.worktopCornersCache.clear()
     // 1. Takarítás
     const toRemove: THREE.Object3D[] = []
     this.scene.traverse((child) => {
@@ -561,6 +568,21 @@ export default class ProceduralManager {
 
       polygons.push([corners])
       cabinetData.push({ corners, center: cabinet.position.clone() })
+
+      // --- CACHE FRISSÍTÉSE ---
+      // A corners tömb [x, z, x, z...] 2D koordinátákat tartalmaz (a generate függvényben lévő logikából)
+      // VAGY [ [x,z], [x,z] ] formátum?
+      // Nézzük a getWorktopCorners visszatérését: [number, number][]
+      // És a transformálás: p.x, -p.z volt a World -> 2D vetítésnél.
+      // Tehát vissza kell alakítani 3D-be: y = height.
+      // De várj! A `getWorktopCorners` WORLD koordinátákból csinált 2D-t, DE Y-t eldobta és Z-t negálta (-p.z).
+      // Ezért a visszaállítás: x = 2d.x, z = -2d.y. Y = height (+ thickness?).
+      // A worktop teteje: height + conf.thickness.
+      // A worktop alja: height.
+      // A user a tetejére akar snapelni.
+      const topY = height + conf.thickness
+      const worldCorners = corners.map((c) => new THREE.Vector3(c[0], topY, -c[1]))
+      this.worktopCornersCache.set(cabinet.uuid, worldCorners)
     })
 
     // Hidak generálása (csak a csoporton belül)

@@ -13,6 +13,7 @@ import {
   MeshBasicMaterial,
   Plane,
   Ray,
+  Line3,
 } from 'three'
 import { FurnitureCategory } from '@/config/furniture'
 import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js'
@@ -423,8 +424,27 @@ export default class InteractionManager {
       this.experience.rulerElements.remove(this.floatingDot)
       this.floatingDot = null
     }
-    this.experience.rulerElements.clear()
+    // this.experience.rulerElements.clear() // NE töröljük, hogy megmaradjanak a mérések!
     this.rulerStartPoint = null
+  }
+
+  public clearRulers() {
+    this.experience.rulerElements.clear()
+    // Ha aktív a mód, a floatingDot-ot újra létre kell hozni, vagy csak a vonalakat törölni?
+    // A rulerElements tartalmazza a floatingDot-ot is!
+    // Így, ha törlünk mindent, a floatingDot is eltűnik.
+    // Ha aktív a mód, tegyük vissza.
+    if (this.experience.settingsStore.isRulerModeActive) {
+      this.startRulerMode()
+    }
+  }
+
+  public toggleRulerVisibility() {
+    this.experience.rulerElements.visible = !this.experience.rulerElements.visible
+  }
+
+  public get isRulerVisible(): boolean {
+    return this.experience.rulerElements.visible
   }
 
   private onRulerHover() {
@@ -440,17 +460,15 @@ export default class InteractionManager {
     this.experience.raycaster.setFromCamera(this.experience.mouse, this.experience.camera.instance)
     const rawIntersects = this.experience.raycaster.intersectObjects(intersectableForRuler, true)
 
-    // 2. Szűrés: Backface Culling ÉS 'RoomFloor' kiszűrése (geometriai padló)
+    // 2. Szűrés: Csak a releváns elemek
     const intersects = rawIntersects.filter((hit) => {
       // Padló név szerinti szűrése
       if (hit.object.name === 'RoomFloor') return false
 
-      if (!hit.face) return true
-      const dot = hit.face.normal
-        .clone()
-        .transformDirection(hit.object.matrixWorld)
-        .dot(this.experience.raycaster.ray.direction)
-      return dot < 0
+      // LineSegments (pl. wireframe) kiszűrése - ne snappeljen a fal keretére
+      if (hit.object.type === 'LineSegments') return false
+
+      return true
     })
 
     // 3. Matematikai sík (Y=0) metszése fallback-ként
@@ -507,12 +525,8 @@ export default class InteractionManager {
 
     const intersects = rawIntersects.filter((hit) => {
       if (hit.object.name === 'RoomFloor') return false
-      if (!hit.face) return true
-      const dot = hit.face.normal
-        .clone()
-        .transformDirection(hit.object.matrixWorld)
-        .dot(this.experience.raycaster.ray.direction)
-      return dot < 0
+      if (hit.object.type === 'LineSegments') return false
+      return true
     })
 
     // 3. Matematikai sík / Tárgy választás
@@ -592,36 +606,138 @@ export default class InteractionManager {
         }
       }
     }
+
+    // 2. Szoba pontok (Falak, ablakok sarkai)
+    const roomPoints = this.getRoomSnapPoints()
+    for (const point of roomPoints) {
+      const distance = currentPoint.distanceTo(point)
+      if (distance < minDistance) {
+        minDistance = distance
+        closestPoint = point
+      }
+    }
+
+    // 3. Szoba élek (Falak élei - LineSegments alapján)
+    // Ez lehetővé teszi a fal élére való "tapadást"
+    const roomSegments = this.getRoomEdgeSegments()
+    const tempPoint = new Vector3()
+    const line3 = new Line3()
+
+    for (const segment of roomSegments) {
+      line3.set(segment[0], segment[1])
+      line3.closestPointToPoint(currentPoint, true, tempPoint)
+      const distance = currentPoint.distanceTo(tempPoint)
+
+      // Kisebb threshold éleknél, hogy a sarkok (pontok) prioritást élvezzenek?
+      // Vagy ugyanaz, de a sorrend miatt (ha pont talált, az előrébb van) a pont nyerhet?
+      // Mivel minDistance csökken, ha a pont közelebb van, az nyer.
+      if (distance < minDistance) {
+        minDistance = distance
+        closestPoint = tempPoint.clone()
+      }
+    }
+
     return closestPoint
+  }
+
+  private getRoomEdgeSegments(): [Vector3, Vector3][] {
+    const segments: [Vector3, Vector3][] = []
+    const roomGroup = this.experience.roomManager.group
+
+    roomGroup.traverse((child) => {
+      // Csak a LineSegments (drótváz) érdekel minket
+      if (child.type === 'LineSegments') {
+        // Padlóhoz tartozó vonalak kihagyása (ha nem akarjuk)
+        // A RoomManager 'RoomFloor' a mesh neve. A keretét 'addEdges' adja hozzá.
+        // A keret parentje a floor.
+        if (child.parent && child.parent.name === 'RoomFloor') return
+
+        const geometry = (child as any).geometry
+        if (geometry && geometry.isBufferGeometry) {
+          const pos = geometry.attributes.position
+          // LineSegments: páronként alkotnak vonalat (0-1, 2-3)
+          for (let i = 0; i < pos.count; i += 2) {
+            const start = new Vector3(pos.getX(i), pos.getY(i), pos.getZ(i)).applyMatrix4(
+              child.matrixWorld,
+            )
+            const end = new Vector3(pos.getX(i + 1), pos.getY(i + 1), pos.getZ(i + 1)).applyMatrix4(
+              child.matrixWorld,
+            )
+            segments.push([start, end])
+          }
+        }
+      }
+    })
+    return segments
   }
 
   private getFurnitureCorners(furniture: Group): Vector3[] {
     const points: Vector3[] = []
 
+    // 2. Munkapult sarkok (Pontos, procedurális adatokból)
+    const worktopCorners = this.experience.proceduralManager.getWorktopCornersForCabinet(
+      furniture.uuid,
+    )
+
     // 1. Fő befoglaló
     const mainBox = new Box3().setFromObject(furniture)
 
-    // HEURISZTIKA: Ha alsó szekrény, és van munkapultja (feltételezzük),
-    // akkor megnöveljük a dobozt felfelé 4cm-rel (munkapult vastagság),
-    // és kicsit oldalra (túlnyúlás). Így a snap oda ugrik, ahol a munkapult sarka LENNE.
-    // Ez sokkal pontosabb, mint a merged mesh-en keresgélni.
-    const config = furniture.userData.config
-    if (config?.category === FurnitureCategory.BOTTOM_CABINET) {
-      // Standard Munkapult: +4cm magas, +2cm mélység (elöl), +1.5cm oldal (ha szélső - ezt nehéz tudni)
-      // Egyszerűsítés: Csak magasságot adunk hozzá, és picit a mélységet.
-      // A Box3.max.y a bútor teteje. Ehhez adunk.
-      if (mainBox.max.y > 0.5) {
-        // Csak ha nem valami lapos vacak
-        mainBox.max.y += 0.04 // +4cm
-        mainBox.max.z += 0.02 // +2cm előre
-        mainBox.min.x -= 0.015
-        mainBox.max.x += 0.015
+    if (worktopCorners && worktopCorners.length > 0) {
+      // Ha van munkapult, akkor a doboznak CSAK AZ ALSÓ pontjait adjuk hozzá
+      // (Mert a felsőket a worktopCorners pontosabban tartalmazza, a doboz teteje pedig bezavarhat "dupla" pontként)
+      if (!mainBox.isEmpty()) {
+        const boxCorners = this.getBoxCorners(mainBox)
+        const centerY = mainBox.getCenter(new Vector3()).y
+        // Csak az alsó sarkok (középpont alattiak)
+        const bottomCorners = boxCorners.filter((p) => p.y < centerY)
+        points.push(...bottomCorners)
+      }
+      // Hozzáadjuk a munkapult (felső) sarkait
+      points.push(...worktopCorners)
+    } else {
+      // Ha nincs munkapult, mehet az egész doboz (8 sarok)
+      if (!mainBox.isEmpty()) {
+        points.push(...this.getBoxCorners(mainBox))
       }
     }
 
-    if (!mainBox.isEmpty()) {
-      points.push(...this.getBoxCorners(mainBox))
-    }
+    return points
+  }
+
+  private getRoomSnapPoints(): Vector3[] {
+    const points: Vector3[] = []
+    const roomGroup = this.experience.roomManager.group
+
+    // Opcionális: Duplikátumok szűrése, mert a háromszögelés miatt sok azonos pont van
+    // De a findClosestSnapPoint amúgy is a legközelebbit keresi, nem baj ha több van ugyanott (csak lassabb)
+    roomGroup.traverse((child) => {
+      if (child instanceof Mesh) {
+        if (child.name === 'RoomFloor') return
+        // Árnyék mesh-ek kihagyása
+        if (
+          child.material instanceof LineDashedMaterial ||
+          (child.material as any).isShadowMaterial
+        )
+          return
+
+        const geometry = child.geometry
+        if (geometry) {
+          const posAttribute = geometry.attributes.position
+          if (posAttribute) {
+            // Vertexek gyűjtése (World Space-ben)
+            for (let i = 0; i < posAttribute.count; i++) {
+              const localV = new Vector3(
+                posAttribute.getX(i),
+                posAttribute.getY(i),
+                posAttribute.getZ(i),
+              )
+              const worldV = localV.applyMatrix4(child.matrixWorld)
+              points.push(worldV)
+            }
+          }
+        }
+      }
+    })
 
     return points
   }

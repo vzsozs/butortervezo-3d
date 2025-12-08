@@ -18,9 +18,11 @@ import IconRotate from '@/assets/icons/rotate.svg?component';
 import IconRuler from '@/assets/icons/ruler.svg?component';
 import IconSave from '@/assets/icons/save.svg?component';
 import IconUndo from '@/assets/icons/undo.svg?component';
+import IconTrash from '@/assets/icons/trash.svg?component'; // ÚJ
+import { ref, watch } from 'vue';
 
 const experienceStore = useExperienceStore();
-const settingsStore = useSettingsStore(); 
+const settingsStore = useSettingsStore();
 const historyStore = useHistoryStore();
 const persistenceStore = usePersistenceStore();
 const experience = computed(() => experienceStore.instance);
@@ -44,7 +46,7 @@ function newScene() {
 }
 
 function toggleFrontsVisibility() {
-  settingsStore.toggleFrontsVisibility(); 
+  settingsStore.toggleFrontsVisibility();
   experience.value?.toggleFrontVisibility(settingsStore.areFrontsVisible);
 }
 
@@ -56,13 +58,35 @@ function loadFromFile() { persistenceStore.loadStateFromFile(); }
 function exportToPDF() {
   const exporter = new PDFExportManager();
   exporter.generateOfferPDF();
+  exporter.generateOfferPDF();
 }
+
+// Ruler Controls
+const isRulerVisible = ref(true);
+
+function toggleRulerVisibilityLocal() {
+  if (experience.value) {
+    experience.value.interactionManager.toggleRulerVisibility();
+    isRulerVisible.value = experience.value.interactionManager.isRulerVisible;
+  }
+}
+
+function clearRulers() {
+  if (confirm('Biztosan törölni szeretnéd az összes mérést?')) {
+    experience.value?.interactionManager.clearRulers();
+  }
+}
+
+// Watcher to sync visibility state if changed externally? (Optional)
+// But typically it only changes via UI.
+
 </script>
 
 <template>
   <!-- JAVÍTÁS: fixed top-6 right-6 (Jobb felső sarok) -->
-  <div class="fixed top-6 right-6 bg-[#1e1e1e]/90 backdrop-blur-md border border-gray-700/50 rounded-full shadow-2xl px-6 py-3 flex items-center gap-4 text-gray-200 z-50 transition-all hover:bg-[#1e1e1e]">
-    
+  <div
+    class="fixed top-6 right-6 bg-[#1e1e1e]/90 backdrop-blur-md border border-gray-700/50 rounded-full shadow-2xl px-6 py-3 flex items-center gap-4 text-gray-200 z-50 transition-all hover:bg-[#1e1e1e]">
+
     <!-- Fájl műveletek -->
     <div class="flex items-center gap-2">
       <button @click="newScene" :class="btnClass" title="Új jelenet">
@@ -80,12 +104,8 @@ function exportToPDF() {
 
     <!-- Szerkesztés -->
     <div class="flex items-center gap-2">
-      <button 
-        @click="undoLastAction"
-        :class="[btnClass, !historyStore.canUndo ? 'opacity-30 cursor-not-allowed' : '']"
-        :disabled="!historyStore.canUndo"
-        title="Visszavonás"
-      >
+      <button @click="undoLastAction" :class="[btnClass, !historyStore.canUndo ? 'opacity-30 cursor-not-allowed' : '']"
+        :disabled="!historyStore.canUndo" title="Visszavonás">
         <IconUndo class="w-5 h-5" />
       </button>
       <button @click="setMode('translate')" :class="btnClass" title="Mozgatás">
@@ -100,32 +120,27 @@ function exportToPDF() {
 
     <!-- Eszközök -->
     <div class="flex items-center gap-2">
-      <button 
-        @click="toggleRuler"
+      <button @click="toggleRuler"
         :class="[btnClass, settingsStore.isRulerModeActive ? 'bg-blue-600 text-white hover:bg-blue-500' : '']"
-        title="Vonalzó"
-      >
+        title="Vonalzó">
         <IconRuler class="w-5 h-5" />
       </button>
 
-      <button 
-        @click="toggleFrontsVisibility" 
+      <button @click="toggleFrontsVisibility"
         :class="[btnClass, !settingsStore.areFrontsVisible ? 'bg-blue-600 text-white hover:bg-blue-500' : '']"
-        title="Frontok"
-      >
+        title="Frontok">
         <IconShow v-if="settingsStore.areFrontsVisible" class="w-5 h-5" />
         <IconHide v-else class="w-5 h-5" />
       </button>
 
-      <button 
-        @click="toggleElementList"
+      <button @click="toggleElementList"
         :class="[btnClass, settingsStore.isElementListVisible ? 'bg-blue-600 text-white hover:bg-blue-500' : '']"
-        title="Lista"
-      >
+        title="Lista">
         <IconList class="w-5 h-5" />
       </button>
-      
-      <button @click="exportToPDF" :class="btnClass" class="text-red-400 hover:text-red-300 hover:bg-red-900/30" title="PDF Export">
+
+      <button @click="exportToPDF" :class="btnClass" class="text-red-400 hover:text-red-300 hover:bg-red-900/30"
+        title="PDF Export">
         <IconPDF class="w-5 h-5" />
       </button>
     </div>
@@ -138,9 +153,27 @@ function exportToPDF() {
         <span class="text-[10px] text-gray-400 uppercase tracking-wider">Összesen</span>
         <span class="text-lg font-bold text-blue-400 font-mono">{{ formattedPrice }}</span>
       </div>
-      <button class="bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold px-5 py-2 rounded-full shadow-lg shadow-blue-900/20 transition-transform active:scale-95">
+      <button
+        class="bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold px-5 py-2 rounded-full shadow-lg shadow-blue-900/20 transition-transform active:scale-95">
         Megrendelés
       </button>
     </div>
+  </div>
+
+  <!-- Ruler Controls Sub-menu (Csak akkor látszik, ha aktív a vonalzó mód) -->
+  <div v-if="settingsStore.isRulerModeActive"
+    class="fixed top-24 right-6 bg-[#1e1e1e]/90 backdrop-blur-md border border-gray-700/50 rounded-full shadow-2xl px-4 py-2 flex items-center gap-2 text-gray-200 z-40 transition-all hover:bg-[#1e1e1e]">
+    <button @click="toggleRulerVisibilityLocal" :class="[btnClass, !isRulerVisible ? 'text-blue-400' : '']"
+      :title="isRulerVisible ? 'Mérések elrejtése' : 'Mérések megjelenítése'">
+      <IconShow v-if="isRulerVisible" class="w-5 h-5" />
+      <IconHide v-else class="w-5 h-5" />
+    </button>
+
+    <div class="w-px h-6 bg-gray-700/50"></div>
+
+    <button @click="clearRulers" :class="btnClass" class="text-red-400 hover:text-red-300 hover:bg-red-900/30"
+      title="Összes mérés törlése">
+      <IconTrash class="w-5 h-5" />
+    </button>
   </div>
 </template>
