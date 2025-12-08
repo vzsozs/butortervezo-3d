@@ -28,6 +28,7 @@ export const useSettingsStore = defineStore('settings', () => {
 
     // JAVÍTÁS: Átadjuk a groupId-t is, hogy tudjuk, mit kell frissíteni
     await forceGlobalUpdate(groupId)
+    experienceStore.instance?.historyStore.addState() // History mentés
   }
 
   /**
@@ -44,6 +45,7 @@ export const useSettingsStore = defineStore('settings', () => {
     if (experience) {
       console.log(`[SettingsStore] Stílus váltás indítása: ${groupId} -> ${variantId}`)
       await experience.updateGlobalComponents(groupId, variantId)
+      experience.historyStore.addState() // History mentés
     }
   }
 

@@ -69,10 +69,18 @@ export default class RoomManager {
 
     const { roomDimensions, openings } = storeToRefs(this.roomStore)
 
+    let roomHistoryTimeout: any = null
+
     watch(
       [roomDimensions, openings],
       () => {
         this.buildRoom()
+
+        // Debounced history save
+        if (roomHistoryTimeout) clearTimeout(roomHistoryTimeout)
+        roomHistoryTimeout = setTimeout(() => {
+          this.experience.historyStore.addState()
+        }, 500)
       },
       { deep: true },
     )

@@ -418,6 +418,166 @@
         },
         "attachToSlot": "",
         "useAttachmentPoint": ""
+      },
+      {
+        "slotId": "front_1",
+        "name": "Ajtó 1",
+        "componentType": "fronts",
+        "allowedComponents": [
+          "front_top_sima_40_l",
+          "front_top_uveges_40_l",
+          "front_top_keretes_40_l"
+        ],
+        "defaultComponent": "front_top_keretes_40_l",
+        "position": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        },
+        "attachToSlot": "corpus_1",
+        "useAttachmentPoint": "attach_front_full_L",
+        "attachmentMapping": {
+          "front_top_keretes_40_l": [
+            "attach_front_full_L"
+          ],
+          "front_top_sima_40_l": [
+            "attach_front_full_L"
+          ],
+          "front_top_uveges_40_l": [
+            "attach_front_full_L"
+          ]
+        }
+      },
+      {
+        "slotId": "handle_1",
+        "name": "Fogantyú 1",
+        "componentType": "handles",
+        "allowedComponents": [
+          "handle_standard",
+          "handle_design"
+        ],
+        "defaultComponent": "handle_standard",
+        "position": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 3.141592653589793
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        },
+        "attachToSlot": "front_1",
+        "useAttachmentPoint": "attach_handle_vertical_R",
+        "attachmentMapping": {
+          "handle_design": [
+            "attach_handle_vertical_R"
+          ],
+          "handle_standard": [
+            "attach_handle_vertical_R"
+          ]
+        }
+      }
+    ],
+    "slotGroups": [
+      {
+        "groupId": "layouts",
+        "name": "Layouts",
+        "controlType": "schema_select",
+        "schemas": [
+          {
+            "id": "schema_1765178092203_294tgnvi9",
+            "name": "Polc Elrendezés 1",
+            "type": "shelf",
+            "apply": {},
+            "shelfConfig": {
+              "mode": "auto",
+              "count": 3,
+              "componentId": "shelf_top_glass_40"
+            }
+          },
+          {
+            "id": "schema_1765178160252_fu5fz0p3b",
+            "name": "Jobbos",
+            "type": "front",
+            "apply": {
+              "root__attach_front_full_R": "front_top_keretes_40_r",
+              "root__attach_front_full_R__attach_handle_vertical_L": "handle_standard"
+            },
+            "slotProperties": {
+              "root__attach_front_full_R": {
+                "allowedComponents": [
+                  "front_top_keretes_40_r",
+                  "front_top_sima_40_r",
+                  "front_top_uveges_40_r"
+                ]
+              },
+              "root__attach_front_full_R__attach_handle_vertical_L": {
+                "allowedComponents": [
+                  "handle_standard",
+                  "handle_design"
+                ],
+                "rotation": {
+                  "x": 0,
+                  "y": 0,
+                  "z": 3.141592653589793
+                }
+              }
+            }
+          },
+          {
+            "id": "schema_1765178199657_zywke7kun",
+            "name": "Balos",
+            "type": "front",
+            "apply": {
+              "root__attach_front_full_L": "front_top_keretes_40_l",
+              "root__attach_front_full_L__attach_handle_vertical_R": "handle_standard"
+            },
+            "slotProperties": {
+              "root__attach_front_full_L": {
+                "allowedComponents": [
+                  "front_top_keretes_40_l",
+                  "front_top_sima_40_l",
+                  "front_top_uveges_40_l"
+                ]
+              },
+              "root__attach_front_full_L__attach_handle_vertical_R": {
+                "allowedComponents": [
+                  "handle_standard",
+                  "handle_design"
+                ],
+                "rotation": {
+                  "x": 0,
+                  "y": 0,
+                  "z": 3.141592653589793
+                }
+              }
+            }
+          },
+          {
+            "id": "schema_1765178228151_f1j04x7g3",
+            "name": "Nyitott",
+            "type": "front",
+            "apply": {}
+          }
+        ],
+        "controlledSlots": [],
+        "defaultSchemaId": "schema_1765178199657_zywke7kun"
       }
     ]
   }

@@ -419,7 +419,8 @@ export default class Experience {
     this.scene.children.forEach((child) => {
       if (
         ((child as any).isGroup || (child.userData && child.userData.config)) &&
-        child !== this.rulerElements
+        child !== this.rulerElements &&
+        child.uuid !== this.roomManager.group.uuid
       ) {
         existingObjects.push(child)
       }
@@ -427,12 +428,19 @@ export default class Experience {
     existingObjects.forEach((obj) => this.scene.remove(obj))
     this.experienceStore.updatePlacedObjects([])
 
+    // 🔥 JAVÍTÁS: Selection és Debug elemek eltüntetése betöltéskor,
+    // hogy ne maradjon ott a sárga doboz a törölt tárgy helyén.
+    this.selectionStore.clearSelection()
+    this.debug.hideAll()
+
     for (const objState of state) {
       if (signal?.aborted) {
         throw new DOMException('Load state aborted during object processing', 'AbortError')
       }
 
-      const config = this.configManager.getFurnitureById(objState.configId)
+      // JAVÍTÁS: A mentett konfigot használjuk, ha van (hogy a dinamikus slotok megmaradjanak)
+      // Ha nincs (régi mentés), akkor az ID alapján töltjük be.
+      const config = objState.config || this.configManager.getFurnitureById(objState.configId)
       if (config) {
         const newObject = await this.assetManager.buildFurnitureFromConfig(
           config,

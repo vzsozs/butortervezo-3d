@@ -404,6 +404,9 @@ export const useSelectionStore = defineStore('selection', () => {
       experience.experienceStore.replaceObject(uuidToReplace, newObject)
       selectObject(newObject)
 
+      // 🔥 JAVÍTÁS: Történet mentése változtatás után
+      experience.historyStore.addState()
+
       console.log('[SelectionStore] ✅ Objektum sikeresen cserélve.')
     } catch (error) {
       console.error('[SelectionStore] ❌ Hiba az objektum cseréjénél:', error)

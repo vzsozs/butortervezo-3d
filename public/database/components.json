@@ -364,7 +364,8 @@
           ]
         }
       ],
-      "price": 18000
+      "price": 18000,
+      "styleId": "style_1764612976086_tmb30"
     },
     {
       "name": "front top keretes 40 R",
@@ -392,7 +393,8 @@
           ]
         }
       ],
-      "price": 18000
+      "price": 18000,
+      "styleId": "style_1764612976086_tmb30"
     },
     {
       "name": "front top sima 40 L",
@@ -420,7 +422,8 @@
           ]
         }
       ],
-      "price": 10800
+      "price": 10800,
+      "styleId": "style_1764612985067_e3wc3"
     },
     {
       "name": "front top sima 40 R",
@@ -448,7 +451,8 @@
           ]
         }
       ],
-      "price": 10800
+      "price": 10800,
+      "styleId": "style_1764612985067_e3wc3"
     },
     {
       "name": "front top uveges 40 L",
@@ -477,7 +481,8 @@
           ]
         }
       ],
-      "price": 22000
+      "price": 22000,
+      "styleId": "style_1765178017197_wik2i"
     },
     {
       "name": "front top uveges 40 R",
@@ -506,7 +511,8 @@
           ]
         }
       ],
-      "price": 22000
+      "price": 22000,
+      "styleId": "style_1765178017197_wik2i"
     }
   ],
   "handles": [
