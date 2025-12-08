@@ -9,6 +9,7 @@ import TopMenu from '@/components/TopMenu.vue'
 import ElementListPanel from '@/components/ElementListPanel.vue'
 import { useProceduralStore } from '@/stores/procedural';
 import { useConfigStore } from '@/stores/config'; // <-- A Pinia store importálása
+import GlobalConfirmModal from '@/components/common/GlobalConfirmModal.vue';
 
 // --- MEGLÉVŐ LOGIKA ---
 const route = useRoute();
@@ -39,5 +40,7 @@ onMounted(() => {
       <TopMenu />
       <ElementListPanel />
     </template>
+
+    <GlobalConfirmModal />
   </div>
 </template>

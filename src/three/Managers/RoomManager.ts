@@ -169,4 +169,8 @@ export default class RoomManager {
   }
 
   public update() {}
+
+  public reset() {
+    this.roomStore.reset()
+  }
 }

@@ -12,7 +12,6 @@ import {
   SphereGeometry,
   MeshBasicMaterial,
   Plane,
-  Ray,
   Line3,
 } from 'three'
 import { FurnitureCategory } from '@/config/furniture'

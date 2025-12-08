@@ -170,6 +170,15 @@ export const useRoomStore = defineStore('room', () => {
     }
   }
 
+  function reset() {
+    roomDimensions.value = {
+      width: 6000,
+      depth: 4000,
+      height: 2600,
+    }
+    openings.value = []
+  }
+
   return {
     roomDimensions,
     openings,
@@ -177,5 +186,6 @@ export const useRoomStore = defineStore('room', () => {
     addOpening,
     removeOpening,
     updateOpening,
+    reset,
   }
 })

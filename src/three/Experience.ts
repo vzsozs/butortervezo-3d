@@ -308,13 +308,14 @@ export default class Experience {
     this.proceduralManager.update()
   }
 
-  public newScene() {
+  public newScene(keepSettings: boolean = false) {
     const transformControlsUUID = this.camera.transformControls.uuid
 
     this.camera.transformControls.detach()
     this.selectionStore.clearSelection()
     this.debug.selectionBoxHelper.visible = false
 
+    // 1. Dispose placed objects (Furniture)
     this.experienceStore.placedObjects.forEach((obj) => {
       const rawObj = toRaw(obj)
       const objectInScene = this.scene.children.find((c) => c.uuid === rawObj.uuid)
@@ -336,12 +337,20 @@ export default class Experience {
       if (rawChild instanceof GridHelper) return
       if (rawChild instanceof BoxHelper) return
       if (rawChild instanceof LineSegments) return
+
+      // ALWAYS Keep Room Group container.
+      // Full reset logic handles content clearing via roomManager.reset() -> store update -> buildRoom()
+      if (rawChild.uuid === this.roomManager.group.uuid) return
+
       if (
         rawChild instanceof Mesh &&
         !rawChild.userData.config &&
-        !rawChild.userData.componentState
+        !rawChild.userData.componentState &&
+        !child.name.includes('ProceduralWorktop') && // Extra check, though objectsToKill handles generic meshes
+        !child.name.includes('ProceduralPlinth')
       )
         return
+
       objectsToKill.push(child)
     })
 
@@ -349,6 +358,15 @@ export default class Experience {
       this.scene.remove(obj)
       this.disposeRecursively(obj)
     })
+
+    // Force clear procedural cache/meshes via manager
+    // This ensures even if something was missed in scene traversal, the manager knows it's empty
+    // OR if we deleted the meshes, the manager needs to know references are gone.
+    // In ProceduralManager.update() it clears old meshes.
+    // We should trigger an update or better, a reset on procedural manager.
+    // Since ProceduralManager doesn't have a reset() methods yet (based on previous read),
+    // we rely on it reacting to empty store or we can manually trigger.
+    // But store isn't cleared yet.
 
     while (this.rulerElements.children.length > 0) {
       const child = this.rulerElements.children[0]
@@ -358,7 +376,25 @@ export default class Experience {
     }
 
     this.experienceStore.updatePlacedObjects([])
-    this.settingsStore.resetToDefaults()
+    this.experienceStore.totalPrice = 0 // Explicitly reset price
+
+    // Conditionally reset settings and room
+    if (!keepSettings) {
+      this.settingsStore.resetToDefaults()
+      this.roomManager.reset()
+    } else {
+      // If keeping settings (room), we still need to refresh procedural stuff (which should be empty now)
+      // because furniture is gone.
+      this.proceduralManager.update()
+    }
+
+    // Clear any residual interaction helpers (Blue snapping box, Red moving box, etc.)
+    this.debug.hideAll()
+
+    // Explicitly update ProceduralManager to ensure it knows about the empty state immediately
+    // to prevent any ghost procedural meshes from lingering until next update loop.
+    this.proceduralManager.update()
+
     this.historyStore.clearHistory()
     this.historyStore.addState()
   }

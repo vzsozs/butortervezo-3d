@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, watch, computed } from 'vue';
 import { storeToRefs } from 'pinia';
+import { useModalStore } from '@/stores/modal';
 import { useConfigStore } from '@/stores/config';
 import { FurnitureCategory, type FurnitureConfig, type ComponentConfig, type ComponentDatabase } from '@/config/furniture';
 import ComponentEditor from '@/components/admin/ComponentEditor.vue';
@@ -18,6 +19,7 @@ const activeTab = ref('furniture');
 const appVersion = __APP_VERSION__;
 
 const configStore = useConfigStore();
+const modalStore = useModalStore();
 const { furnitureList: allFurniture, components: allComponents } = storeToRefs(configStore);
 
 onMounted(() => {
@@ -103,9 +105,9 @@ function handleSaveGlobalSettings() {
 }
 
 // --- NAVIGÁCIÓS MEGERŐSÍTŐ ---
-function confirmAndProceed(action: () => void) {
+async function confirmAndProceed(action: () => void) {
   if (hasUnsavedChanges.value) {
-    if (confirm('Vannak nem mentett változtatásaid. Biztosan el akarod dobni őket?')) {
+    if (await modalStore.confirm('Vannak nem mentett változtatásaid. Biztosan el akarod dobni őket?')) {
       action();
     }
   } else {
@@ -141,10 +143,10 @@ async function saveDatabase(
       body: JSON.stringify({ filename, data: cleanData }),
     });
     if (!response.ok) throw new Error(await response.text());
-    alert(`${filename} sikeresen mentve!`);
+    await modalStore.alert(`${filename} sikeresen mentve!`);
   } catch (error) {
     console.error(error);
-    alert(`Hiba a(z) ${filename} mentése közben.`);
+    await modalStore.alert(`Hiba a(z) ${filename} mentése közben.`);
   }
 }
 
@@ -186,7 +188,7 @@ async function saveComponent(component: ComponentConfig, file: File | null): Pro
     const result = await response.json();
     console.log("5. Szerver válasza:", result);
 
-    alert(`Komponens sikeresen mentve!`);
+    await modalStore.alert(`Komponens sikeresen mentve!`);
 
     if (result.updatedComponent?.model) {
       const assetManager = AssetManager.getInstance();
@@ -197,7 +199,7 @@ async function saveComponent(component: ComponentConfig, file: File | null): Pro
 
   } catch (error) {
     console.error("KRITIKUS HIBA MENTÉSKOR:", error);
-    alert(`Hiba: ${error}`);
+    await modalStore.alert(`Hiba: ${error}`);
     return null;
   }
 }
@@ -285,9 +287,9 @@ function handleCancelFurniture() {
   isNewFurniture.value = false;
   furnitureEditorKey.value = undefined;
 }
-function handleDeleteFurniture() {
+async function handleDeleteFurniture() {
   if (!editingFurniture.value?.id || isNewFurniture.value) { handleCancelFurniture(); return; }
-  if (confirm(`Biztosan törlöd a(z) "${editingFurniture.value.name}" bútort?`)) {
+  if (await modalStore.confirm(`Biztosan törlöd a(z) "${editingFurniture.value.name}" bútort?`)) {
     configStore.deleteFurniture(editingFurniture.value.id);
     saveDatabase('furniture.json', allFurniture.value);
     handleCancelFurniture();
@@ -410,8 +412,8 @@ async function handleSaveComponent(component: ComponentConfig, file: File | null
   handleCancelComponent();
 }
 
-function handleDeleteComponent(component: ComponentConfig) {
-  if (confirm(`Biztosan törölni szeretnéd a(z) "${component.name}" komponenst?`)) {
+async function handleDeleteComponent(component: ComponentConfig) {
+  if (await modalStore.confirm(`Biztosan törölni szeretnéd a(z) "${component.name}" komponenst?`)) {
     configStore.deleteComponent(selectedComponentType.value, component.id);
     saveDatabase('components.json', allComponents.value);
     handleCancelComponent();
