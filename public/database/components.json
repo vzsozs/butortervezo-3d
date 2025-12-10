@@ -458,17 +458,13 @@
       "name": "front top uveges 40 L",
       "id": "front_top_uveges_40_l",
       "properties": {
-        "height": 711,
         "width": 395,
+        "height": 711,
         "depth": 19
       },
       "componentType": "fronts",
-      "allowedMaterialCategories": [
-        "Bútorlap",
-        "general"
-      ],
+      "allowedMaterialCategories": [],
       "model": "/models/fronts/front_top_uveges_40_l.glb",
-      "materialTarget": "MAT_Frontok",
       "materialOptions": [
         "MAT_Frontok",
         "MAT_Uveg"
@@ -482,23 +478,38 @@
         }
       ],
       "price": 22000,
+      "materialSlots": [
+        {
+          "key": "base",
+          "name": "Keret",
+          "target": "MAT_Frontok",
+          "allowedCategories": [
+            "Bútorlap",
+            "general"
+          ]
+        },
+        {
+          "key": "glass",
+          "name": "Üveg",
+          "target": "MAT_Uveg",
+          "allowedCategories": [
+            "Üveg"
+          ]
+        }
+      ],
       "styleId": "style_1765178017197_wik2i"
     },
     {
       "name": "front top uveges 40 R",
       "id": "front_top_uveges_40_r",
       "properties": {
-        "height": 711,
         "width": 395,
+        "height": 711,
         "depth": 19
       },
       "componentType": "fronts",
-      "allowedMaterialCategories": [
-        "Bútorlap",
-        "general"
-      ],
+      "allowedMaterialCategories": [],
       "model": "/models/fronts/front_top_uveges_40_r.glb",
-      "materialTarget": "MAT_Frontok",
       "materialOptions": [
         "MAT_Frontok",
         "MAT_Uveg"
@@ -512,6 +523,25 @@
         }
       ],
       "price": 22000,
+      "materialSlots": [
+        {
+          "key": "base",
+          "name": "Keret",
+          "target": "MAT_Frontok",
+          "allowedCategories": [
+            "general",
+            "Bútorlap"
+          ]
+        },
+        {
+          "key": "glass",
+          "name": "Üveg",
+          "target": "MAT_Uveg",
+          "allowedCategories": [
+            "Üveg"
+          ]
+        }
+      ],
       "styleId": "style_1765178017197_wik2i"
     }
   ],

@@ -69,6 +69,7 @@ export interface ComponentConfig {
   materialTarget?: string
   materialSource?: string
   materialOptions?: string[]
+  materialSlots?: MaterialSlotDef[]
   attachmentPoints?: AttachmentPoint[]
   allowedMaterialCategories?: string[]
 
@@ -178,19 +179,6 @@ export interface FurnitureStyle {
   description?: string
 }
 
-export interface MaterialConfig {
-  id: string
-  name: string
-  category: string | string[]
-  type: 'color' | 'texture'
-  value: string
-  properties?: {
-    roughness?: number
-    metalness?: number
-    [key: string]: any
-  }
-}
-
 export interface StyleVariant {
   id: string
   name: string // Pl. "Keretes / Klasszikus"
@@ -214,6 +202,13 @@ export interface GlobalGroupConfig {
     variants: StyleVariant[] // Itt vannak a csoportosított stílusok
   }
 
+  // --- ÚJ: Slot-specifikus beállítások ---
+  slots?: {
+    key: string // pl. "glass"
+    name: string // pl. "Üvegbetét"
+    allowedCategories: string[] // pl. ["Üveg"]
+  }[]
+
   construction?: {
     enabled: boolean
     // Lábakhoz (Range)
@@ -236,6 +231,14 @@ export interface MaterialConfig {
     metalness?: number
     [key: string]: any
   }
+}
+
+export interface MaterialSlotDef {
+  key: string // pl. "base", "glass", "handle"
+  name: string // Megjelenő név, pl. "Keret", "Üveg"
+  target: string // A GLB-ben lévő material neve (részlet), ami alapján megtaláljuk
+  defaultMaterial?: string // Opcionális alapértelmezett anyag ID
+  allowedCategories?: string[] // pl. ["Bútorlap", "Fa"] vagy ["Üveg"]
 }
 
 export interface GeneralSettings {

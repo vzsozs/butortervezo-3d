@@ -1,14 +1,14 @@
 import { watch } from 'vue'
-import { Group, Mesh, Object3D } from 'three'
+import { Group, Mesh, Object3D, MeshPhysicalMaterial } from 'three'
 import Experience from '../Experience'
-// import { availableMaterials } from '@/config/materials'; // Már nem használjuk
+import type { ComponentConfig } from '@/config/furniture' // Típus importálása
 
 export default class StateManager {
+  private materialCache: Map<string, MeshPhysicalMaterial> = new Map()
+
   constructor(private experience: Experience) {
     this.setupWatchers()
   }
-
-  // --- PUBLIKUS METÓDUSOK ---
 
   public updateFrontsVisibility(isVisible: boolean) {
     this.experience.toggleFrontVisibility(isVisible)
@@ -16,113 +16,135 @@ export default class StateManager {
 
   public async applyMaterialsToObject(targetObject: Group) {
     const componentState = targetObject.userData.componentState
-    const materialState = targetObject.userData.materialState
-    if (!componentState || !materialState) return
+    const localMaterialState = targetObject.userData.materialState || {}
+
+    if (!componentState) return
 
     for (const slotId in componentState) {
       const componentId = componentState[slotId]
-      const materialId = materialState[slotId]
-      if (componentId && materialId) {
-        await this.applyMaterialToSlot(targetObject, slotId, materialId)
+      if (componentId) {
+        await this.applyMaterialToSlot(targetObject, slotId, componentId, localMaterialState)
       }
     }
   }
 
-  public async applyMaterialToSlot(targetObject: Group, slotId: string, materialId: string) {
-    console.log(`[StateManager] applyMaterialToSlot: slotId=${slotId}, materialId=${materialId}`)
-
-    const componentId = targetObject.userData.componentState?.[slotId]
+  public async applyMaterialToSlot(
+    targetObject: Group,
+    slotId: string,
+    componentId: string,
+    localOverrides: Record<string, string> = {},
+  ) {
     const componentConfig = this.experience.configManager.getComponentById(componentId)
-    const materialConfig = this.experience.configManager.getMaterialById(materialId)
+    if (!componentConfig) return
 
-    // if (!componentConfig?.materialTarget) return // 🔥 JAVÍTÁS: Kivettük a korlátozást
-    if (!materialConfig) return
-
-    // Anyag létrehozása
-    const newMaterial = await this.experience.assetManager.createMaterial(materialConfig)
-
-    // Ha nincs megadva cél, akkor mindent színezünk (Fallback)
-    const forceApply = !componentConfig?.materialTarget
-
-    let appliedCount = 0
-
-    // 1. Megkeressük a slot gyökerét (pl. a Korpusz csoportját)
-    targetObject.traverse((child: Object3D) => {
+    let slotRoot: Object3D | null = null
+    targetObject.traverse((child) => {
       if (child.userData.slotId === slotId) {
-        // 2. Indítjuk a rekurziót
-        appliedCount += this.applyMaterialRecursive(
-          child,
-          newMaterial,
-          slotId,
-          targetObject,
-          forceApply,
-        )
+        slotRoot = child
       }
     })
 
-    if (appliedCount === 0) {
-      console.warn(
-        `[StateManager] ⚠️ Nem sikerült anyagot alkalmazni: ${slotId} (Target: ${componentConfig?.materialTarget || 'ALL'})`,
-      )
-    } else {
-      console.log(`[StateManager] Applied material to ${appliedCount} meshes.`)
+    if (!slotRoot) return
+
+    const globalSettings = this.experience.settingsStore.globalMaterialSettings
+
+    const getMaterial = async (materialId: string) => {
+      if (this.materialCache.has(materialId)) return this.materialCache.get(materialId)!
+      const matConfig = this.experience.configManager.getMaterialById(materialId)
+      if (!matConfig) return null
+      const mat = await this.experience.assetManager.createMaterial(matConfig)
+      this.materialCache.set(materialId, mat)
+      return mat
     }
-  }
 
-  // 🔥 MÓDOSÍTOTT: Okos bejáró öröklés-támogatással
-  private applyMaterialRecursive(
-    object: Object3D,
-    material: any,
-    targetSlotId: string,
-    rootObject: Group,
-    forceApply: boolean, // <--- ÚJ PARAMÉTER
-  ): number {
-    let count = 0
+    const applyRecursive = async (object: Object3D) => {
+      if (object instanceof Mesh) {
+        if (object.userData.isMaterialTarget) {
+          const slotKey = object.userData.materialSlotKey || 'base'
+          const compType = componentConfig.componentType || componentConfig.category || 'front'
 
-    // HATÁR ELLENŐRZÉS:
-    // Ha ennek az objektumnak van slotId-ja, ÉS az nem egyezik azzal, amit épp színezünk...
-    if (object.userData.slotId && object.userData.slotId !== targetSlotId) {
-      // ...AKKOR megnézzük, hogy ez a gyerek elem örököl-e?
-      const childSlotId = object.userData.slotId
-      const childComponentId = rootObject.userData.componentState?.[childSlotId]
+          let materialIdToUse: string | null = null
 
-      if (childComponentId) {
-        const childComp = this.experience.configManager.getComponentById(childComponentId)
+          // A) LOKÁLIS
+          const localSpecificKey = `${slotId}_${slotKey}`
+          const localBaseKey = slotId
 
-        // HA ÖRÖKÖL (materialSource === 'corpus'), AKKOR ENGEDJÜK TOVÁBB!
-        // (Feltételezzük, hogy most épp a korpuszt színezzük, vagy a forrás megegyezik)
-        if (childComp?.materialSource === 'corpus') {
-          // Mehet tovább a bejárás (nem returnölünk 0-t)
-          // Így a polc is megkapja a színt.
-        } else {
-          // HA NEM ÖRÖKÖL (pl. Ajtó), AKKOR STOP.
-          return 0
+          if (slotKey !== 'base' && localOverrides[localSpecificKey]) {
+            materialIdToUse = localOverrides[localSpecificKey]
+          } else if (localOverrides[localBaseKey] && slotKey === 'base') {
+            materialIdToUse = localOverrides[localBaseKey]
+          }
+
+          // B) GLOBÁLIS
+          if (!materialIdToUse) {
+            const globalSpecificKey = `${compType}_${slotKey}`
+            const globalBaseKey = compType
+
+            if (slotKey !== 'base' && globalSettings[globalSpecificKey]) {
+              materialIdToUse = globalSettings[globalSpecificKey]
+            } else if (globalSettings[globalBaseKey] && slotKey === 'base') {
+              materialIdToUse = globalSettings[globalBaseKey]
+            }
+
+            if (!materialIdToUse && slotKey === 'base') {
+              const cat = componentConfig.category
+              if (cat && globalSettings[cat]) {
+                materialIdToUse = globalSettings[cat]
+              }
+            }
+          }
+
+          // C) ALKALMAZÁS
+          if (materialIdToUse) {
+            const material = await getMaterial(materialIdToUse)
+            if (material) {
+              object.material = material
+              object.castShadow = true
+              object.receiveShadow = true
+            }
+          }
         }
-      } else {
-        return 0
+      }
+
+      for (const child of object.children) {
+        if (child.userData.slotId && child.userData.slotId !== slotId) continue
+        await applyRecursive(child)
       }
     }
 
-    // Színezés (Mesh esetén)
-    if (object instanceof Mesh) {
-      // 🔥 JAVÍTÁS: Ha forceApply igaz, vagy ha explicit meg van jelölve
-      if (object.userData.isMaterialTarget || forceApply) {
-        object.material = material
-        object.castShadow = true
-        object.receiveShadow = true
-        count++
-      }
-    }
-
-    // Tovább a gyerekeken
-    for (const child of object.children) {
-      count += this.applyMaterialRecursive(child, material, targetSlotId, rootObject, forceApply)
-    }
-
-    return count
+    await applyRecursive(slotRoot as Object3D)
   }
 
-  // --- BELSŐ MŰKÖDÉS ---
+  private findCompatibleComponent(
+    originalComponentId: string,
+    targetStyleId: string,
+  ): string | null {
+    const originalComp = this.experience.configManager.getComponentById(originalComponentId)
+    if (!originalComp) return null
+
+    if (originalComp.styleId === targetStyleId) return originalComponentId
+
+    // JAVÍTÁS: Típus kényszerítése (ComponentConfig[]), hogy a TS tudja, mik a mezők
+    const storeComponents = this.experience.configStore.components
+    const candidates = Object.values(storeComponents).flat() as ComponentConfig[]
+
+    const target = candidates.find(
+      (c) =>
+        c.componentType === originalComp.componentType &&
+        c.styleId === targetStyleId &&
+        c.properties?.width === originalComp.properties?.width &&
+        c.properties?.height === originalComp.properties?.height &&
+        this.getOrientation(c.id) === this.getOrientation(originalComp.id),
+    )
+
+    return target ? target.id : null
+  }
+
+  private getOrientation(id: string): string {
+    if (id.includes('_l') || id.includes('left')) return 'left'
+    if (id.includes('_r') || id.includes('right')) return 'right'
+    return 'neutral'
+  }
 
   private setupWatchers() {
     const selectionStore = this.experience.selectionStore
@@ -130,35 +152,84 @@ export default class StateManager {
 
     console.log('[StateManager] Watcherek inicializálása...')
 
-    // 1. ANYAG CSERE
+    // 1. GLOBÁLIS ANYAG
+    watch(
+      () => this.experience.settingsStore.globalMaterialSettings,
+      async (newSettings) => {
+        console.log('[StateManager] Globális anyagok változtak...', newSettings)
+        this.materialCache.clear()
+        for (const obj of experienceStore.placedObjects) {
+          await this.applyMaterialsToObject(obj)
+        }
+      },
+      { deep: true },
+    )
+
+    // 2. GLOBÁLIS STÍLUS
+    watch(
+      () => this.experience.settingsStore.globalComponentSettings,
+      async (newSettings) => {
+        console.log('[StateManager] Globális stílus változott...', newSettings)
+
+        for (const obj of experienceStore.placedObjects) {
+          let needsRebuild = false
+          const newState = { ...obj.userData.componentState }
+
+          for (const [slotId, compId] of Object.entries(newState)) {
+            const comp = this.experience.configManager.getComponentById(compId)
+            if (!comp) continue
+
+            const catKey = comp.category || ''
+            const typeKey = comp.componentType || ''
+
+            // JAVÍTÁS: Ellenőrizzük, hogy string-e az érték
+            const rawStyleId = newSettings[catKey] || newSettings[typeKey]
+            const targetStyleId = typeof rawStyleId === 'string' ? rawStyleId : undefined
+
+            if (targetStyleId && comp.styleId !== targetStyleId) {
+              const newCompId = this.findCompatibleComponent(compId, targetStyleId)
+              if (newCompId) {
+                newState[slotId] = newCompId
+                needsRebuild = true
+              }
+            }
+          }
+
+          if (needsRebuild) {
+            console.log(
+              `[StateManager] Bútor (${obj.userData.config?.name}) frissítése új stílusra...`,
+            )
+            await this.experience.rebuildObject(obj, newState)
+          }
+        }
+      },
+      { deep: true },
+    )
+
+    // 3. LOKÁLIS ANYAG
     watch(
       () => selectionStore.materialChangeRequest,
       async (request) => {
         if (!request) return
-        console.log('[StateManager] Anyagcsere kérés:', request)
-
         const { targetUUID, slotId, materialId } = request
         const targetObject = experienceStore.getObjectByUUID(targetUUID)
 
         if (targetObject) {
           const newMaterialState = { ...targetObject.userData.materialState, [slotId]: materialId }
           targetObject.userData.materialState = newMaterialState
-          await this.applyMaterialToSlot(targetObject, slotId, materialId)
+          await this.applyMaterialsToObject(targetObject)
           this.experience.historyStore.addState()
         }
-
         selectionStore.acknowledgeMaterialChange()
       },
       { deep: true },
-    ) // Deep watch a biztonság kedvéért
+    )
 
-    // 2. STÍLUS CSERE (Komponens csere)
+    // 4. STÍLUS CSERE
     watch(
       () => selectionStore.styleChangeRequest,
       async (request) => {
         if (!request) return
-        console.log('[StateManager] Stíluscsere kérés:', request)
-
         const { targetUUID, slotId, newStyleId } = request
         const targetObject = experienceStore.getObjectByUUID(targetUUID)
 
@@ -167,46 +238,35 @@ export default class StateManager {
             ...targetObject.userData.componentState,
             [slotId]: newStyleId,
           }
-          // Rebuild
           await this.experience.rebuildObject(targetObject, newComponentState)
           this.experience.historyStore.addState()
         }
-
         selectionStore.acknowledgeStyleChange()
       },
       { deep: true },
     )
 
-    // 3. TÖRLÉS (Javítva: Sárga doboz eltüntetése)
+    // 5. TÖRLÉS
     watch(
       () => selectionStore.objectToDeleteUUID,
       (uuidToDelete) => {
         if (!uuidToDelete) return
-
-        // Egyszerűen meghívjuk ugyanazt a függvényt, amit a DEL gomb használ
         if (this.experience.interactionManager) {
-          console.log('[StateManager] Törlés delegálása az InteractionManager-nek...')
           this.experience.interactionManager.handleDelete()
         }
-
-        // Nyugtázzuk, hogy a kérést feldolgoztuk
         selectionStore.acknowledgeDeletion()
       },
     )
 
-    // 4. DUPLIKÁLÁS (ÚJ FUNKCIÓ)
+    // 6. DUPLIKÁLÁS
     watch(
       () => selectionStore.objectToDuplicateUUID,
       async (uuidToDuplicate) => {
         if (!uuidToDuplicate) return
-
         const originalObject = experienceStore.getObjectByUUID(uuidToDuplicate)
         if (!originalObject) return
 
-        console.log('[StateManager] Duplikálás indítása...')
-
         try {
-          // A) Adatok mélymásolása (hogy ne legyen referencia kapcsolat)
           const config = JSON.parse(JSON.stringify(originalObject.userData.config))
           const componentState = JSON.parse(
             JSON.stringify(originalObject.userData.componentState || {}),
@@ -215,37 +275,27 @@ export default class StateManager {
             JSON.stringify(originalObject.userData.materialState || {}),
           )
 
-          // B) Új bútor felépítése (ugyanazokkal a beállításokkal)
           const newObject = await this.experience.assetManager.buildFurnitureFromConfig(
             config,
             componentState,
           )
 
-          // C) Anyagok és Config visszaírása
           newObject.userData.config = config
           newObject.userData.materialState = materialState
 
-          // D) Anyagok alkalmazása a 3D hálókra
           await this.applyMaterialsToObject(newObject)
 
-          // E) 🔥 TAPADJON AZ EGÉRRE (Placement Mode)
-          // Feltételezzük, hogy az InputManager-nek van startDragging vagy startPlacement metódusa.
-          // Ha a te kódodban máshogy hívják (pl. setFloatingObject), írd át arra!
           if (this.experience.interactionManager) {
             this.experience.interactionManager.startDraggingDuplicatedObject(newObject)
           } else {
-            // Fallback, ha valamiért mégsem érné el
             newObject.position.copy(originalObject.position).addScalar(0.2)
             this.experience.scene.add(newObject)
             this.experience.experienceStore.addObject(newObject)
             this.experience.selectionStore.selectObject(newObject)
           }
-
-          console.log('[StateManager] Sikeres duplikálás.')
         } catch (error) {
           console.error('[StateManager] Hiba a duplikálásnál:', error)
         }
-
         selectionStore.acknowledgeDuplication()
       },
     )

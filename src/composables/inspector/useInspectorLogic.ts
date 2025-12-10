@@ -521,8 +521,10 @@ export function useLayoutLogic(selectedObject: Ref<FurnitureObject | null>) {
 }
 
 // --- 8. MATERIAL SELECTION (FIXED SINGLETON) ---
-const activeMaterialControl = ref<InspectorControl | null>(null) // Singleton state
-const _matTrigger = ref(0) // Singleton trigger
+const activeMaterialControl = ref<InspectorControl | null>(null)
+const activeSubSlotKey = ref<string | null>(null)
+const _matTrigger = ref(0)
+
 function triggerMaterialUpdate() {
   _matTrigger.value++
 }
@@ -535,12 +537,14 @@ export function useMaterialSelection(
   const selectionStore = useSelectionStore()
   const proceduralStore = useProceduralStore()
 
-  function openMaterialSelector(control: InspectorControl) {
+  function openMaterialSelector(control: InspectorControl, subSlotKey: string | null = null) {
     activeMaterialControl.value = control
+    activeSubSlotKey.value = subSlotKey
   }
 
   function closeMaterialSelector() {
     activeMaterialControl.value = null
+    activeSubSlotKey.value = null
   }
 
   const availableMaterialsForActiveControl = computed(() => {
@@ -548,7 +552,14 @@ export function useMaterialSelection(
     const slot = activeMaterialControl.value.referenceSlot
     const currentId = currentState.value[slot.slotId]
     const comp = configStore.getComponentById(currentId || '')
-    const allowedCats = comp?.allowedMaterialCategories || []
+
+    let allowedCats: string[] = []
+    if (activeSubSlotKey.value && comp?.materialSlots) {
+      const subSlot = comp.materialSlots.find((s) => s.key === activeSubSlotKey.value)
+      if (subSlot) allowedCats = subSlot.allowedCategories || []
+    } else {
+      allowedCats = comp?.allowedMaterialCategories || []
+    }
 
     if (allowedCats.length === 0) return configStore.materials
 
@@ -561,39 +572,55 @@ export function useMaterialSelection(
   function selectMaterial(materialId: string) {
     if (!activeMaterialControl.value) return
 
-    // Manually update the local state to trigger reactivity immediately
+    // 1. Lokális State frissítése
     if (selectedObject.value) {
       if (!selectedObject.value.userData.materialState) {
         selectedObject.value.userData.materialState = {}
       }
+
       activeMaterialControl.value.slots.forEach((slot) => {
-        // Strict null check for userData in selectedObject
-        selectedObject.value!.userData.materialState![slot.slotId] = materialId
+        // 🔥 JAVÍTÁS: Ha 'base', akkor sima slotId, különben slotId_subKey
+        const isBase = !activeSubSlotKey.value || activeSubSlotKey.value === 'base'
+        const key = isBase ? slot.slotId : `${slot.slotId}_${activeSubSlotKey.value}`
+
+        selectedObject.value!.userData.materialState![key] = materialId
       })
     }
 
-    const updates = activeMaterialControl.value.slots.map((slot) => ({
-      slotId: slot.slotId,
-      materialId: materialId,
-    }))
+    // 2. Store update
+    const updates = activeMaterialControl.value.slots.map((slot) => {
+      const isBase = !activeSubSlotKey.value || activeSubSlotKey.value === 'base'
+      return {
+        slotId: isBase ? slot.slotId : `${slot.slotId}_${activeSubSlotKey.value}`,
+        materialId: materialId,
+      }
+    })
+
     selectionStore.changeMaterials(updates)
+
     setTimeout(() => {
       proceduralStore.triggerUpdate()
-      triggerMaterialUpdate() // Custom trigger
+      triggerMaterialUpdate()
     }, 50)
 
-    triggerMaterialUpdate() // Immediate trigger
+    triggerMaterialUpdate()
     closeMaterialSelector()
   }
 
-  function getCurrentMaterialId(slotId: string): string {
-    const _dep = _matTrigger.value // Dependency
-    const stateVal = selectedObject.value?.userData.materialState?.[slotId]
+  function getCurrentMaterialId(slotId: string, subSlotKey: string | null = null): string {
+    const _dep = _matTrigger.value
+
+    // 🔥 JAVÍTÁS: Itt is kezeljük a 'base' kulcsot
+    const isBase = !subSlotKey || subSlotKey === 'base'
+    const lookupKey = isBase ? slotId : `${slotId}_${subSlotKey}`
+
+    const stateVal = selectedObject.value?.userData.materialState?.[lookupKey]
     if (stateVal) return stateVal
+
     const compId = currentState.value[slotId]
     if (compId) {
       const comp = configStore.getComponentById(compId)
-      if (comp?.materialOptions && comp.materialOptions.length > 0) {
+      if (!subSlotKey && comp?.materialOptions && comp.materialOptions.length > 0) {
         return comp.materialOptions[0] || ''
       }
     }
@@ -602,8 +629,9 @@ export function useMaterialSelection(
 
   function getCurrentMaterial(
     slotId: string,
+    subSlotKey: string | null = null,
   ): MaterialConfig | { type: 'color'; value: string; name: string; thumbnail: string } {
-    const matId = getCurrentMaterialId(slotId)
+    const matId = getCurrentMaterialId(slotId, subSlotKey)
     const found = configStore.materials.find((m) => m.id === matId)
     const systemDefault = configStore.materials.find((m) => m.id === 'default_material')
     return (
@@ -612,16 +640,16 @@ export function useMaterialSelection(
     )
   }
 
-  function getMatType(slotId: string): string {
-    return getCurrentMaterial(slotId)?.type || 'color'
+  function getMatType(slotId: string, subSlotKey: string | null = null): string {
+    return getCurrentMaterial(slotId, subSlotKey)?.type || 'color'
   }
 
-  function getMatValue(slotId: string): string {
-    return getCurrentMaterial(slotId)?.value || '#cccccc'
+  function getMatValue(slotId: string, subSlotKey: string | null = null): string {
+    return getCurrentMaterial(slotId, subSlotKey)?.value || '#cccccc'
   }
 
-  function getMatThumbnail(slotId: string): string {
-    const mat = getCurrentMaterial(slotId)
+  function getMatThumbnail(slotId: string, subSlotKey: string | null = null): string {
+    const mat = getCurrentMaterial(slotId, subSlotKey)
     if ('thumbnail' in mat && mat.thumbnail) {
       return mat.thumbnail
     }

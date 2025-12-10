@@ -17,6 +17,13 @@ export interface InspectorControl {
   referenceSlot: ComponentSlotConfig
   currentValue: string
   isGrouped: boolean
+
+  // --- ÚJ: Multi-Material Slotok ---
+  materialSlots?: {
+    key: string // pl. "glass"
+    label: string // pl. "Üveg"
+    currentMaterialId: string
+  }[]
 }
 
 export interface DisplayGroup {
@@ -172,14 +179,30 @@ export function useInspectorGrouping(
             ComponentType.LEG,
             ComponentType.DRAWER,
           ] as ComponentType[]
-        ).includes(key as ComponentType) // Check if key is one of the types that should be grouped
+        ).includes(key as ComponentType)
 
         if (shouldGroup && items.length > 1) {
+          // --- CSOPORTOSÍTOTT VEZÉRLŐ ---
           const allSlots = items.map((i) => i.slot)
           const firstSlot = allSlots[0]
 
           if (firstSlot) {
             const currentVal = state[firstSlot.slotId] || ''
+
+            // 🔥 ÚJ: Multi-Material Slotok kinyerése a komponensből
+            const activeCompId = state[firstSlot.slotId]
+            const activeComp = activeCompId ? configStore.getComponentById(activeCompId) : null
+
+            let matSlots: InspectorControl['materialSlots'] = undefined
+
+            if (activeComp?.materialSlots && activeComp.materialSlots.length > 0) {
+              matSlots = activeComp.materialSlots.map((s) => ({
+                key: s.key,
+                label: s.name,
+                currentMaterialId: 'TODO', // Ezt majd a useMaterialSelection-ben oldjuk meg
+              }))
+            }
+
             controls.push({
               id: `group_${key}_unified`,
               label: 'Közös stílus',
@@ -187,20 +210,39 @@ export function useInspectorGrouping(
               referenceSlot: firstSlot,
               currentValue: currentVal,
               isGrouped: true,
+              materialSlots: matSlots, // Átadjuk a slotokat
             })
           }
         } else {
+          // --- EGYEDI VEZÉRLŐK ---
           items.sort((a, b) =>
             a.displayName.localeCompare(b.displayName, undefined, { numeric: true }),
           )
           items.forEach((item) => {
+            const currentVal = state[item.slot.slotId] || ''
+
+            // 🔥 ÚJ: Multi-Material Slotok kinyerése
+            const activeCompId = state[item.slot.slotId]
+            const activeComp = activeCompId ? configStore.getComponentById(activeCompId) : null
+
+            let matSlots: InspectorControl['materialSlots'] = undefined
+
+            if (activeComp?.materialSlots && activeComp.materialSlots.length > 0) {
+              matSlots = activeComp.materialSlots.map((s) => ({
+                key: s.key,
+                label: s.name,
+                currentMaterialId: 'TODO',
+              }))
+            }
+
             controls.push({
               id: item.slot.slotId,
               label: item.displayName,
               slots: [item.slot],
               referenceSlot: item.slot,
-              currentValue: state[item.slot.slotId] || '',
+              currentValue: currentVal,
               isGrouped: false,
+              materialSlots: matSlots,
             })
           })
         }

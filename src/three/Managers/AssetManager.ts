@@ -9,8 +9,10 @@ import {
   Object3D,
   Mesh,
   MeshStandardMaterial,
+  MeshPhysicalMaterial,
   Quaternion,
   Euler,
+  DoubleSide,
 } from 'three'
 import { GLTFLoader } from 'three-stdlib'
 import type {
@@ -96,18 +98,46 @@ export default class AssetManager {
       // Slot ID mentése a userData-ba (későbbi kereséshez, pl. front visibility)
       componentModel.userData.slotId = slot.slotId
 
-      // JAVÍTÁS: Megjelöljük a mesh-eket, amikre az anyagot kell alkalmazni.
-      // Így később is megtaláljuk őket, akkor is, ha már lecseréltük az anyagukat (és a nevük megváltozott).
-      if (componentConfig.materialTarget) {
+      // --- MULTI-MATERIAL LOGIKA ---
+
+      // 1. Eset: Új rendszer (Több slot)
+      if (componentConfig.materialSlots && componentConfig.materialSlots.length > 0) {
         componentModel.traverse((child) => {
           if (child instanceof Mesh) {
             const matName = Array.isArray(child.material)
               ? child.material[0].name
               : child.material.name
-            // 🔥 JAVÍTÁS: Case-insensitive vizsgálat
+
+            // Végignézzük az összes definiált slotot
+            for (const matSlot of componentConfig.materialSlots!) {
+              // Ha a mesh anyagának neve tartalmazza a slot targetjét (pl. "Glass")
+              if (matName.toLowerCase().includes(matSlot.target.toLowerCase())) {
+                child.userData.isMaterialTarget = true
+                child.userData.materialSlotKey = matSlot.key // pl. "glass"
+                child.userData.originalMaterialName = matName
+
+                // Fontos: Ha üveg slot, mentsük el, hogy később tudjuk
+                if (matSlot.key === 'glass' || matSlot.target.toLowerCase().includes('glass')) {
+                  child.userData.isGlass = true
+                }
+                break // Megtaláltuk, nem kell tovább keresni ehhez a mesh-hez
+              }
+            }
+          }
+        })
+      }
+      // 2. Eset: Régi rendszer (Egyetlen target)
+      else if (componentConfig.materialTarget) {
+        componentModel.traverse((child) => {
+          if (child instanceof Mesh) {
+            const matName = Array.isArray(child.material)
+              ? child.material[0].name
+              : child.material.name
+
             if (matName.toLowerCase().includes(componentConfig.materialTarget!.toLowerCase())) {
               child.userData.isMaterialTarget = true
-              // Opcionális: elmenthetjük az eredeti anyag nevét is debug célokra
+              // Ha nincs slot definíció, akkor ez a "default" vagy "base" slot
+              child.userData.materialSlotKey = 'base'
               child.userData.originalMaterialName = matName
             }
           }
@@ -288,11 +318,26 @@ export default class AssetManager {
       )
     })
   }
-  public async createMaterial(config: MaterialConfig): Promise<MeshStandardMaterial> {
-    const material = new MeshStandardMaterial({
+
+  public async createMaterial(config: MaterialConfig): Promise<MeshPhysicalMaterial> {
+    // Ha van transmission (üveg), akkor a metalness-nek 0-nak kell lennie a szép eredményhez,
+    // és a transparent-nek true-nak.
+    const isGlass = (config.properties?.transmission ?? 0) > 0
+
+    const material = new MeshPhysicalMaterial({
       name: config.name,
       roughness: config.properties?.roughness ?? 0.5,
-      metalness: config.properties?.metalness ?? 0,
+      // Ha üveg, akkor a metalness legyen 0, különben fekete lesz!
+      metalness: isGlass ? 0 : (config.properties?.metalness ?? 0),
+
+      transmission: config.properties?.transmission ?? 0,
+      opacity: config.properties?.opacity ?? 1,
+      // Ha üveg, mindenképp kell a transparent flag
+      transparent: isGlass ? true : (config.properties?.transparent ?? false),
+
+      side: DoubleSide,
+      // Opcionális: depthWrite false néha segít az üveg renderelési hibákon, de MeshPhysicalMaterialnál általában true is jó
+      depthWrite: true,
     })
 
     if (config.type === 'color') {
@@ -304,7 +349,6 @@ export default class AssetManager {
         material.needsUpdate = true
       } catch (error) {
         console.error(`Nem sikerült betölteni a textúrát: ${config.value}`, error)
-        // Fallback szín hiba esetén
         material.color.set('#ff0000')
       }
     }

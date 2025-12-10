@@ -62,10 +62,10 @@ const {
         </label>
 
         <!-- GRID LAYOUT -->
-        <div class="grid grid-cols-3 gap-2 h-8">
+        <div class="grid grid-cols-3 gap-2 min-h-[32px]">
 
-          <!-- 1. Dropdown (Korpusznál NEM JELENIK MEG, helyette fix szöveg) -->
-          <div class="col-span-2 relative">
+          <!-- 1. Dropdown (Stílus választó) -->
+          <div class="col-span-2 relative h-8">
             <template v-if="group.id !== ComponentType.CORPUS">
               <select :value="getCurrentControlValue(control)"
                 @change="e => handleUnifiedChange(control, (e.target as HTMLSelectElement).value)"
@@ -88,16 +88,41 @@ const {
             </template>
           </div>
 
-          <!-- 2. Material Button -->
-          <button v-if="shouldShowMaterialSelector(control.referenceSlot)"
+          <!-- 2. Material Button(s) -->
+
+          <!-- A) MULTI-MATERIAL MÓD (Több gomb) -->
+          <div v-if="control.materialSlots && control.materialSlots.length > 0" class="col-span-1 flex flex-col gap-2">
+            <div v-for="slot in control.materialSlots" :key="slot.key" class="flex flex-col">
+              <!-- Slot neve -->
+              <span class="text-[9px] text-gray-500 leading-tight mb-0.5 truncate">{{ slot.label }}</span>
+
+              <button @click="openMaterialSelector(control, slot.key)"
+                class="h-8 w-full rounded-md border border-gray-700 relative overflow-hidden transition-all hover:border-gray-500 cursor-pointer bg-[#2a2a2a]"
+                :title="slot.label + ' anyagának módosítása'">
+
+                <div class="w-full h-full flex items-center justify-center bg-gray-800">
+                  <!-- ITT A LÉNYEG: Átadjuk a slot.key-t a gettereknek -->
+                  <div v-if="getMatType(control.referenceSlot.slotId, slot.key) === 'color'" class="w-full h-full"
+                    :style="{ backgroundColor: getMatValue(control.referenceSlot.slotId, slot.key) }">
+                  </div>
+                  <img v-else :src="getMatThumbnail(control.referenceSlot.slotId, slot.key)"
+                    class="w-full h-full object-cover" />
+                </div>
+              </button>
+            </div>
+          </div>
+
+          <!-- B) SIMPLE MÓD (Egy gomb) -->
+          <button v-else-if="shouldShowMaterialSelector(control.referenceSlot)"
             @click="!isMaterialInherited(control.referenceSlot) && openMaterialSelector(control)"
-            class="col-span-1 h-full rounded-md border border-gray-700 relative overflow-hidden transition-all group"
+            class="col-span-1 h-8 rounded-md border border-gray-700 relative overflow-hidden transition-all group"
             :class="isMaterialInherited(control.referenceSlot)
               ? 'opacity-50 cursor-not-allowed bg-gray-800'
               : 'hover:border-gray-500 cursor-pointer bg-[#2a2a2a]'"
             :title="isMaterialInherited(control.referenceSlot) ? 'Ez az elem a korpusz színét örökli' : 'Anyag módosítása'">
 
             <div class="w-full h-full flex items-center justify-center bg-gray-800">
+              <!-- Itt nem adunk át második paramétert, így null lesz (base) -->
               <div v-if="getMatType(control.referenceSlot.slotId) === 'color'" class="w-full h-full"
                 :style="{ backgroundColor: getMatValue(control.referenceSlot.slotId) }">
               </div>

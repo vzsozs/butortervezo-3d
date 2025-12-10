@@ -5,7 +5,7 @@ import Experience from '../Experience'
 import { useRoomStore } from '../../stores/room'
 
 const SNAP_INCREMENT = 0.1
-const MAX_SNAP_CHECK_DISTANCE = 0.3
+const MAX_SNAP_CHECK_DISTANCE = 0.1
 const UNIT_SCALE = 0.001
 
 type SnapAxis = 'x' | 'z' | 'y'

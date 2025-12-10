@@ -214,8 +214,6 @@ export default class InteractionManager {
     }
   }
 
-  // ... (A többi metódus változatlan: onKeyDown, handleClick, selectObject, deselectObject, startPlacementMode, startDraggingExistingObject, beginDrag, onFurnitureDragEnd, handleTransformStart, handleTransformEnd, setTransformMode, Ruler logika, handleDelete, handleEscape, setObjectOpacity, setupWatchers, addEventListeners, removeEventListeners) ...
-
   private onKeyDown = (event: KeyboardEvent) => {
     if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement)
       return
@@ -822,14 +820,41 @@ export default class InteractionManager {
     object.traverse((child) => {
       if (child instanceof Mesh && child.material) {
         const mat = Array.isArray(child.material) ? child.material[0] : child.material
-        if (mat && 'opacity' in mat && 'transparent' in mat) {
-          if (!child.userData.originalMaterial) {
-            child.userData.originalMaterial = mat.clone()
+
+        if (mat) {
+          // --- MOZGATÁS (Átlátszó "szellem" mód) ---
+          if (opacity < 1.0) {
+            // 1. Eredeti mentése (csak ha még nincs mentve)
+            if (!child.userData.originalMaterial) {
+              child.userData.originalMaterial = mat
+            }
+
+            // 2. Klónozás a mozgatáshoz
+            // Mindig az EREDETIBŐL klónozunk, hogy ne halmozódjanak a hibák
+            const baseMat = child.userData.originalMaterial
+            const newMat = baseMat.clone()
+
+            newMat.transparent = true
+            newMat.opacity = opacity
+
+            // Mozgatás alatt kikapcsoljuk a transmission-t, hogy egyszerűbb/gyorsabb legyen a render
+            // és biztosan látszódjon a "szellem"
+            if ('transmission' in newMat) {
+              newMat.transmission = 0
+            }
+
+            child.material = newMat
           }
-          const newMat = mat.clone()
-          newMat.transparent = opacity < 1.0
-          newMat.opacity = opacity
-          child.material = newMat
+          // --- VISSZAÁLLÍTÁS (Normál mód) ---
+          else {
+            if (child.userData.originalMaterial) {
+              // Visszarakjuk az eredeti, érintetlen anyagot
+              child.material = child.userData.originalMaterial
+
+              // Töröljük a referenciát, hogy legközelebb újra frisset mentsünk
+              delete child.userData.originalMaterial
+            }
+          }
         }
       }
     })

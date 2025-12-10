@@ -55,8 +55,11 @@
     "type": "color",
     "value": "#e30202",
     "properties": {
-      "roughness": 0.1,
-      "metalness": 0.75
+      "roughness": 0.25,
+      "metalness": 0,
+      "transmission": 0,
+      "opacity": 0,
+      "transparent": false
     }
   },
   {
@@ -71,8 +74,11 @@
     "type": "color",
     "value": "#ededed",
     "properties": {
-      "roughness": 1,
-      "metalness": 0.5
+      "roughness": 0.05,
+      "metalness": 0,
+      "transmission": 0,
+      "opacity": 1,
+      "transparent": false
     }
   },
   {
@@ -87,8 +93,11 @@
     "type": "color",
     "value": "#ededed",
     "properties": {
-      "roughness": 0,
-      "metalness": 0
+      "roughness": 0.6,
+      "metalness": 0,
+      "transmission": 0,
+      "opacity": 1,
+      "transparent": false
     }
   },
   {
@@ -103,6 +112,72 @@
     "properties": {
       "roughness": 0.6,
       "metalness": 0
+    }
+  },
+  {
+    "id": "mat_1765251667932",
+    "name": "Tejüveg",
+    "category": [
+      "Üveg"
+    ],
+    "type": "color",
+    "value": "#efebff",
+    "properties": {
+      "roughness": 0.25,
+      "metalness": 0,
+      "transmission": 0.9,
+      "opacity": 1,
+      "transparent": true
+    }
+  },
+  {
+    "id": "mat_1765251745701",
+    "name": "Víztiszta Üveg",
+    "category": [
+      "Üveg"
+    ],
+    "type": "color",
+    "value": "#f0fbff",
+    "properties": {
+      "roughness": 0,
+      "metalness": 0,
+      "transmission": 1,
+      "opacity": 1,
+      "transparent": true
+    }
+  },
+  {
+    "id": "mat_1765251886761",
+    "name": "Króm",
+    "category": [
+      "general",
+      "Fém"
+    ],
+    "type": "color",
+    "value": "#0d1731",
+    "properties": {
+      "roughness": 0,
+      "metalness": 1,
+      "transmission": 0,
+      "opacity": 1,
+      "transparent": false
+    }
+  },
+  {
+    "id": "mat_1765251939870",
+    "name": "Aluminium",
+    "category": [
+      "general",
+      "Fém"
+    ],
+    "type": "color",
+    "value": "#37526d",
+    "properties": {
+      "roughness": 0.4,
+      "metalness": 1,
+      "transmission": 0,
+      "opacity": 1,
+      "transparent": false
     }
   }
 ]

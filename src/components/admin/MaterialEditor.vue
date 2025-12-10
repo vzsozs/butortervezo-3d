@@ -1,18 +1,19 @@
-```
+<!-- src/components/admin/MaterialEditor.vue -->
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
 import { useConfigStore } from '@/stores/config';
 import type { MaterialConfig } from '@/config/furniture';
 
 const configStore = useConfigStore();
-// const emit = defineEmits(['save-to-server']); // Nem használjuk, mert direktben mentünk
-
-
 
 // --- ÁLLAPOTOK ---
 const selectedMaterial = ref<MaterialConfig | null>(null);
 const isNewMaterial = ref(false);
 const searchQuery = ref('');
+const showTips = ref(false);
+
+// Külön ref a bal oldali kategória létrehozáshoz
+const sidebarNewCategoryName = ref('');
 
 // --- COMPUTED ---
 const filteredMaterials = computed(() => {
@@ -44,7 +45,22 @@ const groupedMaterials = computed(() => {
 
 // --- MŰVELETEK ---
 function handleSelect(material: MaterialConfig) {
-  selectedMaterial.value = JSON.parse(JSON.stringify(material));
+  // Deep copy egy lokális változóba
+  const tempMaterial = JSON.parse(JSON.stringify(material));
+
+  // Ha régi anyag és nincsenek meg az új propertyk, pótoljuk őket alapértékkel
+  // Először biztosítjuk, hogy a properties objektum létezzen
+  if (!tempMaterial.properties) {
+    tempMaterial.properties = {};
+  }
+
+  // Most már biztonságosan írhatunk bele
+  if (tempMaterial.properties.transmission === undefined) tempMaterial.properties.transmission = 0;
+  if (tempMaterial.properties.opacity === undefined) tempMaterial.properties.opacity = 1;
+  if (tempMaterial.properties.transparent === undefined) tempMaterial.properties.transparent = false;
+
+  // Végül átadjuk a reaktív változónak
+  selectedMaterial.value = tempMaterial;
   isNewMaterial.value = false;
 }
 
@@ -55,7 +71,14 @@ function handleCreateNew() {
     category: 'general',
     type: 'color',
     value: '#ffffff',
-    properties: { roughness: 0.5, metalness: 0 }
+    // Itt már alapból felvesszük az üveghez szükséges tulajdonságokat is
+    properties: {
+      roughness: 0.5,
+      metalness: 0,
+      transmission: 0, // Üveghatás (0-1)
+      opacity: 1,      // Átlátszóság (0-1)
+      transparent: false
+    }
   };
   isNewMaterial.value = true;
 }
@@ -68,11 +91,7 @@ function handleSave() {
   } else {
     configStore.updateMaterial(selectedMaterial.value);
   }
-
-  // Mentés a szerverre
   saveMaterialsToServer();
-
-  // Reset
   selectedMaterial.value = null;
   isNewMaterial.value = false;
 }
@@ -95,41 +114,33 @@ async function saveMaterialsToServer() {
       body: JSON.stringify({ filename: 'materials.json', data: configStore.materials }),
     });
     if (!response.ok) throw new Error(await response.text());
-    alert('Anyagok sikeresen mentve!');
+    // Opcionális: toast üzenet
   } catch (error) {
     console.error(error);
     alert('Hiba a mentés során.');
   }
 }
 
+// --- TEXTÚRA FELTÖLTÉS ---
 const fileInput = ref<HTMLInputElement | null>(null);
 const isUploading = ref(false);
 
-function triggerFileInput() {
-  fileInput.value?.click();
-}
+function triggerFileInput() { fileInput.value?.click(); }
 
 function handleFileSelect(event: Event) {
   const target = event.target as HTMLInputElement;
-  if (target.files && target.files[0]) {
-    uploadTexture(target.files[0]);
-  }
+  if (target.files && target.files[0]) uploadTexture(target.files[0]);
 }
 
 function handleDrop(event: DragEvent) {
-  if (event.dataTransfer?.files && event.dataTransfer.files[0]) {
-    uploadTexture(event.dataTransfer.files[0]);
-  }
+  if (event.dataTransfer?.files && event.dataTransfer.files[0]) uploadTexture(event.dataTransfer.files[0]);
 }
 
 async function uploadTexture(file: File) {
   if (!selectedMaterial.value) return;
-
-  // 1. Azonnali helyi előnézet (Local Preview)
   const reader = new FileReader();
   reader.onload = (e) => {
     if (selectedMaterial.value && e.target?.result) {
-      // Ideiglenesen beállítjuk a base64 képet, hogy a felhasználó azonnal lássa
       selectedMaterial.value.value = e.target.result as string;
       selectedMaterial.value.type = 'texture';
     }
@@ -141,18 +152,10 @@ async function uploadTexture(file: File) {
   formData.append('textureFile', file);
 
   try {
-    const response = await fetch('/api/upload-texture', {
-      method: 'POST',
-      body: formData
-    });
-
+    const response = await fetch('/api/upload-texture', { method: 'POST', body: formData });
     if (!response.ok) throw new Error('Feltöltési hiba');
-
     const result = await response.json();
-    // 2. Végleges URL beállítása a szerver válasza alapján
-    if (selectedMaterial.value) {
-      selectedMaterial.value.value = result.url;
-    }
+    if (selectedMaterial.value) selectedMaterial.value.value = result.url;
   } catch (error) {
     console.error(error);
     alert('Hiba a kép feltöltésekor.');
@@ -185,11 +188,26 @@ watch(selectedCategories, (newVal) => {
   }
 });
 
-function addCategory() {
+// Kategória hozzáadása a jobb oldali panelen (checkbox lista alján)
+function addCategoryRight() {
   if (newCategoryName.value && !availableCategories.value.includes(newCategoryName.value)) {
     availableCategories.value.push(newCategoryName.value);
     selectedCategories.value.push(newCategoryName.value);
     newCategoryName.value = '';
+  }
+}
+
+// Kategória hozzáadása a bal oldali panelen (Sidebar)
+function createCategorySidebar() {
+  if (sidebarNewCategoryName.value && !availableCategories.value.includes(sidebarNewCategoryName.value)) {
+    availableCategories.value.push(sidebarNewCategoryName.value);
+    // Opcionális: ha épp szerkesztesz egy anyagot, hozzá is adhatjuk
+    if (selectedMaterial.value) {
+      selectedCategories.value.push(sidebarNewCategoryName.value);
+    }
+    sidebarNewCategoryName.value = '';
+  } else if (availableCategories.value.includes(sidebarNewCategoryName.value)) {
+    alert('Ez a kategória már létezik!');
   }
 }
 
@@ -223,9 +241,10 @@ function handleCancel() {
       <input v-model="searchQuery" type="text" placeholder="Keresés..."
         class="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm text-white mb-4 focus:outline-none focus:border-blue-500" />
 
-      <div class="flex-1 overflow-y-auto custom-scrollbar space-y-4">
+      <!-- Lista konténer (flex-1, hogy kitöltse a helyet) -->
+      <div class="flex-1 overflow-y-auto custom-scrollbar space-y-4 mb-4">
         <div v-for="(materials, category) in groupedMaterials" :key="category">
-          <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 sticky top-0 bg-gray-900 py-1">
+          <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 sticky top-0 bg-gray-900 py-1 z-10">
             {{ category }}
           </h3>
           <div class="space-y-1">
@@ -245,6 +264,19 @@ function handleCancel() {
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- ÚJ KATEGÓRIA LÉTREHOZÁSA (Sidebar alja) -->
+      <div class="pt-4 border-t border-gray-700 mt-auto">
+        <h3 class="font-semibold text-xs text-gray-400 uppercase tracking-wider mb-2">Új Kategória</h3>
+        <form @submit.prevent="createCategorySidebar" class="flex gap-2">
+          <input type="text" v-model="sidebarNewCategoryName" placeholder="pl. Üveg"
+            class="admin-input flex-grow text-sm w-full" />
+          <button type="submit"
+            class="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 border border-gray-600 rounded text-sm transition-colors">
+            +
+          </button>
+        </form>
       </div>
     </div>
 
@@ -270,6 +302,7 @@ function handleCancel() {
             </div>
           </div>
 
+          <!-- Kategóriák választó -->
           <div>
             <label class="block text-xs font-medium text-gray-400 mb-2">Kategóriák</label>
             <div class="bg-gray-800 border border-gray-700 rounded p-3 max-h-32 overflow-y-auto custom-scrollbar">
@@ -277,11 +310,11 @@ function handleCancel() {
                 <input type="checkbox" :value="cat" v-model="selectedCategories" class="checkbox-styled" />
                 <label class="ml-2 text-sm text-gray-300">{{ cat }}</label>
               </div>
-              <!-- Új kategória hozzáadása -->
+              <!-- Új kategória (inline) -->
               <div class="flex items-center mt-2 pt-2 border-t border-gray-700">
                 <input v-model="newCategoryName" type="text" placeholder="+ Új kategória"
                   class="bg-transparent border-none text-xs text-white placeholder-gray-500 focus:ring-0 w-full"
-                  @keydown.enter.prevent="addCategory" />
+                  @keydown.enter.prevent="addCategoryRight" />
               </div>
             </div>
           </div>
@@ -311,23 +344,17 @@ function handleCancel() {
             </div>
 
             <div v-else>
-              <label class="block text-xs text-gray-500 mb-1">Textúra URL (pl. /textures/wood.jpg)</label>
-
-              <!-- DRAG & DROP ZÓNA -->
+              <label class="block text-xs text-gray-500 mb-1">Textúra URL</label>
               <div
                 class="border-2 border-dashed border-gray-600 rounded-lg p-4 text-center hover:border-blue-500 transition-colors cursor-pointer relative"
                 @dragover.prevent @drop.prevent="handleDrop" @click="triggerFileInput">
                 <input type="file" ref="fileInput" class="hidden" accept="image/*" @change="handleFileSelect" />
                 <div v-if="isUploading" class="text-blue-400 text-sm">Feltöltés...</div>
                 <div v-else>
-                  <p class="text-gray-400 text-sm">Húzd ide a képet, vagy kattints a feltöltéshez</p>
-                  <p class="text-gray-600 text-xs mt-1">JPG, PNG</p>
+                  <p class="text-gray-400 text-sm">Húzd ide a képet, vagy kattints</p>
                 </div>
               </div>
-
-              <input v-model="selectedMaterial.value" type="text" class="admin-input w-full font-mono mt-2"
-                placeholder="Vagy add meg az URL-t manuálisan" />
-
+              <input v-model="selectedMaterial.value" type="text" class="admin-input w-full font-mono mt-2" />
               <div v-if="selectedMaterial.value"
                 class="mt-2 h-32 w-full bg-gray-700 rounded overflow-hidden border border-gray-600 relative group">
                 <img :src="selectedMaterial.value" class="w-full h-full object-contain" />
@@ -335,11 +362,17 @@ function handleCancel() {
             </div>
           </div>
 
-          <!-- Fizikai Tulajdonságok -->
+          <!-- Fizikai Tulajdonságok (PBR) -->
           <div class="bg-gray-800 p-4 rounded-lg border border-gray-700">
-            <label class="block text-xs font-medium text-gray-400 mb-3">Fizikai Jellemzők (PBR)</label>
+            <div class="flex justify-between items-center mb-3">
+              <label class="block text-xs font-medium text-gray-400">Fizikai Jellemzők (PBR)</label>
+              <button @click="showTips = !showTips" class="text-xs text-blue-400 hover:text-blue-300 underline">
+                {{ showTips ? 'Segédlet elrejtése' : 'Beállítási segédlet' }}
+              </button>
+            </div>
 
-            <div class="grid grid-cols-2 gap-4">
+            <!-- Alap PBR -->
+            <div class="grid grid-cols-2 gap-4 mb-4">
               <div>
                 <label class="block text-xs text-gray-500 mb-1">Érdesség (Roughness): {{
                   selectedMaterial.properties?.roughness }}</label>
@@ -353,19 +386,114 @@ function handleCancel() {
                   class="slider-styled" />
               </div>
             </div>
+
+            <!-- Üveg / Átlátszóság szekció -->
+            <div class="border-t border-gray-700 pt-4">
+              <label class="block text-xs font-medium text-blue-400 mb-3">Üveg és Átlátszóság</label>
+
+              <div class="flex items-center mb-4">
+                <input type="checkbox" v-model="selectedMaterial.properties!.transparent" class="checkbox-styled" />
+                <label class="ml-2 text-sm text-gray-300">Átlátszó renderelés engedélyezése</label>
+              </div>
+
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-xs text-gray-500 mb-1" title="Fényáteresztés (Üveghatás)">Fénytörés
+                    (Transmission): {{
+                      selectedMaterial.properties?.transmission }}</label>
+                  <input type="range" min="0" max="1" step="0.05"
+                    v-model.number="selectedMaterial.properties!.transmission" class="slider-styled" />
+                </div>
+                <div>
+                  <label class="block text-xs text-gray-500 mb-1" title="Átlátszatlanság (1 = tömör)">Átlátszatlanság
+                    (Opacity): {{
+                      selectedMaterial.properties?.opacity }}</label>
+                  <input type="range" min="0" max="1" step="0.05" v-model.number="selectedMaterial.properties!.opacity"
+                    class="slider-styled" />
+                </div>
+              </div>
+            </div>
+
+            <!-- ÚJ: TIPP SZEKCIÓ -->
+            <div v-if="showTips" class="mt-4 bg-gray-900/50 p-3 rounded border border-gray-700 animate-fade-in">
+              <p class="text-xs text-gray-300 font-bold mb-2">ℹ️ Gyors beállítási értékek:</p>
+
+              <div class="overflow-x-auto">
+                <table class="w-full text-xs text-left text-gray-400">
+                  <thead>
+                    <tr class="border-b border-gray-700 text-gray-500">
+                      <th class="pb-1 font-normal">Anyag típus</th>
+                      <th class="pb-1 font-normal">Érdeség..</th>
+                      <th class="pb-1 font-normal">Fémes..</th>
+                      <th class="pb-1 font-normal">Fényt..</th>
+                      <th class="pb-1 font-normal">Átlát..</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-gray-800">
+                    <tr>
+                      <td class="py-1 text-white">Víztiszta Üveg</td>
+                      <td>0</td>
+                      <td>0</td>
+                      <td>1.0</td>
+                      <td class="text-green-400">✔</td>
+                    </tr>
+                    <tr>
+                      <td class="py-1 text-white">Tejüveg (Matt)</td>
+                      <td>0.3 - 0.5</td>
+                      <td>0</td>
+                      <td>0.9</td>
+                      <td class="text-green-400">✔</td>
+                    </tr>
+                    <tr>
+                      <td class="py-1 text-white">Színezett Üveg</td>
+                      <td>0</td>
+                      <td>0</td>
+                      <td>0.8</td>
+                      <td class="text-green-400">✔</td>
+                    </tr>
+                    <tr>
+                      <td class="py-1 text-white">Króm / Tükör</td>
+                      <td>0</td>
+                      <td>1.0</td>
+                      <td>0</td>
+                      <td class="text-red-400">✘</td>
+                    </tr>
+                    <tr>
+                      <td class="py-1 text-white">Matt Fém (Alu)</td>
+                      <td>0.4</td>
+                      <td>1.0</td>
+                      <td>0</td>
+                      <td class="text-red-400">✘</td>
+                    </tr>
+                    <tr>
+                      <td class="py-1 text-white">Műanyag (Fényes)</td>
+                      <td>0.1</td>
+                      <td>0</td>
+                      <td>0</td>
+                      <td class="text-red-400">✘</td>
+                    </tr>
+                    <tr>
+                      <td class="py-1 text-white">Bútorlap / Fa</td>
+                      <td>0.5 - 0.8</td>
+                      <td>0</td>
+                      <td>0</td>
+                      <td class="text-red-400">✘</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p class="text-[10px] text-gray-500 mt-2 italic">
+                *Az Opacity értéke fizikai anyagoknál általában maradjon 1.0.
+              </p>
+            </div>
+
           </div>
 
           <!-- Gombok -->
           <div class="flex justify-end gap-3 pt-4 border-t border-gray-700">
-            <button @click="handleDelete" v-if="!isNewMaterial" class="admin-btn-danger mr-auto">
-              Törlés
-            </button>
-            <button @click="handleCancel" class="admin-btn-secondary">
-              Mégse
-            </button>
-            <button @click="handleSave" class="admin-btn">
-              Mentés
-            </button>
+            <button @click="handleDelete" v-if="!isNewMaterial" class="admin-btn-danger mr-auto">Törlés</button>
+            <button @click="handleCancel" class="admin-btn-secondary">Mégse</button>
+            <button @click="handleSave" class="admin-btn">Mentés</button>
           </div>
         </div>
       </div>
@@ -377,7 +505,3 @@ function handleCancel() {
     </div>
   </div>
 </template>
-
-<style scoped>
-/* A custom-scrollbar osztály most már a main.css-ben van definiálva */
-</style>
