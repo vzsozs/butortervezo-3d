@@ -93,8 +93,6 @@ const {
           <!-- A) MULTI-MATERIAL MÓD (Több gomb) -->
           <div v-if="control.materialSlots && control.materialSlots.length > 0" class="col-span-1 flex flex-col gap-2">
             <div v-for="slot in control.materialSlots" :key="slot.key" class="flex flex-col">
-              <!-- Slot neve -->
-              <span class="text-[9px] text-gray-500 leading-tight mb-0.5 truncate">{{ slot.label }}</span>
 
               <button @click="openMaterialSelector(control, slot.key)"
                 class="h-8 w-full rounded-md border border-gray-700 relative overflow-hidden transition-all hover:border-gray-500 cursor-pointer bg-[#2a2a2a]"
@@ -109,6 +107,8 @@ const {
                     class="w-full h-full object-cover" />
                 </div>
               </button>
+              <!-- Slot neve -->
+              <span class="text-[9px] text-gray-500 leading-tight mb-0.5 truncate">{{ slot.label }}</span>
             </div>
           </div>
 

@@ -29,6 +29,7 @@ export default class InteractionManager {
 
   // Mouse State
   private isMouseDown = false
+  private isInteractingWithObject = false
   private mouseDownPosition = new Vector2()
 
   // Ruler State
@@ -103,6 +104,18 @@ export default class InteractionManager {
 
     this.isMouseDown = true
     this.mouseDownPosition.set(event.clientX, event.clientY)
+
+    // Frissítjük a raycastert a kattintás pillanatában
+    this.experience.mouse.x = (event.clientX / window.innerWidth) * 2 - 1
+    this.experience.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1
+    this.experience.raycaster.setFromCamera(this.experience.mouse, this.experience.camera.instance)
+
+    // Megnézzük, hogy bútorra kattintottunk-e
+    const intersects = this.experience.raycaster.intersectObjects(
+      this.experience.experienceStore.placedObjects,
+      true,
+    )
+    this.isInteractingWithObject = intersects.length > 0
   }
 
   private onMouseUp = (event: MouseEvent) => {
@@ -142,6 +155,7 @@ export default class InteractionManager {
     // DRAG INDÍTÁSA MEGLÉVŐ OBJEKTUMRA
     if (
       this.isMouseDown &&
+      this.isInteractingWithObject &&
       !this.draggedObject &&
       !this.isTransforming &&
       !this.experience.settingsStore.isRulerModeActive

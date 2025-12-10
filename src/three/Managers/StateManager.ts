@@ -176,7 +176,7 @@ export default class StateManager {
           const newState = { ...obj.userData.componentState }
 
           for (const [slotId, compId] of Object.entries(newState)) {
-            const comp = this.experience.configManager.getComponentById(compId)
+            const comp = this.experience.configManager.getComponentById(compId as string)
             if (!comp) continue
 
             const catKey = comp.category || ''
@@ -187,7 +187,7 @@ export default class StateManager {
             const targetStyleId = typeof rawStyleId === 'string' ? rawStyleId : undefined
 
             if (targetStyleId && comp.styleId !== targetStyleId) {
-              const newCompId = this.findCompatibleComponent(compId, targetStyleId)
+              const newCompId = this.findCompatibleComponent(compId as string, targetStyleId)
               if (newCompId) {
                 newState[slotId] = newCompId
                 needsRebuild = true
