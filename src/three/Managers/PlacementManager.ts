@@ -1,10 +1,10 @@
-import { Group, Vector3, Box3, MathUtils, Mesh } from 'three'
+import { Group, Vector3, Box3, MathUtils, Mesh, Euler } from 'three'
 import { FurnitureCategory } from '@/config/furniture'
 import { useProceduralStore } from '../../stores/procedural'
 import Experience from '../Experience'
 import { useRoomStore } from '../../stores/room'
 
-const SNAP_INCREMENT = 0.1
+// const SNAP_INCREMENT = 0.1 // Törölve
 const MAX_SNAP_CHECK_DISTANCE = 0.1
 const UNIT_SCALE = 0.001
 
@@ -13,10 +13,16 @@ type SnapAxis = 'x' | 'z' | 'y'
 type SnapCandidate = {
   priority: number
   value: number
-  snapEdge: number
+  snapEdge: number // Nem feltétlenül él, lehet fal pozíció is
   distance: number
   targetObject: Group | string
   axis: SnapAxis
+  rotation?: Euler // Opcionális rotáció (falhoz igazításhoz)
+}
+
+export type PlacementResult = {
+  position: Vector3
+  rotation?: Euler
 }
 
 export default class PlacementManager {
@@ -92,9 +98,10 @@ export default class PlacementManager {
     return false
   }
 
-  private snapToGrid(value: number): number {
-    return Math.round(value / SNAP_INCREMENT) * SNAP_INCREMENT
-  }
+  // Grid Snap TÖRÖLVE a felhasználó kérésére
+  // private snapToGrid(value: number): number {
+  //   return Math.round(value / SNAP_INCREMENT) * SNAP_INCREMENT
+  // }
 
   /**
    * Szoba határainál a TELJES méretet nézzük (excludeXOverhang = false).
@@ -142,7 +149,7 @@ export default class PlacementManager {
     movingObject: Group,
     proposedPosition: Vector3,
     objectsToCompare: Group[],
-  ): Vector3 {
+  ): PlacementResult {
     this.experience.debug.hideAll()
 
     const fixedY = movingObject.position.y
@@ -162,17 +169,85 @@ export default class PlacementManager {
     const deltaRightCorpus = corpusBox.max.x - movingObject.position.x
     // A Z irányú delták közösek, mert mélységben mindig a legnagyobbat nézzük
     const deltaBack = corpusBox.min.z - movingObject.position.z
-    const deltaFront = corpusBox.max.z - movingObject.position.z
+    // const deltaFront = corpusBox.max.z - movingObject.position.z // Törölve, nem használtuk
 
     // 2. Teljes doboz (Falhoz igazításhoz) - Van X overhang
-    const fullBox = this.getBoundingBox(movingObject, false)
-    const deltaLeftFull = fullBox.min.x - movingObject.position.x
-    const deltaRightFull = fullBox.max.x - movingObject.position.x
+    // const fullBox = this.getBoundingBox(movingObject, false) // Törölve, mert Pivot alapú a fal snap
+    // const deltaLeftFull = fullBox.min.x - movingObject.position.x
+    // const deltaRightFull = fullBox.max.x - movingObject.position.x
 
     const candidatesX: SnapCandidate[] = []
     const candidatesZ: SnapCandidate[] = []
 
-    // --- A. BÚTORHOZ IGAZÍTÁS (Korpusz a Korpuszhoz) ---
+    // --- A. FALHOZ IGAZÍTÁS (PIVOT ALAPJÁN) - PRIORITÁS: 0 (LEGMAGASABB) ---
+    // A felhasználó kérése: "mindig a bútor hátulja snap-el a falhoz (ez minden esetben a pivot pont)"
+    // És: "ha egy bútort az oldalsó falakhoz viszem akkor el kellene forgatnia 90 fokkal"
+
+    // 1. Bal Fal (X = -roomHalfWidth) -> Forgatás: -90 fok (-PI/2) -> Hátlap néz -X felé
+    // Normál esetben Hátlap = -Z.
+    // Ha -90 fokot forgatunk Y körül:
+    // Hátlap (-Z) -> (-X) irányba fordul. (Three.js koordináta rendszer: jobbkéz szabály)
+    // Forgatás Y tengelyen pozitív szög: óramutató járásával ellentétes (felülről nézve).
+    // Z tengely -> X tengely. (90 fok).
+    // -Z tengely -> -X tengely. (90 fok).
+    // Tehát +90 fok (PI/2) forgatással a hátlap (-Z) a (-X) irányba (Bal fal) néz.
+    // JAVÍTÁS: Próbáljuk ki a +/- irányt a gyakorlatban, de elméletileg +PI/2 kell a Bal falhoz.
+    // De a felhasználó lehet máshogy értelmezi, a kódban majd teszteljük.
+    // Konvenció: Jobb fal (+X), Bal fal (-X).
+
+    // Bal Fal (X min)
+    if (Math.abs(flatProposedPosition.x - -roomHalfWidth) < MAX_SNAP_CHECK_DISTANCE) {
+      candidatesX.push({
+        priority: 0,
+        value: -roomHalfWidth,
+        snapEdge: -roomHalfWidth,
+        distance: Math.abs(flatProposedPosition.x - -roomHalfWidth),
+        targetObject: 'Wall Left',
+        axis: 'x',
+        rotation: new Euler(0, Math.PI / 2, 0), // Hátlap (-Z) -> Balra (-X). +90 deg.
+      })
+    }
+
+    // Jobb Fal (X max)
+    if (Math.abs(flatProposedPosition.x - roomHalfWidth) < MAX_SNAP_CHECK_DISTANCE) {
+      candidatesX.push({
+        priority: 0,
+        value: roomHalfWidth,
+        snapEdge: roomHalfWidth,
+        distance: Math.abs(flatProposedPosition.x - roomHalfWidth),
+        targetObject: 'Wall Right',
+        axis: 'x',
+        rotation: new Euler(0, -Math.PI / 2, 0), // Hátlap (-Z) -> Jobbra (+X). -90 deg.
+      })
+    }
+
+    // Hátsó Fal (Z min) -> Hátlap (-Z) a fal felé (-Z). Nincs forgatás (0).
+    if (Math.abs(flatProposedPosition.z - -roomHalfDepth) < MAX_SNAP_CHECK_DISTANCE) {
+      candidatesZ.push({
+        priority: 0,
+        value: -roomHalfDepth,
+        snapEdge: -roomHalfDepth,
+        distance: Math.abs(flatProposedPosition.z - -roomHalfDepth),
+        targetObject: 'Wall Back',
+        axis: 'z',
+        rotation: new Euler(0, 0, 0),
+      })
+    }
+
+    // Első Fal (Z max) -> Hátlap (-Z) a fal felé (+Z). 180 forgatás (PI).
+    if (Math.abs(flatProposedPosition.z - roomHalfDepth) < MAX_SNAP_CHECK_DISTANCE) {
+      candidatesZ.push({
+        priority: 0,
+        value: roomHalfDepth,
+        snapEdge: roomHalfDepth,
+        distance: Math.abs(flatProposedPosition.z - roomHalfDepth),
+        targetObject: 'Wall Front',
+        axis: 'z',
+        rotation: new Euler(0, Math.PI, 0),
+      })
+    }
+
+    // --- B. BÚTORHOZ IGAZÍTÁS (Korpusz a Korpuszhoz) - PRIORITÁS: 1 (ALACSONYABB) ---
     for (const staticObject of otherObjects) {
       // A statikus bútornak is a korpuszát kérjük el (true)
       const staticBox = this.getBoundingBox(staticObject, true)
@@ -211,7 +286,8 @@ export default class PlacementManager {
         }
       }
 
-      // Z TENGELY SNAP (Hátlap a Hátlaphoz)
+      // Z TENGELY SNAP (Hátlap a Hátlaphoz - Esetleg bútor hátának igazítása?)
+      // A felhasználó kérése szerint a fal a prioritás. A bútor-snap másodlagos.
       const xOverlap =
         (corpusBox.max.x > staticBox.min.x && corpusBox.min.x < staticBox.max.x) ||
         Math.abs(flatProposedPosition.x - staticObject.position.x) < 1.0
@@ -229,61 +305,6 @@ export default class PlacementManager {
           })
         }
       }
-    }
-
-    // --- B. FALHOZ IGAZÍTÁS (Munkalap a Falhoz) ---
-    // Itt a FULL doboz deltáit (deltaLeftFull, deltaRightFull) használjuk!
-
-    // Bal Fal (X)
-    const snapWallLeft = -roomHalfWidth - deltaLeftFull
-    if (Math.abs(flatProposedPosition.x - snapWallLeft) < MAX_SNAP_CHECK_DISTANCE) {
-      candidatesX.push({
-        priority: 2,
-        value: snapWallLeft,
-        snapEdge: -roomHalfWidth,
-        distance: Math.abs(flatProposedPosition.x - snapWallLeft),
-        targetObject: 'Wall Left',
-        axis: 'x',
-      })
-    }
-
-    // Jobb Fal (X)
-    const snapWallRight = roomHalfWidth - deltaRightFull
-    if (Math.abs(flatProposedPosition.x - snapWallRight) < MAX_SNAP_CHECK_DISTANCE) {
-      candidatesX.push({
-        priority: 2,
-        value: snapWallRight,
-        snapEdge: roomHalfWidth,
-        distance: Math.abs(flatProposedPosition.x - snapWallRight),
-        targetObject: 'Wall Right',
-        axis: 'x',
-      })
-    }
-
-    // Hátsó Fal (Z) - Itt a deltaBack ugyanaz (munkalap hátrafelé lógása benne van)
-    const snapWallBack = -roomHalfDepth - deltaBack
-    if (Math.abs(flatProposedPosition.z - snapWallBack) < MAX_SNAP_CHECK_DISTANCE) {
-      candidatesZ.push({
-        priority: 2,
-        value: snapWallBack,
-        snapEdge: -roomHalfDepth,
-        distance: Math.abs(flatProposedPosition.z - snapWallBack),
-        targetObject: 'Wall Back',
-        axis: 'z',
-      })
-    }
-
-    // Első Fal (Z)
-    const snapWallFront = roomHalfDepth - deltaFront
-    if (Math.abs(flatProposedPosition.z - snapWallFront) < MAX_SNAP_CHECK_DISTANCE) {
-      candidatesZ.push({
-        priority: 2,
-        value: snapWallFront,
-        snapEdge: roomHalfDepth,
-        distance: Math.abs(flatProposedPosition.z - snapWallFront),
-        targetObject: 'Wall Front',
-        axis: 'z',
-      })
     }
 
     // --- C. Y-TENGELY SNAP (FELSŐ SZEKRÉNYEKHEZ) ---
@@ -382,23 +403,26 @@ export default class PlacementManager {
     }
     candidatesX.sort(sortFn)
     candidatesZ.sort(sortFn)
-    candidatesY.sort(sortFn) // ÚJ
+    candidatesY.sort(sortFn)
 
-    let finalX = this.snapToGrid(flatProposedPosition.x)
-    let finalZ = this.snapToGrid(flatProposedPosition.z)
+    // Rács helyett a nyers pozíciót használjuk alapnak (Nincs Snap)
+    let finalX = flatProposedPosition.x
+    let finalZ = flatProposedPosition.z
 
     // JAVÍTÁS: Alapból a proposed (célzott) Y-t használjuk, kivéve ha találunk snappet
     let finalY = flatProposedPosition.y
+    let finalRotation: Euler | undefined = undefined
 
     let usedCandidateX: SnapCandidate | null = null
     let usedCandidateZ: SnapCandidate | null = null
-    let usedCandidateY: SnapCandidate | null = null // ÚJ
+    let usedCandidateY: SnapCandidate | null = null
 
     if (candidatesX.length > 0) {
       const bestX = candidatesX[0]
       if (bestX) {
         finalX = bestX.value
         usedCandidateX = bestX
+        if (bestX.rotation) finalRotation = bestX.rotation
       }
     }
 
@@ -407,6 +431,35 @@ export default class PlacementManager {
       if (bestZ) {
         finalZ = bestZ.value
         usedCandidateZ = bestZ
+        // Ha van X rotáció, de Z-nél is van... akkor mi legyen?
+        // Falnál: Ha sarokba húzom?
+        // Ha Bal Falhoz és Hátsó Falhoz is közel van (Sarok).
+        // Bal Fal: Prio 0, Rot -90.
+        // Hátsó Fal: Prio 0, Rot 0.
+        // Mivel X és Z külön van kezelve, a bestX és bestZ is kiválasztásra kerülhet.
+        // Ha mindkettőnek van rotációja, akkor konfliktus van.
+        // Prioritás: Melyikhez van közelebb?
+        // Vagy: Döntse el a felhasználó mozgása.
+        // Jelenlegi logika: Ha bestX-nek van rotációja, beállítottuk.
+        // Ha bestZ-nek is van... felülírja?
+        // Ha Sarokba húzom, logikusabb, hogy az egyik fal domináljon.
+        // Legyen a közelebbi fal a nyerő rotáció szempontjából.
+
+        if (bestZ.rotation) {
+          if (finalRotation && usedCandidateX) {
+            // Konfliktus kezelése: Aki közelebb van / kisebb prioritású (itt prio=0 mindkettő) -> distance dönt
+            if (
+              bestZ.priority < usedCandidateX.priority ||
+              (bestZ.priority === usedCandidateX.priority &&
+                bestZ.distance < usedCandidateX.distance)
+            ) {
+              finalRotation = bestZ.rotation
+            }
+            // Ha az X nyer, marad a finalRotation
+          } else {
+            finalRotation = bestZ.rotation
+          }
+        }
       }
     }
 
@@ -423,50 +476,66 @@ export default class PlacementManager {
     let finalPos = new Vector3(finalX, finalY, finalZ)
 
     // Szigorú szoba határ (Full Box-szal!)
+    // MEGJEGYZÉS: Ha elforgattuk, a constrainToRoom még a régi dobozt nézi (az aktuális objektumét).
+    // Ez egy frame erejéig pontatlanságot okozhat, de a következő frame korrigálja.
     const constrainedPos = this.constrainToRoom(movingObject, finalPos)
-    // Megjegyzés: A constrainToRoom jelenleg nem módosítja az Y-t.
     finalPos = constrainedPos
 
+    // Ütközésvizsgálat (Részlegesen megtartjuk, de egyszerűsítve, a Grid fallback nélkül)
     if (this.isPositionColliding(movingObject, finalPos, otherObjects)) {
       // 1. Próba: Csak X snap (Z elengedve, Y tartva)
-      const posXOnly = new Vector3(finalX, finalY, this.snapToGrid(flatProposedPosition.z))
+      const posXOnly = new Vector3(finalX, finalY, flatProposedPosition.z)
       const constrainedX = this.constrainToRoom(movingObject, posXOnly)
 
       if (!this.isPositionColliding(movingObject, constrainedX, otherObjects)) {
         finalPos = constrainedX
         usedCandidateZ = null
+        // Ha Z elengedve, a Z-ből jövő rotációt is el kellene engedni?
+        // Ha bestZ adta a rotációt, és eldobjuk bestZ-t...
+        if (
+          usedCandidateZ === null &&
+          candidatesZ[0]?.rotation &&
+          finalRotation === candidatesZ[0].rotation
+        ) {
+          // Visszaállunk az X rotációjára (ha van) vagy semmire
+          finalRotation = usedCandidateX?.rotation
+        }
       } else {
         // 2. Próba: Csak Z snap (X elengedve, Y tartva)
-        const posZOnly = new Vector3(this.snapToGrid(flatProposedPosition.x), finalY, finalZ)
+        const posZOnly = new Vector3(flatProposedPosition.x, finalY, finalZ)
         const constrainedZ = this.constrainToRoom(movingObject, posZOnly)
 
         if (!this.isPositionColliding(movingObject, constrainedZ, otherObjects)) {
           finalPos = constrainedZ
           usedCandidateX = null
+          if (
+            usedCandidateX === null &&
+            candidatesX[0]?.rotation &&
+            finalRotation === candidatesX[0].rotation
+          ) {
+            finalRotation = usedCandidateZ?.rotation
+          }
         } else {
-          // 3. Próba: Egyik sem (Grid) - Y marad snappelt
-          const posNoSnap = new Vector3(
-            this.snapToGrid(flatProposedPosition.x),
-            finalY,
-            this.snapToGrid(flatProposedPosition.z),
-          )
+          // 3. Próba: Egyik sem (Rács nélkül) - Y marad snappelt
+          const posNoSnap = new Vector3(flatProposedPosition.x, finalY, flatProposedPosition.z)
           finalPos = this.constrainToRoom(movingObject, posNoSnap)
           usedCandidateX = null
           usedCandidateZ = null
+          finalRotation = undefined // Ha nincs snap, nincs kényszerített forgatás sem
 
           if (this.isPositionColliding(movingObject, finalPos, otherObjects)) {
             // 4. Próba: Y snap elengedése (Vissza a proposed Y-ra)
             const posNoSnapY = new Vector3(
-              this.snapToGrid(flatProposedPosition.x),
+              flatProposedPosition.x,
               flatProposedPosition.y,
-              this.snapToGrid(flatProposedPosition.z),
+              flatProposedPosition.z,
             )
             finalPos = this.constrainToRoom(movingObject, posNoSnapY)
             usedCandidateY = null
 
             if (this.isPositionColliding(movingObject, finalPos, otherObjects)) {
               // VÉGSŐ FALLBACK: Vissza az eredeti pozícióra
-              return this.constrainToRoom(movingObject, movingObject.position.clone())
+              return { position: this.constrainToRoom(movingObject, movingObject.position.clone()) }
             }
           }
         }
@@ -484,7 +553,7 @@ export default class PlacementManager {
       this.drawSnapLine(usedCandidateY, finalPos, 'y')
     }
 
-    return finalPos
+    return { position: finalPos, rotation: finalRotation }
   }
 
   private drawSnapLine(candidate: SnapCandidate, objectPos: Vector3, axis: SnapAxis) {

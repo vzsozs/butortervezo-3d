@@ -152,12 +152,15 @@ export default class Experience {
     const objectsToCompare = this.experienceStore.placedObjects.filter(
       (obj) => obj.uuid !== selectedObject.uuid,
     )
-    const finalPosition = this.placementManager.calculateFinalPosition(
+    const result = this.placementManager.calculateFinalPosition(
       selectedObject,
       selectedObject.position,
       objectsToCompare,
     )
-    selectedObject.position.copy(finalPosition)
+    selectedObject.position.copy(result.position)
+    if (result.rotation) {
+      selectedObject.rotation.copy(result.rotation)
+    }
     this.debug.selectionBoxHelper.setFromObject(selectedObject)
   }
 

@@ -212,13 +212,16 @@ export default class InteractionManager {
       const others = this.experience.experienceStore.placedObjects.filter(
         (o) => o.uuid !== this.draggedObject?.uuid,
       )
-      const finalPosition = this.experience.placementManager.calculateFinalPosition(
+      const result = this.experience.placementManager.calculateFinalPosition(
         this.draggedObject,
         point,
         others,
       )
 
-      this.draggedObject.position.copy(finalPosition)
+      this.draggedObject.position.copy(result.position)
+      if (result.rotation) {
+        this.draggedObject.rotation.copy(result.rotation)
+      }
       this.experience.debug.updateMovingObject(this.draggedObject)
 
       // ÚJ: Kijelölés (sárga doboz) frissítése mozgatás közben
