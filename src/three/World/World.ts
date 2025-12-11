@@ -10,7 +10,7 @@ import {
   HemisphereLight,
   EquirectangularReflectionMapping, // <--- FONTOS: Ez kell a térképhez
 } from 'three'
-import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js' // <--- ÚJ LOADER
+import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js'
 
 export default class World {
   constructor(private scene: Scene) {
@@ -23,10 +23,10 @@ export default class World {
     this.scene.background = backgroundColor
 
     // --- HDRI BETÖLTÉS ---
-    const rgbeLoader = new RGBELoader()
+    const hdrLoader = new HDRLoader()
 
     // Aszinkron betöltés
-    rgbeLoader.load('/textures/environment.hdr', (texture) => {
+    hdrLoader.load('/textures/environment.hdr', (texture) => {
       // Megmondjuk a Three.js-nek, hogy ez egy gömbpanoráma
       texture.mapping = EquirectangularReflectionMapping
 

@@ -401,7 +401,7 @@ export default class ProceduralManager {
       const rawDepth = corpusConfig.properties?.depth ?? 560
 
       const width = rawWidth / 1000
-      const depth = rawDepth / 1000 - conf.depthOffset
+      const depth = rawDepth / 1000
 
       const zOffset = -conf.depthOffset / 2
       const corners = this.getPlinthCorners(cabinet, width, depth, zOffset)
@@ -703,35 +703,111 @@ export default class ProceduralManager {
     })
   }
 
-  private getWorktopCorners(
-    obj: THREE.Object3D,
-    width: number,
-    neighbors: { hasLeft: boolean; hasRight: boolean },
-    isHole = false,
-    customDepth?: number,
-    sideOverhang = 0.015,
-    defaultDepth = 0.6,
+  // --------------------------------------------------------------------------
+  // ÚJ SEGÉDFÜGGVÉNY: L-Alak generálása a FAL SARKÁTÓL (0,0)
+  // --------------------------------------------------------------------------
+  /**
+   * Ez a függvény mindig a "Falhoz" (0,0) képest generálja az L-alakot.
+   * @param widthX A jobb oldali szár hossza (X tengelyen)
+   * @param depthZ A bal oldali szár hossza (Z tengelyen)
+   * @param armThickness A szárak vastagsága (pl. 600mm munkapultnál)
+   * @param endOverhangX Túlnyúlás a jobb szár végén
+   * @param endOverhangZ Túlnyúlás a bal szár végén
+   */
+  private getLShapeCornersFromWall(
+    widthX: number,
+    depthZ: number,
+    armThickness: number,
+    endOverhangX: number = 0,
+    endOverhangZ: number = 0,
   ) {
-    const box = new THREE.Box3().setFromObject(obj)
-    const worldCenter = new THREE.Vector3()
-    box.getCenter(worldCenter)
-    const localCenter = obj.worldToLocal(worldCenter.clone())
-    const overhangSide = isHole ? 0 : sideOverhang
-    let backZ = 0
-    let frontZ = defaultDepth
-    if (isHole && customDepth) {
-      const holeCenterZ = customDepth / 2
-      backZ = holeCenterZ - customDepth / 2
-      frontZ = holeCenterZ + customDepth / 2
+    // Shape: ┐ (Felső szár + Jobb oldali szár)
+
+    // X tengely: Szélesség (Jobbra)
+    // Z tengely: Mélység (Előre)
+
+    // Teljes méretek túllógással
+    const totalW = widthX + endOverhangX
+    const totalD = depthZ + endOverhangZ
+
+    // 1. Bal Hátsó (Pivot - Fal Sarok)
+    const p1 = { x: 0, z: 0 }
+
+    // 2. Jobb Hátsó (Jobb felső sarok)
+    const p2 = { x: totalW, z: 0 }
+
+    // 3. Jobb Első (Jobb szár vége - Jobb alsó sarok)
+    const p3 = { x: totalW, z: totalD }
+
+    // 4. Jobb Belső (Jobb szár belső oldala)
+    // X: Visszajövünk a vastagsággal
+    const p4 = { x: totalW - armThickness, z: totalD }
+
+    // 5. Belső Sarok
+    // Z: Felmegyünk a felső szár vastagságáig
+    const p5 = { x: totalW - armThickness, z: armThickness }
+
+    // 6. Bal Belső (Felső szár alja)
+    // X: Visszamegyünk 0-ig
+    const p6 = { x: 0, z: armThickness }
+
+    return [p1, p2, p3, p4, p5, p6]
+  }
+
+  // --------------------------------------------------------------------------
+  // 1. LÁBAZAT GENERÁLÁS (Korpuszhoz igazítva)
+  // --------------------------------------------------------------------------
+  private getPlinthCorners(obj: THREE.Object3D, width: number, depth: number, _zOffset: number) {
+    const corpusConfig = this.getCorpusConfig(obj)
+    const structureType = (corpusConfig as any)?.structureType || 'standard'
+
+    // Globális beállítások (később jöhetnek a store-ból)
+    const frontRecess = 0.05 // 5cm visszaugrás elöl
+    const backRecess = 0.02 // 2cm visszaugrás hátul (ha van)
+
+    let points: THREE.Vector3[] = []
+
+    if (structureType === 'corner_L') {
+      // --- L-ALAK (Sarok) ---
+      const rawSideDepth = (corpusConfig?.properties as any)?.sideDepth ?? 560
+      const sideDepth = rawSideDepth / 1000
+
+      // A lábazat vastagsága: Korpusz szár - (első visszaugrás + hátsó visszaugrás)
+      // Megjegyzés: Ha a hátsó visszaugrást a faltól mérjük, akkor bonyolultabb.
+      // Most feltételezzük, hogy a lábazat a korpusz hátuljától indul (vagy backRecess-el beljebb).
+
+      const plinthThickness = sideDepth - (frontRecess + backRecess)
+
+      // A lábazat méretei (szintén csökkentve a visszaugrásokkal)
+      const plinthWidth = width - backRecess // Jobb szélénél nem biztos, hogy kell recess, de most egységes
+      const plinthDepth = depth - backRecess
+
+      // Generálás (Faltól számolva, de a backRecess miatt eltolva)
+      // Itt a "Fal" a korpusz hátulja.
+      const lPoints = this.getLShapeCornersFromWall(plinthWidth, plinthDepth, plinthThickness, 0, 0)
+
+      // Eltolás: A korpusz Pivotja (0,0) a bal hátsó sarok.
+      // Ha backRecess van, akkor pozitív irányba toljuk X és Z tengelyen is.
+      points = lPoints.map((p) => new THREE.Vector3(p.x + backRecess, 0, p.z + backRecess))
+    } else {
+      // --- STANDARD TÉGLALAP ---
+      // Pivot: Bal Hátsó Sarok (0,0)
+      // X: 0 -> Width
+      // Z: 0 -> Depth
+
+      const pLeft = 0 // Szomszéd felé nincs recess? (Opcionális)
+      const pRight = width
+      const pBack = backRecess
+      const pFront = depth - frontRecess
+
+      points = [
+        new THREE.Vector3(pLeft, 0, pBack),
+        new THREE.Vector3(pRight, 0, pBack),
+        new THREE.Vector3(pRight, 0, pFront),
+        new THREE.Vector3(pLeft, 0, pFront),
+      ]
     }
-    const leftX = localCenter.x - width / 2 - (neighbors.hasLeft ? 0 : overhangSide)
-    const rightX = localCenter.x + width / 2 + (neighbors.hasRight ? 0 : overhangSide)
-    const points = [
-      new THREE.Vector3(leftX, 0, backZ),
-      new THREE.Vector3(rightX, 0, backZ),
-      new THREE.Vector3(rightX, 0, frontZ),
-      new THREE.Vector3(leftX, 0, frontZ),
-    ]
+
     obj.updateMatrixWorld()
     const corners: [number, number][] = []
     points.forEach((p) => {
@@ -741,19 +817,103 @@ export default class ProceduralManager {
     return corners
   }
 
-  private getPlinthCorners(obj: THREE.Object3D, width: number, depth: number, zOffset: number) {
-    const box = new THREE.Box3().setFromObject(obj)
-    const worldCenter = new THREE.Vector3()
-    box.getCenter(worldCenter)
-    const localCenter = obj.worldToLocal(worldCenter.clone())
-    const halfW = width / 2
-    const halfD = depth / 2
-    const points = [
-      new THREE.Vector3(localCenter.x - halfW, 0, localCenter.z - halfD + zOffset),
-      new THREE.Vector3(localCenter.x + halfW, 0, localCenter.z - halfD + zOffset),
-      new THREE.Vector3(localCenter.x + halfW, 0, localCenter.z + halfD + zOffset),
-      new THREE.Vector3(localCenter.x - halfW, 0, localCenter.z + halfD + zOffset),
-    ]
+  // --------------------------------------------------------------------------
+  // 2. MUNKAPULT GENERÁLÁS (Faltól számolva, Gap kezeléssel)
+  // --------------------------------------------------------------------------
+  private getWorktopCorners(
+    obj: THREE.Object3D,
+    width: number, // Ez a korpusz szélessége
+    neighbors: { hasLeft: boolean; hasRight: boolean },
+    isHole = false,
+    customDepth?: number,
+    sideOverhang = 0.015,
+    defaultDepth = 0.6, // Ez a CÉL mélység (pl. 600mm)
+  ) {
+    const corpusConfig = this.getCorpusConfig(obj)
+    const structureType = (corpusConfig as any)?.structureType || 'standard'
+
+    // GAP SZÁMÍTÁS FRISSÍTÉSE
+    const corpusDepth = (corpusConfig?.properties?.depth ?? 560) / 1000
+    const frontOverhang = this.proceduralStore.worktop.frontOverhang || 0.025
+    const doorThickness = 0.02 // 2cm ajtó vastagság (fix vagy configból)
+
+    // Gap = Munkapult - (Korpusz + Ajtó + Túllógás)
+    // Ha sarokszekrény, akkor a sideDepth-et kell használni a korpuszmélység helyett!
+    let effectiveCorpusDepth = corpusDepth
+
+    if (structureType === 'corner_L') {
+      const rawSideDepth = (corpusConfig?.properties as any)?.sideDepth ?? 560
+      effectiveCorpusDepth = rawSideDepth / 1000
+    }
+
+    let gap = defaultDepth - (effectiveCorpusDepth + doorThickness + frontOverhang)
+    if (gap < 0) gap = 0
+
+    let points: THREE.Vector3[] = []
+
+    if (structureType === 'corner_L' && !isHole) {
+      // --- L-ALAK (Sarok) ---
+
+      // A munkapult vastagsága FIXEN a defaultDepth (pl. 600mm)
+      // Ez biztosítja, hogy a faltól mérve 600mm legyen.
+      const armThickness = defaultDepth
+
+      // Generálás a FALTÓL (0,0)
+      // A width és depth a korpusz méretei. A munkapultnak a falig kell érnie.
+      // Ezért hozzáadjuk a gap-et a méretekhez.
+      const worktopWidthX = width + gap
+      const worktopDepthZ = corpusDepth + gap // Vagy simán 'depth + gap'
+
+      const lPoints = this.getLShapeCornersFromWall(
+        worktopWidthX,
+        worktopDepthZ,
+        armThickness,
+        sideOverhang, // Jobb túllógás
+        sideOverhang, // Bal túllógás
+      )
+
+      // ELTOLÁS (A lényeg!)
+      // A generált pontok a Falhoz (World 0,0) vannak.
+      // A bútor Pivotja viszont a Gap-nél van (World Gap, Gap).
+      // Ezért ki kell vonnunk a Gap-et, hogy megkapjuk a pontokat a Bútor Lokális terében.
+      // (Mert a matrixWorld majd hozzáadja a Gap-et, amikor a helyére teszi a bútort).
+
+      points = lPoints.map((p) => new THREE.Vector3(p.x - gap, 0, p.z - gap))
+    } else {
+      // --- STANDARD TÉGLALAP ---
+      // Pivot: Bal Hátsó Sarok (0,0)
+
+      const overhangSide = isHole ? 0 : sideOverhang
+
+      // Koordináták a Bútor Lokális terében:
+
+      // Bal szél: 0 - bal túllógás
+      const xLeft = -overhangSide
+      // Jobb szél: Szélesség + jobb túllógás
+      const xRight = width + overhangSide
+
+      // Hátulja: A falnál van. Mivel a bútor a Gap-nél van, a fal a -Gap pozíció.
+      const zBack = -gap
+
+      // Eleje: A falhoz képest defaultDepth (600mm).
+      // Lokálisan: defaultDepth - gap. (Ami pont corpusDepth + frontOverhang)
+      const zFront = defaultDepth - gap
+
+      // Lyuk kezelés (Mosogató)
+      if (isHole && customDepth) {
+        // A lyukat a bútor közepére/elejére rakjuk, nem a falhoz
+        // const holeCenterZ = corpusDepth / 2 // Korpusz közepe
+        // ... itt lehet finomítani, de most hagyjuk a standard logikát
+      }
+
+      points = [
+        new THREE.Vector3(xLeft, 0, zBack),
+        new THREE.Vector3(xRight, 0, zBack),
+        new THREE.Vector3(xRight, 0, zFront),
+        new THREE.Vector3(xLeft, 0, zFront),
+      ]
+    }
+
     obj.updateMatrixWorld()
     const corners: [number, number][] = []
     points.forEach((p) => {

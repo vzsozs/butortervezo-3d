@@ -48,6 +48,7 @@ export interface ComponentProperties {
   price?: number
   wallThickness?: number // Falvastagság (mm) - FONTOS a polc matekhoz!
   maxShelves?: number // Max polc szám - FONTOS a korláthoz!
+  sideDepth?: number
 }
 
 // --- CSATLAKOZÁSI PONT ---

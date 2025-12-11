@@ -98,6 +98,34 @@ export default class PlacementManager {
     return false
   }
 
+  // ÚJ: Gap számítás
+  // --- ÚJ: GAP SZÁMÍTÁS ---
+  // Ez számolja ki, mennyire kell elállni a faltól
+  private calculateGap(object: Group): number {
+    const config = object.userData.config
+    if (!config || config.category !== FurnitureCategory.BOTTOM_CABINET) return 0
+
+    const proceduralStore = useProceduralStore()
+    const worktopConf = proceduralStore.worktop
+
+    // 1. Korpusz mélység
+    let corpusDepth = (config.properties?.depth ?? 560) / 1000
+
+    // Sarokszekrénynél a sideDepth a mérvadó!
+    // Fontos: A JSON-ben a sideDepth-nek 464-nek kell lennie a helyes működéshez!
+    if (config.structureType === 'corner_L') {
+      const sideDepth = (config.properties?.sideDepth ?? 560) / 1000
+      corpusDepth = sideDepth
+    }
+
+    const targetDepth = worktopConf.defaultDepth || 0.6
+    const frontOverhang = (worktopConf as any).frontOverhang || 0.025
+    const doorThickness = 0.02
+
+    // Gap = Munkapult - (Korpusz + Ajtó + Túllógás)
+    const gap = targetDepth - (corpusDepth + doorThickness + frontOverhang)
+    return Math.max(0, gap)
+  }
   // Grid Snap TÖRÖLVE a felhasználó kérésére
   // private snapToGrid(value: number): number {
   //   return Math.round(value / SNAP_INCREMENT) * SNAP_INCREMENT
@@ -161,6 +189,9 @@ export default class PlacementManager {
     const roomHalfWidth = (roomStore.roomDimensions.width * UNIT_SCALE) / 2
     const roomHalfDepth = (roomStore.roomDimensions.depth * UNIT_SCALE) / 2
 
+    // GAP Kiszámítása az aktuális bútorra
+    const gap = this.calculateGap(movingObject)
+
     // --- KÉTFAJTA DOBOZRA LESZ SZÜKSÉGÜNK ---
 
     // 1. Korpusz doboz (Bútorhoz igazításhoz) - Nincs X overhang
@@ -179,68 +210,58 @@ export default class PlacementManager {
     const candidatesX: SnapCandidate[] = []
     const candidatesZ: SnapCandidate[] = []
 
-    // --- A. FALHOZ IGAZÍTÁS (PIVOT ALAPJÁN) - PRIORITÁS: 0 (LEGMAGASABB) ---
-    // A felhasználó kérése: "mindig a bútor hátulja snap-el a falhoz (ez minden esetben a pivot pont)"
-    // És: "ha egy bútort az oldalsó falakhoz viszem akkor el kellene forgatnia 90 fokkal"
+    // --- A. FALHOZ IGAZÍTÁS (GAP KORREKCIÓVAL) ---
 
-    // 1. Bal Fal (X = -roomHalfWidth) -> Forgatás: -90 fok (-PI/2) -> Hátlap néz -X felé
-    // Normál esetben Hátlap = -Z.
-    // Ha -90 fokot forgatunk Y körül:
-    // Hátlap (-Z) -> (-X) irányba fordul. (Three.js koordináta rendszer: jobbkéz szabály)
-    // Forgatás Y tengelyen pozitív szög: óramutató járásával ellentétes (felülről nézve).
-    // Z tengely -> X tengely. (90 fok).
-    // -Z tengely -> -X tengely. (90 fok).
-    // Tehát +90 fok (PI/2) forgatással a hátlap (-Z) a (-X) irányba (Bal fal) néz.
-    // JAVÍTÁS: Próbáljuk ki a +/- irányt a gyakorlatban, de elméletileg +PI/2 kell a Bal falhoz.
-    // De a felhasználó lehet máshogy értelmezi, a kódban majd teszteljük.
-    // Konvenció: Jobb fal (+X), Bal fal (-X).
-
-    // Bal Fal (X min)
-    if (Math.abs(flatProposedPosition.x - -roomHalfWidth) < MAX_SNAP_CHECK_DISTANCE) {
+    // 1. Bal Fal (X min) -> Hátlap a fal felé
+    // Snap: Fal pozíció + Gap (hogy eltartsa)
+    if (Math.abs(flatProposedPosition.x - (-roomHalfWidth + gap)) < MAX_SNAP_CHECK_DISTANCE) {
       candidatesX.push({
         priority: 0,
-        value: -roomHalfWidth,
+        value: -roomHalfWidth + gap, // <--- GAP HOZZÁADVA
         snapEdge: -roomHalfWidth,
-        distance: Math.abs(flatProposedPosition.x - -roomHalfWidth),
+        distance: Math.abs(flatProposedPosition.x - (-roomHalfWidth + gap)),
         targetObject: 'Wall Left',
         axis: 'x',
-        rotation: new Euler(0, Math.PI / 2, 0), // Hátlap (-Z) -> Balra (-X). +90 deg.
+        rotation: new Euler(0, Math.PI / 2, 0),
       })
     }
 
-    // Jobb Fal (X max)
-    if (Math.abs(flatProposedPosition.x - roomHalfWidth) < MAX_SNAP_CHECK_DISTANCE) {
+    // 2. Jobb Fal (X max) -> Hátlap a fal felé
+    // Snap: Fal pozíció - Gap
+    if (Math.abs(flatProposedPosition.x - (roomHalfWidth - gap)) < MAX_SNAP_CHECK_DISTANCE) {
       candidatesX.push({
         priority: 0,
-        value: roomHalfWidth,
+        value: roomHalfWidth - gap, // <--- GAP KIVONVA
         snapEdge: roomHalfWidth,
-        distance: Math.abs(flatProposedPosition.x - roomHalfWidth),
+        distance: Math.abs(flatProposedPosition.x - (roomHalfWidth - gap)),
         targetObject: 'Wall Right',
         axis: 'x',
-        rotation: new Euler(0, -Math.PI / 2, 0), // Hátlap (-Z) -> Jobbra (+X). -90 deg.
+        rotation: new Euler(0, -Math.PI / 2, 0),
       })
     }
 
-    // Hátsó Fal (Z min) -> Hátlap (-Z) a fal felé (-Z). Nincs forgatás (0).
-    if (Math.abs(flatProposedPosition.z - -roomHalfDepth) < MAX_SNAP_CHECK_DISTANCE) {
+    // 3. Hátsó Fal (Z min) -> Hátlap a fal felé
+    // Snap: Fal pozíció + Gap
+    if (Math.abs(flatProposedPosition.z - (-roomHalfDepth + gap)) < MAX_SNAP_CHECK_DISTANCE) {
       candidatesZ.push({
         priority: 0,
-        value: -roomHalfDepth,
+        value: -roomHalfDepth + gap, // <--- GAP HOZZÁADVA
         snapEdge: -roomHalfDepth,
-        distance: Math.abs(flatProposedPosition.z - -roomHalfDepth),
+        distance: Math.abs(flatProposedPosition.z - (-roomHalfDepth + gap)),
         targetObject: 'Wall Back',
         axis: 'z',
         rotation: new Euler(0, 0, 0),
       })
     }
 
-    // Első Fal (Z max) -> Hátlap (-Z) a fal felé (+Z). 180 forgatás (PI).
-    if (Math.abs(flatProposedPosition.z - roomHalfDepth) < MAX_SNAP_CHECK_DISTANCE) {
+    // 4. Első Fal (Z max) -> Hátlap a fal felé
+    // Snap: Fal pozíció - Gap
+    if (Math.abs(flatProposedPosition.z - (roomHalfDepth - gap)) < MAX_SNAP_CHECK_DISTANCE) {
       candidatesZ.push({
         priority: 0,
-        value: roomHalfDepth,
+        value: roomHalfDepth - gap, // <--- GAP KIVONVA
         snapEdge: roomHalfDepth,
-        distance: Math.abs(flatProposedPosition.z - roomHalfDepth),
+        distance: Math.abs(flatProposedPosition.z - (roomHalfDepth - gap)),
         targetObject: 'Wall Front',
         axis: 'z',
         rotation: new Euler(0, Math.PI, 0),
