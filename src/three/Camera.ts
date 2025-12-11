@@ -27,7 +27,7 @@ export default class Camera {
   }
 
   private setInstance() {
-    this.instance = new PerspectiveCamera(45, this.sizes.width / this.sizes.height, 0.1, 50)
+    this.instance = new PerspectiveCamera(60, this.sizes.width / this.sizes.height, 0.1, 50)
     this.instance.position.set(0, 2, 3)
     this.scene.add(this.instance)
   }
@@ -48,6 +48,29 @@ export default class Camera {
   }
 
   public update() {
+    // PADLÓ VÉDELEM
+    // Dinamikusan számoljuk a maximális szöget, hogy a kamera pozíciója
+    // sose menjen a padló (Y=0) alá.
+    if (this.controls) {
+      const minHeight = 0.1 // 10cm biztonsági tartalék
+      const targetY = this.controls.target.y
+      const radius = this.controls.getDistance()
+
+      // Matematika: cameraY = targetY + radius * cos(phi)
+      // Feltétel: cameraY >= minHeight
+      // targetY + radius * cos(phi) >= minHeight
+      // cos(phi) >= (minHeight - targetY) / radius
+      // phi <= acos((minHeight - targetY) / radius)
+
+      // Ha a sugár nagyon kicsi, akkor nem korlátozunk (elkerüljük a 0-val osztást)
+      if (radius > 0.1) {
+        const cosPhi = (minHeight - targetY) / radius
+        // Clampeljük az értéket -1 és 1 közé a biztonság kedvéért
+        const clampedCos = Math.max(-1, Math.min(1, cosPhi))
+        this.controls.maxPolarAngle = Math.acos(clampedCos)
+      }
+    }
+
     this.controls.update()
   }
 

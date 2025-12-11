@@ -4,7 +4,7 @@
     "name": "Alapértelmezett",
     "category": "general",
     "type": "color",
-    "value": "#898d96",
+    "value": "#9ca3b3",
     "properties": {
       "roughness": 0.5,
       "metalness": 0
@@ -31,8 +31,11 @@
     "type": "texture",
     "value": "/textures/uploaded/texture_1763815518898.jpg",
     "properties": {
-      "roughness": 0,
-      "metalness": 0.5
+      "roughness": 0.7,
+      "metalness": 0,
+      "transmission": 0,
+      "opacity": 1,
+      "transparent": false
     }
   },
   {
@@ -154,9 +157,9 @@
       "Fém"
     ],
     "type": "color",
-    "value": "#0d1731",
+    "value": "#ffffff",
     "properties": {
-      "roughness": 0,
+      "roughness": 0.1,
       "metalness": 1,
       "transmission": 0,
       "opacity": 1,
@@ -171,9 +174,9 @@
       "Fém"
     ],
     "type": "color",
-    "value": "#37526d",
+    "value": "#e3f0fd",
     "properties": {
-      "roughness": 0.4,
+      "roughness": 0.2,
       "metalness": 1,
       "transmission": 0,
       "opacity": 1,

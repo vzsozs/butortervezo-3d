@@ -580,5 +580,144 @@
         "defaultSchemaId": "schema_1765178199657_zywke7kun"
       }
     ]
+  },
+  {
+    "id": "teszt_sarokszekrny",
+    "name": "Teszt sarokszekrény",
+    "category": "bottom_cabinets",
+    "componentSlots": [
+      {
+        "slotId": "corpus_1",
+        "name": "Korpusz 1",
+        "componentType": "corpuses",
+        "allowedComponents": [
+          "corpus_bottom_sarok_90"
+        ],
+        "defaultComponent": "corpus_bottom_sarok_90",
+        "position": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        },
+        "attachToSlot": "",
+        "useAttachmentPoint": ""
+      },
+      {
+        "slotId": "front_1",
+        "name": "Ajtó 1",
+        "componentType": "fronts",
+        "allowedComponents": [
+          "front_bottom_keretes_sarok_90_l"
+        ],
+        "defaultComponent": "front_bottom_keretes_sarok_90_l",
+        "position": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        },
+        "attachToSlot": "corpus_1",
+        "useAttachmentPoint": "",
+        "attachmentMapping": {
+          "front_bottom_keretes_sarok_90_l": [
+            "attach_front_full_L"
+          ]
+        }
+      },
+      {
+        "slotId": "handle_1",
+        "name": "Fogantyú 1",
+        "componentType": "handles",
+        "allowedComponents": [
+          "handle_standard",
+          "handle_design"
+        ],
+        "defaultComponent": "handle_standard",
+        "position": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        },
+        "attachToSlot": "front_1",
+        "useAttachmentPoint": "attach_handle_vertical_L",
+        "attachmentMapping": {
+          "handle_design": [
+            "attach_handle_vertical_L"
+          ],
+          "handle_standard": [
+            "attach_handle_vertical_L"
+          ]
+        }
+      },
+      {
+        "slotId": "leg_1",
+        "name": "Láb 1",
+        "componentType": "legs",
+        "allowedComponents": [
+          "leg_standard",
+          "leg_design"
+        ],
+        "defaultComponent": "leg_standard",
+        "position": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        },
+        "attachToSlot": "corpus_1",
+        "useAttachmentPoint": "attach_leg_C",
+        "attachmentMapping": {
+          "leg_standard": [
+            "attach_leg_C"
+          ],
+          "leg_design": [
+            "attach_leg_FR",
+            "attach_leg_BL",
+            "attach_leg_FL",
+            "attach_leg_BR",
+            "attach_leg_C",
+            "attach_leg_C1"
+          ]
+        }
+      }
+    ]
   }
 ]

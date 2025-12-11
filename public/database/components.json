@@ -103,6 +103,80 @@
       ],
       "price": 34000,
       "category": "top_cabinets"
+    },
+    {
+      "name": "corpus bottom sarok 90",
+      "id": "corpus_bottom_sarok_90",
+      "properties": {
+        "width": 875,
+        "height": 715,
+        "depth": 875,
+        "wallThickness": 18,
+        "maxShelves": 2
+      },
+      "componentType": "corpuses",
+      "allowedMaterialCategories": [
+        "Bútorlap",
+        "general"
+      ],
+      "model": "/models/corpuses/corpus_bottom_sarok_90.glb",
+      "materialTarget": "MAT_Korpusz",
+      "materialOptions": [
+        "MAT_Korpusz"
+      ],
+      "attachmentPoints": [
+        {
+          "id": "attach_front_full_L",
+          "allowedComponentTypes": [
+            "fronts"
+          ]
+        },
+        {
+          "id": "attach_leg_FR",
+          "allowedComponentTypes": [
+            "legs"
+          ]
+        },
+        {
+          "id": "attach_leg_BL",
+          "allowedComponentTypes": [
+            "legs"
+          ]
+        },
+        {
+          "id": "attach_leg_FL",
+          "allowedComponentTypes": [
+            "legs"
+          ]
+        },
+        {
+          "id": "attach_leg_BR",
+          "allowedComponentTypes": [
+            "legs"
+          ]
+        },
+        {
+          "id": "attach_front_full_R",
+          "allowedComponentTypes": [
+            "fronts"
+          ]
+        },
+        {
+          "id": "attach_leg_C",
+          "allowedComponentTypes": [
+            "legs"
+          ]
+        },
+        {
+          "id": "attach_leg_C1",
+          "allowedComponentTypes": [
+            "legs"
+          ]
+        }
+      ],
+      "price": 78000,
+      "materialSlots": [],
+      "category": "bottom_cabinets"
     }
   ],
   "fronts": [
@@ -543,6 +617,64 @@
         }
       ],
       "styleId": "style_1765178017197_wik2i"
+    },
+    {
+      "name": "front bottom keretes sarok 90 L",
+      "id": "front_bottom_keretes_sarok_90_l",
+      "properties": {
+        "width": 409,
+        "height": 711,
+        "depth": 409
+      },
+      "componentType": "fronts",
+      "allowedMaterialCategories": [
+        "Bútorlap",
+        "general"
+      ],
+      "model": "/models/fronts/front_bottom_keretes_sarok_90_l.glb",
+      "materialTarget": "MAT_Frontok",
+      "materialOptions": [
+        "MAT_Frontok"
+      ],
+      "attachmentPoints": [
+        {
+          "id": "attach_handle_vertical_L",
+          "allowedComponentTypes": [
+            "handles"
+          ]
+        }
+      ],
+      "price": 24000,
+      "materialSlots": []
+    },
+    {
+      "name": "front bottom keretes sarok 90 R",
+      "id": "front_bottom_keretes_sarok_90_r",
+      "properties": {
+        "width": 409,
+        "height": 711,
+        "depth": 409
+      },
+      "componentType": "fronts",
+      "allowedMaterialCategories": [
+        "Bútorlap",
+        "general"
+      ],
+      "model": "/models/fronts/front_bottom_keretes_sarok_90_r.glb",
+      "materialTarget": "MAT_Frontok",
+      "materialOptions": [
+        "MAT_Frontok"
+      ],
+      "attachmentPoints": [
+        {
+          "id": "attach_handle_vertical_R",
+          "allowedComponentTypes": [
+            "handles"
+          ]
+        }
+      ],
+      "price": 24000,
+      "materialSlots": []
     }
   ],
   "handles": [
@@ -690,6 +822,29 @@
       ],
       "attachmentPoints": [],
       "price": 6900
+    },
+    {
+      "name": "shelf bottom standard sarok 90",
+      "id": "shelf_bottom_standard_sarok_90",
+      "properties": {
+        "width": 842,
+        "height": 19,
+        "depth": 841
+      },
+      "componentType": "shelves",
+      "allowedMaterialCategories": [
+        "Bútorlap",
+        "general"
+      ],
+      "model": "/models/shelves/shelf_bottom_standard_sarok_90.glb",
+      "materialTarget": "Material",
+      "materialOptions": [
+        "Material"
+      ],
+      "attachmentPoints": [],
+      "price": 9000,
+      "materialSlots": [],
+      "materialSource": "corpus"
     }
   ]
 }

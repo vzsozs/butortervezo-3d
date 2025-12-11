@@ -10,10 +10,11 @@ import {
 import { CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js'
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js'
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
-// import { SSAOPass } from 'three/examples/jsm/postprocessing/SSAOPass.js'
+import { SSAOPass } from 'three/examples/jsm/postprocessing/SSAOPass.js'
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js'
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js'
 import { FXAAShader } from 'three/examples/jsm/shaders/FXAAShader.js'
+// import { BrightnessContrastShader } from 'three/examples/jsm/shaders/BrightnessContrastShader.js'
 
 import Experience from './Experience'
 import Sizes from './Utils/Sizes'
@@ -57,7 +58,7 @@ export default class Renderer {
     this.instance.shadowMap.type = PCFSoftShadowMap
 
     this.instance.toneMapping = ACESFilmicToneMapping
-    this.instance.toneMappingExposure = 1.2
+    this.instance.toneMappingExposure = 1.0
 
     this.canvas.appendChild(this.instance.domElement)
   }
@@ -86,15 +87,31 @@ export default class Renderer {
     const renderPass = new RenderPass(this.scene, this.camera)
     this.composer.addPass(renderPass)
 
-    // 2. SSAO Pass - ❌ KIKAPCSOLVA
+    // --- KONTRAST --- ❌ KIKAPCSOLVA
     /*
+    const contrastPass = new ShaderPass(BrightnessContrastShader)
+
+    // contrast: 0 az alap.
+    // 0.1 - 0.3 között érdemes próbálkozni.
+    // Ha negatív, akkor szürkébb lesz.
+
+    contrastPass.uniforms['contrast']!.value = 0.1
+
+    // brightness: Ha kell, itt a fényerőt is finomhangolhatod (0 az alap)
+
+    contrastPass.uniforms['brightness']!.value = 0.03
+
+    this.composer.addPass(contrastPass)
+    */
+
+    // 2. SSAO Pass - ❌ KIKAPCSOLVA
+
     const ssaoPass = new SSAOPass(this.scene, this.camera, this.sizes.width, this.sizes.height)
-    ssaoPass.kernelRadius = 0.1;
-    ssaoPass.minDistance = 0.001;
-    ssaoPass.maxDistance = 0.04;
+    ssaoPass.kernelRadius = 0.1
+    ssaoPass.minDistance = 0.001
+    ssaoPass.maxDistance = 0.04
     ssaoPass.output = SSAOPass.OUTPUT.Default
     this.composer.addPass(ssaoPass)
-    */
 
     // 3. Output Pass
     const outputPass = new OutputPass()

@@ -15,10 +15,31 @@ function getIcon(type: string) {
   return '⛩️'; // Falnyílás ikon
 }
 
+
 function getName(type: string) {
   if (type === 'door') return 'Ajtó';
   if (type === 'window') return 'Ablak';
   return 'Falnyílás';
+}
+
+function getWallLength(wallIndex: number): number {
+  // 0: Elöl, 2: Hátul -> X tengely (width)
+  // 1: Jobb, 3: Bal -> Z tengely (depth)
+  if (wallIndex === 0 || wallIndex === 2) {
+    return roomDimensions.value.width;
+  }
+  return roomDimensions.value.depth;
+}
+
+function updateFromRight(item: any, rightValue: number) {
+  const wallLength = getWallLength(item.wallIndex);
+  // Bal pozíció = Fal hossza - Elem szélessége - Jobb pozíció
+  const newLeftPos = wallLength - item.width - rightValue;
+
+  // Validálás és mentés
+  if (newLeftPos > 0) {
+    roomStore.updateOpening(item.id, { position: newLeftPos });
+  }
 }
 
 </script>
@@ -117,12 +138,19 @@ function getName(type: string) {
             </select>
           </div>
 
-          <!-- Pozíció -->
+          <!-- Pozíció (BAL) -->
           <div>
-            <label class="text-gray-500 block mb-1">Pozíció (mm)</label>
-            <!-- @input esemény: Minden gépelésnél/nyílnyomásnál validálunk -->
+            <label class="text-gray-500 block mb-1">Pozíció (Bal)</label>
             <input type="number" v-model.lazy.number="item.position"
               @change="roomStore.updateOpening(item.id, { position: item.position })" step="50" min="50"
+              class="admin-input w-full py-1" />
+          </div>
+
+          <!-- Pozíció (JOBB) - ÚJ -->
+          <div>
+            <label class="text-gray-500 block mb-1">Pozíció (Jobb)</label>
+            <input type="number" :value="getWallLength(item.wallIndex) - item.width - item.position"
+              @change="updateFromRight(item, ($event.target as HTMLInputElement).valueAsNumber)" step="50" min="50"
               class="admin-input w-full py-1" />
           </div>
 
