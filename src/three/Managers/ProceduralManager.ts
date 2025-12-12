@@ -18,29 +18,6 @@ export default class ProceduralManager {
 
   private worktopMesh: THREE.Mesh | null = null
   private plinthMesh: THREE.Mesh | null = null
-
-  public getProceduralMeshes(): THREE.Object3D[] {
-    const meshes: THREE.Object3D[] = []
-    this.scene.traverse((child) => {
-      if (
-        child.name.includes(ProceduralConstants.MESH_WORKTOP) ||
-        child.name.includes(ProceduralConstants.MESH_PLINTH)
-      ) {
-        meshes.push(child)
-      }
-    })
-    return meshes
-  }
-
-  public setVisibility(visible: boolean) {
-    const meshes = this.getProceduralMeshes()
-    console.log(`[ProceduralManager] setVisibility(${visible}) - Found ${meshes.length} meshes`)
-    meshes.forEach((mesh) => {
-      mesh.visible = visible
-      console.log(` - Toggling: ${mesh.name} (${mesh.uuid}) to ${visible}`)
-    })
-  }
-
   private debugHelpers: THREE.Group = new THREE.Group()
 
   private defaultWorktopMaterial: THREE.Material = new THREE.MeshStandardMaterial({
@@ -53,72 +30,97 @@ export default class ProceduralManager {
     color: 0x333333,
   })
 
-  // --- ANYAG KERESŐ ---
-  private getWorktopMaterial(): THREE.Material {
-    // 1. Megkeressük a csoportot, ami a 'worktops'-ot vezérli
-    const worktopGroup = this.configStore.globalGroups.find((g) =>
-      g.targets.includes(GlobalGroupTarget.WORKTOP),
-    )
-
-    if (worktopGroup) {
-      // 2. Megnézzük, mi van kiválasztva a SettingsStore-ban ehhez a csoporthoz
-      const selectedMatId = this.settingsStore.globalMaterialSettings[worktopGroup.id]
-
-      if (selectedMatId) {
-        // 3. Megkeressük az anyag definíciót a ConfigStore-ban
-        const matDef = this.configStore.materials.find((m) => m.id === selectedMatId)
-
-        if (matDef) {
-          // 4. Létrehozzuk a Three.js anyagot
-          // FONTOS: Itt kellene használni az AssetManager-t a textúra betöltéshez!
-          // Mivel azt a kódot nem látom, írok egy egyszerűsített verziót:
-
-          const matParams: any = {
-            roughness: 0.8,
-            metalness: 0.1,
-            side: THREE.DoubleSide,
-          }
-
-          // Ha van szín
-          if (matDef.value && !matDef.value.includes('/')) {
-            matParams.color = new THREE.Color(matDef.value)
-          }
-          // Ha textúra (feltételezzük, hogy a value egy útvonal, vagy van textureUrl)
-          else if (matDef.value || (matDef as any).textureUrl) {
-            const url = (matDef as any).textureUrl || matDef.value
-            // Ideiglenes textúra betöltő (AssetManager cache nélkül lassú lehet, de működik)
-            const texture = new THREE.TextureLoader().load(url)
-
-            // Textúra ismétlődés beállítása (hogy ne legyen torz)
-            texture.wrapS = THREE.RepeatWrapping
-            texture.wrapT = THREE.RepeatWrapping
-            // Ez egy durva becslés, a valódi UV mapping a geometrián történik
-            texture.repeat.set(1, 1)
-
-            matParams.map = texture
-            // Ha fehér a textúra, a color legyen fehér, különben elszínezi
-            matParams.color = 0xffffff
-          }
-
-          return new THREE.MeshStandardMaterial(matParams)
-        }
-      }
-    }
-
-    // Fallback: Ha nincs kiválasztva semmi, marad a default
-    return this.defaultWorktopMaterial
-  }
+  // --- CACHE ---
+  private worktopCornersCache = new Map<string, THREE.Vector3[]>()
+  private excludedObject: THREE.Object3D | null = null
 
   constructor(experience: Experience) {
     this.experience = experience
     this.scene = experience.scene
     this.scene.add(this.debugHelpers)
+    this.scene.add(this.debugLabels) // Hozzáadjuk a label csoportot a jelenethez
 
     this.initWatchers()
   }
 
+  /* --------------------------------------------------
+                        DEBUG
+  -------------------------------------------------- */
+  // --- DEBUG SEGÉD ---
+  private debugLabels: THREE.Group = new THREE.Group()
+
+  // Törli a régi számokat frissítés előtt
+  private clearDebugLabels() {
+    this.debugLabels.clear()
+  }
+
+  // Számokat gyártó függvény
+  private createDebugLabel(
+    position: THREE.Vector3,
+    text: string,
+    color: string,
+    offsetY: number = 0,
+  ) {
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    canvas.width = 64
+    canvas.height = 64
+
+    ctx.fillStyle = color
+    ctx.fillRect(0, 0, 64, 64)
+
+    ctx.font = 'bold 40px Arial'
+    ctx.fillStyle = 'white'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(text, 32, 32)
+
+    const texture = new THREE.CanvasTexture(canvas)
+    const material = new THREE.SpriteMaterial({ map: texture, depthTest: false, depthWrite: false })
+    const sprite = new THREE.Sprite(material)
+
+    sprite.position.copy(position)
+    sprite.position.y += 0.1 + offsetY // Kicsit feljebb, hogy látszódjon
+    sprite.scale.set(0.1, 0.1, 0.1)
+
+    this.debugLabels.add(sprite)
+  }
+  /* --------------------------------------------------
+                      DEBUG VÉGE
+  -------------------------------------------------- */
+
+  // --- ANYAG KERESŐ ---
+  private getWorktopMaterial(): THREE.Material {
+    const worktopGroup = this.configStore.globalGroups.find((g) =>
+      g.targets.includes(GlobalGroupTarget.WORKTOP),
+    )
+    if (worktopGroup) {
+      const selectedMatId = this.settingsStore.globalMaterialSettings[worktopGroup.id]
+      if (selectedMatId) {
+        const matDef = this.configStore.materials.find((m) => m.id === selectedMatId)
+        if (matDef) {
+          const matParams: any = { roughness: 0.8, metalness: 0.1, side: THREE.DoubleSide }
+          if (matDef.value && !matDef.value.includes('/')) {
+            matParams.color = new THREE.Color(matDef.value)
+          } else if (matDef.value || (matDef as any).textureUrl) {
+            const url = (matDef as any).textureUrl || matDef.value
+            const texture = new THREE.TextureLoader().load(url)
+            texture.wrapS = THREE.RepeatWrapping
+            texture.wrapT = THREE.RepeatWrapping
+            texture.repeat.set(1, 1)
+            matParams.map = texture
+            matParams.color = 0xffffff
+          }
+          return new THREE.MeshStandardMaterial(matParams)
+        }
+      }
+    }
+    return this.defaultWorktopMaterial
+  }
+
   private initWatchers() {
-    // 1. Méret változások (Csúszka)
     watch(
       () => [this.proceduralStore.plinth.height, this.proceduralStore.plinth.depthOffset],
       () => {
@@ -126,16 +128,14 @@ export default class ProceduralManager {
       },
     )
 
-    // 2. Munkapult változások
     watch(
       () => this.proceduralStore.worktop,
       () => {
-        this.generateWorktop()
+        this.fullUpdate()
       },
       { deep: true },
     )
 
-    // 3. Komponens cserék (Láb típus váltás)
     watch(
       () => this.settingsStore.globalComponentSettings,
       () => {
@@ -146,7 +146,6 @@ export default class ProceduralManager {
       { deep: true },
     )
 
-    // 4. Anyag változások (Korpusz szín csere)
     watch(
       () => this.settingsStore.globalMaterialSettings,
       () => {
@@ -158,7 +157,6 @@ export default class ProceduralManager {
       { deep: true },
     )
 
-    // 5. Kézi trigger (pl. InspectorPanel csúszka)
     watch(
       () => this.proceduralStore.updateTrigger,
       () => {
@@ -168,120 +166,108 @@ export default class ProceduralManager {
   }
 
   public update() {
-    this.excludedObject = null // Reset exclusion on full update
+    this.excludedObject = null
     this.debugHelpers.clear()
     this.fullUpdate()
   }
 
   private fullUpdate() {
+    this.updateCabinetHorizontalPositions()
     this.updateCabinetVerticalPositions()
     this.generateWorktop()
     this.generatePlinth()
   }
 
-  // --- LOGIKA ---
+  // ==========================================================================
+  // 1. GAP SZÁMÍTÁS ÉS VÍZSZINTES ELTOLÁS
+  // ==========================================================================
 
-  /*private isStandardLegActive(obj: THREE.Object3D): boolean {
-    const corpusConfig = this.getCorpusConfig(obj)
-    if (!corpusConfig) return false
+  public calculateGap(obj: THREE.Object3D): number {
+    const config = this.getCorpusConfig(obj)
+    if (!config) return 0
 
-    for (const group of this.configStore.globalGroups) {
-      if (group.targets.includes(GlobalGroupTarget.LEG) || group.targets.includes(GlobalGroupTarget.LEG_SLOT)) {
-        const selectedVariantId = this.settingsStore.globalComponentSettings[group.id]
-        if (!selectedVariantId) continue
+    const worktopConf = this.proceduralStore.worktop
+    const targetDepth = worktopConf.defaultDepth || 0.6
+    const overhang = worktopConf.frontOverhang || 0.02
+    const frontThickness = 0.019
 
-        const variant = group.style.variants.find((v) => v.id === selectedVariantId)
-        if (variant && variant.componentIds.includes(ProceduralConstants.LEG_STANDARD_ID)) {
-          return true
+    let physicalDepth = (config.properties?.physicalDepth ?? config.properties?.depth ?? 560) / 1000
+
+    // Saroknál a sideDepth a mérvadó a szárny mélységéhez
+    if ((config as any).structureType === 'corner_L') {
+      const sideDepth = (config.properties?.sideDepth ?? 560) / 1000
+      physicalDepth = sideDepth
+    }
+
+    const gap = targetDepth - (overhang + frontThickness + physicalDepth)
+    return Math.max(0, gap)
+  }
+
+  private updateCabinetHorizontalPositions() {
+    this.clearDebugLabels()
+
+    const cabinets = this.experienceStore.placedObjects
+    cabinets.forEach((cabinet) => {
+      const config = this.getCorpusConfig(cabinet)
+      if (!config) return
+
+      const gap = this.calculateGap(cabinet)
+      const visualModel = cabinet.children.find((c) => c.type === 'Group' || c.type === 'Mesh')
+
+      if (visualModel) {
+        // Reset
+        visualModel.position.set(0, 0, 0)
+        visualModel.rotation.set(0, 0, 0)
+
+        if ((config as any).structureType === 'corner_L') {
+          // --- SAROKSZEKRÉNY KORREKCIÓ ---
+
+          // 1. Forgatás (Ez jó volt, megtartjuk)
+          visualModel.rotation.y = Math.PI / 2
+
+          // 2. Méretek lekérése a visszahúzáshoz
+          // Mivel elforgattuk 90 fokkal, a bútor "Mélysége" (Depth) került az X tengelyre.
+          // Ezt a távolságot kell kivonnunk, hogy visszakerüljön a sarokba.
+          const rawDepth = config.properties?.depth ?? config.properties?.width ?? 600
+          const depth = rawDepth / 1000
+
+          // 3. Pozíció beállítása
+          // X: Gap - Depth (Visszahúzzuk a testet a falhoz)
+          // Z: Gap (Ez jó helyen van, csak el kell tolni a faltól)
+          visualModel.position.x = gap
+          visualModel.position.z = gap + depth
+
+          // --- DEBUG (Kék doboz) ---
+          visualModel.updateMatrixWorld()
+          const box = new THREE.Box3().setFromObject(visualModel)
+          this.createDebugLabel(new THREE.Vector3(box.min.x, 0, box.min.z), 'B0', 'blue', 0.1)
+          this.createDebugLabel(new THREE.Vector3(box.max.x, 0, box.min.z), 'B1', 'blue', 0.1)
+          this.createDebugLabel(new THREE.Vector3(box.max.x, 0, box.max.z), 'B2', 'blue', 0.1)
+          this.createDebugLabel(new THREE.Vector3(box.min.x, 0, box.max.z), 'B3', 'blue', 0.1)
+        } else {
+          // --- EGYENES SZEKRÉNY ---
+          visualModel.position.z = gap
         }
+
+        visualModel.updateMatrix()
       }
-    }
-
-    const state = obj.userData.componentState || {}
-    const values = Object.values(state)
-    if (values.some((val: any) => typeof val === 'string' && val.includes(ProceduralConstants.LEG_STANDARD_ID))) {
-      return true
-    }
-
-    return false
-  }
-    */
-
-  /**
-   * Kizárólag a bútor aktuális állapotát vizsgálja.
-   * Ha a 'legs' slotban 'leg_standard' van, akkor TRUE.
-   * Minden más esetben (nincs láb, vagy design láb van) FALSE.
-   */
-  private isStandardLegActive(obj: THREE.Object3D): boolean {
-    // 1. Megnézzük a bútorra mentett állapotot
-    const state = obj.userData.componentState || {}
-
-    // 2. Végigmegyünk a slotokon (JAVÍTÁS: Object.values használata)
-    // Így nem keletkezik felesleges 'slotName' változó
-    for (const componentId of Object.values(state)) {
-      if (typeof componentId !== 'string') continue
-
-      // Ha a komponens ID-ja 'leg_standard'
-      if (componentId.includes(ProceduralConstants.LEG_STANDARD_ID)) {
-        return true
-      }
-    }
-
-    return false
+    })
   }
 
-  /**
-   * Kiszámolja a Design láb magasságát a komponens configból.
-   * (A te InteractionManager kódod alapján adaptálva)
-   */
-  private calculateDesignLegHeight(obj: THREE.Object3D): number {
-    let maxLift = 0
-    const componentState = obj.userData.componentState
+  // ==========================================================================
+  // 2. FÜGGŐLEGES POZICIONÁLÁS
+  // ==========================================================================
 
-    if (componentState) {
-      for (const slotId in componentState) {
-        const componentId = componentState[slotId]
-        if (typeof componentId !== 'string') continue
-
-        const componentDef = this.configStore.getComponentById(componentId)
-
-        if (componentDef) {
-          // Magasság kinyerése (mm-ben van az adatbázisban)
-          const heightMM = componentDef.properties?.height || (componentDef as any).height || 0
-
-          // Ha ez egy láb (kategória vagy ID alapján), akkor ez emeli a bútort
-          // Figyeljük a 'legs' kategóriát VAGY ha az ID-ban benne van a 'leg'
-          if (
-            (componentDef as any).category === FurnitureCategory.LEG ||
-            componentDef.id.includes('leg')
-          ) {
-            // Nem standard láb esetén vesszük a magasságot
-            if (!componentDef.id.includes(ProceduralConstants.LEG_STANDARD_ID)) {
-              maxLift = Math.max(maxLift, heightMM / 1000)
-            }
-          }
-        }
-      }
-    }
-    return maxLift
-  }
-
-  // --- POZICIONÁLÁS JAVÍTÁSA ---
   public updateCabinetVerticalPositions() {
     const cabinets = this.experienceStore.placedObjects
     const globalPlinthHeight = this.proceduralStore.plinth.height
 
     cabinets.forEach((cabinet) => {
       if (!this.getCorpusConfig(cabinet)) return
-
       const isStandard = this.isStandardLegActive(cabinet)
 
       if (isStandard) {
-        // 1. ESET: STANDARD LÁB
-
-        // Megnézzük, van-e egyedi felülbírálás a bútoron
         const override = cabinet.userData.plinthHeightOverride
-        // Ha van override, azt használjuk, ha nincs, a globálisat
         const targetHeight =
           override !== undefined && override !== null ? override : globalPlinthHeight
 
@@ -291,7 +277,6 @@ export default class ProceduralManager {
         }
         this.toggleLegVisibility(cabinet, false)
       } else {
-        // 2. ESET: DESIGN LÁB (Ez maradt a régi)
         const designHeight = this.calculateDesignLegHeight(cabinet)
         if (Math.abs(cabinet.position.y - designHeight) > 0.0001) {
           cabinet.position.y = designHeight
@@ -302,115 +287,68 @@ export default class ProceduralManager {
     })
   }
 
-  private toggleLegVisibility(cabinet: THREE.Object3D, visible: boolean) {
-    cabinet.traverse((child) => {
-      const name = child.name.toLowerCase()
-      if (name.includes(ProceduralConstants.LEG_STANDARD_ID)) {
-        child.visible = visible
-      }
-      if (
-        child.userData.componentId &&
-        child.userData.componentId.includes(ProceduralConstants.LEG_STANDARD_ID)
-      ) {
-        child.visible = visible
-      }
-    })
-  }
+  // ==========================================================================
+  // 3. GENERÁLÁS (Lábazat)
+  // ==========================================================================
 
-  // --- GENERÁLÓK ---
-
-  private excludedObject: THREE.Object3D | null = null
-
-  public regenerateExcluding(obj: THREE.Object3D) {
-    this.excludedObject = obj
-    this.fullUpdate()
-  }
-
-  // --- GENERÁLÁS JAVÍTÁSA (Több magasság kezelése) ---
   private generatePlinth() {
-    // 1. Takarítás: Töröljük a régi "ProceduralPlinth" nevű mesheket
-    // Mivel most már több is lehet, név alapján keresünk
     const toRemove: THREE.Object3D[] = []
     this.scene.traverse((child) => {
-      // Use includes for safety
       if (child.name.includes(ProceduralConstants.MESH_PLINTH)) toRemove.push(child)
     })
     toRemove.forEach((child) => {
       this.scene.remove(child)
       if ((child as THREE.Mesh).geometry) (child as THREE.Mesh).geometry.dispose()
     })
-    this.plinthMesh = null // Ez a referencia már nem elég, de nullázzuk
 
     const globalConf = this.proceduralStore.plinth
-    const globalHeight = globalConf.height
 
-    // 2. Bútorok összegyűjtése és CSOPORTOSÍTÁSA magasság szerint
-    // Map<magasság, bútorok[]>
     const heightGroups = new Map<number, THREE.Object3D[]>()
-
     const cabinets = this.experienceStore.placedObjects.filter((obj) => {
-      // EXCLUSION CHECK
       if (this.excludedObject && obj.uuid === this.excludedObject.uuid) return false
-
-      const isBottom = this.getCorpusConfig(obj) !== null
-      return isBottom && this.isStandardLegActive(obj)
+      return this.getCorpusConfig(obj) !== null && this.isStandardLegActive(obj)
     })
 
-    if (cabinets.length === 0) return
-
-    // Csoportosítás
     cabinets.forEach((cab) => {
       const override = cab.userData.plinthHeightOverride
-      // Kulcs a magasság (fix 3 tizedesjegyre kerekítve a mapelés miatt)
-      const h = override !== undefined && override !== null ? override : globalHeight
+      const h = override !== undefined && override !== null ? override : globalConf.height
       const key = Math.round(h * 1000) / 1000
-
       if (!heightGroups.has(key)) heightGroups.set(key, [])
       heightGroups.get(key)!.push(cab)
     })
 
-    // 3. Generálás minden magasság-csoporthoz külön-külön
     heightGroups.forEach((groupCabinets, height) => {
       this.createPlinthMeshForGroup(groupCabinets, height, globalConf)
     })
   }
 
-  // Segédfüggvény egy adott magasságú csoport generálásához
-  private createPlinthMeshForGroup(cabinets: THREE.Object3D[], height: number, conf: any) {
+  // JAVÍTÁS: _conf (unused variable fix)
+  private createPlinthMeshForGroup(cabinets: THREE.Object3D[], height: number, _conf: any) {
     const polygons: any[] = []
     const cabinetData: any[] = []
-
-    // Anyag keresés
-    let inheritedMaterial: THREE.Material = this.defaultPlinthMaterial
-
-    // JAVÍTÁS: Kimentjük változóba és ellenőrizzük
-    if (cabinets.length > 0) {
-      const firstCabinet = cabinets[0]
-      if (firstCabinet) {
-        // Ez a check hiányzott
-        const mat = this.getInheritedMaterial(firstCabinet)
-        if (mat) inheritedMaterial = mat
-      }
-    }
 
     cabinets.forEach((cabinet) => {
       const corpusConfig = this.getCorpusConfig(cabinet)
       if (!corpusConfig) return
 
       const rawWidth = corpusConfig.properties?.width ?? 600
-      const rawDepth = corpusConfig.properties?.depth ?? 560
-
       const width = rawWidth / 1000
-      const depth = rawDepth / 1000
 
-      const zOffset = -conf.depthOffset / 2
-      const corners = this.getPlinthCorners(cabinet, width, depth, zOffset)
+      let physicalDepth =
+        (corpusConfig.properties?.physicalDepth ?? corpusConfig.properties?.depth ?? 560) / 1000
+
+      // JAVÍTÁS: (corpusConfig as any)
+      if ((corpusConfig as any).structureType === 'corner_L') {
+        physicalDepth = (corpusConfig.properties?.sideDepth ?? 560) / 1000
+      }
+
+      const gap = this.calculateGap(cabinet)
+      const corners = this.getPlinthCorners(cabinet, width, physicalDepth, gap)
 
       polygons.push([corners])
       cabinetData.push({ corners, center: cabinet.position.clone() })
     })
 
-    // Hidak generálása (csak az azonos magasságúak között!)
     this.generateBridges(cabinetData, polygons, this.proceduralStore.worktop.gapThreshold)
 
     if (polygons.length === 0) return
@@ -418,23 +356,259 @@ export default class ProceduralManager {
     try {
       const merged = polygonClipping.union(polygons as any)
       const shapes = this.createShapesFromPolygon(merged)
-
-      const geometry = new THREE.ExtrudeGeometry(shapes, {
-        depth: height, // Itt a csoport magasságát használjuk!
-        bevelEnabled: false,
-      })
-
-      const mesh = new THREE.Mesh(geometry, inheritedMaterial)
-      mesh.name = ProceduralConstants.MESH_PLINTH // Fontos a törléshez
+      const geometry = new THREE.ExtrudeGeometry(shapes, { depth: height, bevelEnabled: false })
+      const mesh = new THREE.Mesh(geometry, this.defaultPlinthMaterial)
+      mesh.name = ProceduralConstants.MESH_PLINTH
       mesh.rotation.x = -Math.PI / 2
       mesh.position.y = 0
-
       this.applyBoxUVs(geometry)
       this.scene.add(mesh)
     } catch (e) {
-      console.error('❌ Error generating plinth group:', e)
+      console.error('Plinth generation error', e)
     }
   }
+
+  // ==========================================================================
+  // 4. GENERÁLÁS (Munkapult)
+  // ==========================================================================
+
+  public getWorktopCornersForCabinet(uuid: string): THREE.Vector3[] {
+    return this.worktopCornersCache.get(uuid) || []
+  }
+
+  private generateWorktop() {
+    this.worktopCornersCache.clear()
+    const toRemove: THREE.Object3D[] = []
+    this.scene.traverse((child) => {
+      if (child.name === ProceduralConstants.MESH_WORKTOP) toRemove.push(child)
+    })
+    toRemove.forEach((child) => {
+      this.scene.remove(child)
+      if ((child as THREE.Mesh).geometry) (child as THREE.Mesh).geometry.dispose()
+    })
+
+    const conf = this.proceduralStore.worktop
+    const cabinets = this.experienceStore.placedObjects.filter((obj) => {
+      if (this.excludedObject && obj.uuid === this.excludedObject.uuid) return false
+      return this.getCorpusConfig(obj) !== null
+    })
+
+    const heightGroups = new Map<number, THREE.Object3D[]>()
+    cabinets.forEach((cab) => {
+      const box = new THREE.Box3().setFromObject(cab)
+      const topY = box.max.y
+      const key = Math.round(topY * 1000)
+      if (!heightGroups.has(key)) heightGroups.set(key, [])
+      heightGroups.get(key)!.push(cab)
+    })
+
+    heightGroups.forEach((groupCabinets, heightKey) => {
+      this.createWorktopMeshForGroup(groupCabinets, heightKey / 1000, conf)
+    })
+  }
+
+  private createWorktopMeshForGroup(cabinets: THREE.Object3D[], height: number, conf: any) {
+    const polygons: any[] = []
+    const cabinetData: any[] = []
+
+    cabinets.forEach((cabinet) => {
+      const corpusConfig = this.getCorpusConfig(cabinet)
+      if (!corpusConfig) return
+
+      const rawWidth = corpusConfig.properties?.width ?? 600
+      const width = rawWidth / 1000
+      const gap = this.calculateGap(cabinet)
+
+      const neighbors = this.checkNeighbors(cabinet, cabinets, width, conf.gapThreshold)
+
+      const corners = this.getWorktopCorners(
+        cabinet,
+        width,
+        gap,
+        neighbors,
+        false,
+        undefined,
+        conf.sideOverhang,
+        conf.defaultDepth,
+      )
+
+      polygons.push([corners])
+      cabinetData.push({ corners, center: cabinet.position.clone() })
+
+      const topY = height + conf.thickness
+      const worldCorners = corners.map((c) => new THREE.Vector3(c[0], topY, -c[1]))
+      this.worktopCornersCache.set(cabinet.uuid, worldCorners)
+    })
+
+    this.generateBridges(cabinetData, polygons, conf.gapThreshold)
+
+    if (polygons.length === 0) return
+
+    try {
+      const merged = polygonClipping.union(polygons as any)
+      const shapes = this.createShapesFromPolygon(merged)
+      this.applyHoles(cabinets, shapes, conf.defaultDepth)
+
+      const geometry = new THREE.ExtrudeGeometry(shapes, {
+        depth: conf.thickness,
+        bevelEnabled: false,
+      })
+      const mesh = new THREE.Mesh(geometry, this.getWorktopMaterial())
+      mesh.name = ProceduralConstants.MESH_WORKTOP
+      mesh.rotation.x = -Math.PI / 2
+      mesh.position.y = height + 0.001
+      this.applyBoxUVs(geometry)
+      mesh.castShadow = true
+      mesh.receiveShadow = true
+      this.scene.add(mesh)
+    } catch (error) {
+      console.error('Worktop generation error', error)
+    }
+  }
+
+  // ==========================================================================
+  // 5. MATEMATIKA
+  // ==========================================================================
+
+  private getPlinthCorners(obj: THREE.Object3D, width: number, physicalDepth: number, gap: number) {
+    const corpusConfig = this.getCorpusConfig(obj)
+    const structureType = (corpusConfig as any)?.structureType || 'standard'
+    const plinthConf = this.proceduralStore.plinth as any
+    const frontRecess = plinthConf.frontRecess || 0.05
+    const backRecess = plinthConf.backRecess || 0.02
+
+    let points: THREE.Vector3[] = []
+
+    if (structureType === 'corner_L') {
+      // --- L-ALAK (DIREKT GENERÁLÁS -90 FOKNAK MEGFELELŐEN) ---
+      // X tengely: Mélység irány (Depth)
+      // Z tengely: Szélesség irány (Width)
+
+      const rawDepth = corpusConfig?.properties?.depth ?? corpusConfig?.properties?.width ?? 600
+      const fullDepth = rawDepth / 1000
+
+      // Határok (0,0 a fal sarka)
+      const start = gap + backRecess
+
+      // X irányú kiterjedés (Ez a mélység!)
+      const endX = gap + fullDepth
+
+      // Z irányú kiterjedés (Ez a szélesség!)
+      const endZ = gap + width
+
+      // Belső vastagság (szár mélysége)
+      const armThickness = gap + physicalDepth - frontRecess
+
+      points = [
+        new THREE.Vector3(start, 0, start), // 1. Sarok (Falnál)
+        new THREE.Vector3(endX, 0, start), // 2. X-szár vége (Falnál)
+        new THREE.Vector3(endX, 0, armThickness), // 3. X-szár vége (Elöl)
+        new THREE.Vector3(armThickness, 0, armThickness), // 4. Belső sarok
+        new THREE.Vector3(armThickness, 0, endZ), // 5. Z-szár vége (Elöl)
+        new THREE.Vector3(start, 0, endZ), // 6. Z-szár vége (Falnál)
+      ]
+    } else {
+      // --- STANDARD TÉGLALAP (Változatlan) ---
+      const zBack = gap + backRecess
+      const zFront = gap + physicalDepth - frontRecess
+      const xLeft = 0
+      const xRight = width
+
+      points = [
+        new THREE.Vector3(xLeft, 0, zBack),
+        new THREE.Vector3(xRight, 0, zBack),
+        new THREE.Vector3(xRight, 0, zFront),
+        new THREE.Vector3(xLeft, 0, zFront),
+      ]
+    }
+
+    obj.updateMatrixWorld()
+    const corners: [number, number][] = []
+    points.forEach((p) => {
+      p.applyMatrix4(obj.matrixWorld)
+      corners.push([p.x, -p.z])
+    })
+    return corners
+  }
+
+  private getWorktopCorners(
+    obj: THREE.Object3D,
+    width: number,
+    gap: number,
+    neighbors: { hasLeft: boolean; hasRight: boolean },
+    isHole = false,
+    customDepth?: number,
+    sideOverhang = 0.015,
+    defaultDepth = 0.6,
+  ) {
+    const corpusConfig = this.getCorpusConfig(obj)
+    const structureType = (corpusConfig as any)?.structureType || 'standard'
+
+    let points: THREE.Vector3[] = []
+
+    if (structureType === 'corner_L' && !isHole) {
+      // --- ITT TUDSZ VARIÁLNI A TENGELYEKKEL ---
+      // Jelenlegi beállítás: X=Mélység, Z=Szélesség (Mert azt mondtad 90 fokkal balra van)
+      // Ha ez még mindig rossz, cseréld meg a lengthX és lengthZ definíciókat!
+
+      const rawDepth = corpusConfig?.properties?.depth ?? corpusConfig?.properties?.width ?? 600
+      const fullDepth = rawDepth / 1000
+
+      // A: Verzió (Ha a GLB Z-irányba széles)
+      // const lengthX = gap + fullDepth + sideOverhang
+      // const lengthZ = gap + width + sideOverhang
+
+      // B: Verzió (Ha a GLB X-irányba széles - Standard)
+      const lengthX = gap + width + sideOverhang
+      const lengthZ = gap + fullDepth + sideOverhang
+
+      const armThickness = defaultDepth
+
+      // Generálás (Standard L-alak)
+      points = [
+        new THREE.Vector3(0, 0, 0), // 0. Sarok
+        new THREE.Vector3(lengthX, 0, 0), // 1. X-szár vége (Falnál)
+        new THREE.Vector3(lengthX, 0, armThickness), // 2. X-szár vége (Elöl)
+        new THREE.Vector3(armThickness, 0, armThickness), // 3. Belső sarok
+        new THREE.Vector3(armThickness, 0, lengthZ), // 4. Z-szár vége (Elöl)
+        new THREE.Vector3(0, 0, lengthZ), // 5. Z-szár vége (Falnál)
+      ]
+
+      // --- PIROS DEBUG: Generált pontok ---
+      // A pontokat transzformáljuk a bútor világkoordinátáiba, hogy ott jelenjenek meg, ahol lesznek
+      obj.updateMatrixWorld()
+      points.forEach((p, index) => {
+        const worldPos = p.clone().applyMatrix4(obj.matrixWorld)
+        this.createDebugLabel(worldPos, `P${index}`, 'red', 0.2 + index * 0.05)
+      })
+    } else {
+      // Standard téglalap
+      const overhangLeft = isHole ? 0 : sideOverhang
+      const overhangRight = isHole ? 0 : sideOverhang
+      const xLeft = -overhangLeft
+      const xRight = width + overhangRight
+      const zBack = 0
+      const zFront = defaultDepth
+      points = [
+        new THREE.Vector3(xLeft, 0, zBack),
+        new THREE.Vector3(xRight, 0, zBack),
+        new THREE.Vector3(xRight, 0, zFront),
+        new THREE.Vector3(xLeft, 0, zFront),
+      ]
+    }
+
+    obj.updateMatrixWorld()
+    const corners: [number, number][] = []
+    points.forEach((p) => {
+      p.applyMatrix4(obj.matrixWorld)
+      corners.push([p.x, -p.z])
+    })
+    return corners
+  }
+
+  // ==========================================================================
+  // 6. SEGÉDFÜGGVÉNYEK
+  // ==========================================================================
 
   private getCorpusConfig(obj: THREE.Object3D) {
     const state = obj.userData.componentState || {}
@@ -448,27 +622,54 @@ export default class ProceduralManager {
     return null
   }
 
-  private getInheritedMaterial(obj: THREE.Object3D): THREE.Material {
-    let bestMaterial: THREE.Material | null = null
-    obj.traverse((child) => {
-      if (child instanceof THREE.Mesh && child.material) {
-        const mat = child.material as THREE.MeshStandardMaterial
-        const name = child.name.toLowerCase()
-        if (
-          name.includes('handle') ||
-          name.includes('leg') ||
-          name.includes('hinge') ||
-          name.includes('glass')
-        )
-          return
-        if (name.includes('corpus') || name.includes('body') || name.includes('carcass')) {
-          bestMaterial = mat
-          return
+  private isStandardLegActive(obj: THREE.Object3D): boolean {
+    const state = obj.userData.componentState || {}
+    for (const componentId of Object.values(state)) {
+      if (typeof componentId !== 'string') continue
+      if (componentId.includes(ProceduralConstants.LEG_STANDARD_ID)) return true
+    }
+    return false
+  }
+
+  private calculateDesignLegHeight(obj: THREE.Object3D): number {
+    let maxLift = 0
+    const componentState = obj.userData.componentState
+    if (componentState) {
+      for (const slotId in componentState) {
+        const componentId = componentState[slotId]
+        if (typeof componentId !== 'string') continue
+        const componentDef = this.configStore.getComponentById(componentId)
+        if (componentDef) {
+          const heightMM = componentDef.properties?.height || (componentDef as any).height || 0
+          if (
+            (componentDef as any).category === FurnitureCategory.LEG ||
+            componentDef.id.includes('leg')
+          ) {
+            if (!componentDef.id.includes(ProceduralConstants.LEG_STANDARD_ID)) {
+              maxLift = Math.max(maxLift, heightMM / 1000)
+            }
+          }
         }
-        if (!bestMaterial) bestMaterial = mat
       }
+    }
+    return maxLift
+  }
+
+  private toggleLegVisibility(cabinet: THREE.Object3D, visible: boolean) {
+    cabinet.traverse((child) => {
+      const name = child.name.toLowerCase()
+      if (name.includes(ProceduralConstants.LEG_STANDARD_ID)) child.visible = visible
+      if (
+        child.userData.componentId &&
+        child.userData.componentId.includes(ProceduralConstants.LEG_STANDARD_ID)
+      )
+        child.visible = visible
     })
-    return bestMaterial || this.defaultPlinthMaterial
+  }
+
+  public regenerateExcluding(obj: THREE.Object3D) {
+    this.excludedObject = obj
+    this.fullUpdate()
   }
 
   private checkNeighbors(
@@ -508,143 +709,6 @@ export default class ProceduralManager {
     return { hasLeft, hasRight }
   }
 
-  // --- MUNKAPULT GENERÁLÁS (Több magasság kezelése) ---
-  private worktopCornersCache = new Map<string, THREE.Vector3[]>()
-
-  public getWorktopCornersForCabinet(uuid: string): THREE.Vector3[] {
-    return this.worktopCornersCache.get(uuid) || []
-  }
-
-  private generateWorktop() {
-    this.worktopCornersCache.clear()
-    // 1. Takarítás
-    const toRemove: THREE.Object3D[] = []
-    this.scene.traverse((child) => {
-      if (child.name === ProceduralConstants.MESH_WORKTOP) toRemove.push(child)
-    })
-    toRemove.forEach((child) => {
-      this.scene.remove(child)
-      if ((child as THREE.Mesh).geometry) (child as THREE.Mesh).geometry.dispose()
-    })
-    this.worktopMesh = null
-
-    // Globális beállítások betöltése
-    const conf = this.proceduralStore.worktop
-
-    const cabinets = this.experienceStore.placedObjects.filter((obj) => {
-      // EXCLUSION CHECK
-      if (this.excludedObject && obj.uuid === this.excludedObject.uuid) return false
-
-      return this.getCorpusConfig(obj) !== null
-    })
-
-    if (cabinets.length === 0) return
-
-    // 2. Csoportosítás KIZÁRÓLAG MAGASSÁG szerint
-    // Map<magasság_mm, bútorok[]>
-    const heightGroups = new Map<number, THREE.Object3D[]>()
-
-    cabinets.forEach((cab) => {
-      const box = new THREE.Box3().setFromObject(cab)
-      const topY = box.max.y
-
-      // Kerekítjük mm pontosságra
-      const key = Math.round(topY * 1000)
-
-      if (!heightGroups.has(key)) heightGroups.set(key, [])
-      heightGroups.get(key)!.push(cab)
-    })
-
-    // 3. Generálás minden szintre
-    heightGroups.forEach((groupCabinets, heightKey) => {
-      const exactHeight = heightKey / 1000
-
-      // Itt simán átadjuk a globális konfigot (conf), nem kell variálni a vastagsággal
-      this.createWorktopMeshForGroup(groupCabinets, exactHeight, conf)
-    })
-  }
-
-  // Segédfüggvény: Egy adott magasságú pult-sziget generálása
-  private createWorktopMeshForGroup(cabinets: THREE.Object3D[], height: number, conf: any) {
-    const polygons: any[] = []
-    const cabinetData: any[] = []
-
-    cabinets.forEach((cabinet) => {
-      const corpusConfig = this.getCorpusConfig(cabinet)
-      if (!corpusConfig) return
-
-      const rawWidth = corpusConfig.properties?.width ?? 600
-      const width = rawWidth / 1000
-
-      // Szomszédokat csak a SAJÁT CSOPORTON BELÜL keresünk!
-      // Így nem köti össze a lenti bútort a fentivel.
-      const neighbors = this.checkNeighbors(cabinet, cabinets, width, conf.gapThreshold)
-
-      const corners = this.getWorktopCorners(
-        cabinet,
-        width,
-        neighbors,
-        false,
-        undefined,
-        conf.sideOverhang,
-        conf.defaultDepth,
-      )
-
-      polygons.push([corners])
-      cabinetData.push({ corners, center: cabinet.position.clone() })
-
-      // --- CACHE FRISSÍTÉSE ---
-      // A corners tömb [x, z, x, z...] 2D koordinátákat tartalmaz (a generate függvényben lévő logikából)
-      // VAGY [ [x,z], [x,z] ] formátum?
-      // Nézzük a getWorktopCorners visszatérését: [number, number][]
-      // És a transformálás: p.x, -p.z volt a World -> 2D vetítésnél.
-      // Tehát vissza kell alakítani 3D-be: y = height.
-      // De várj! A `getWorktopCorners` WORLD koordinátákból csinált 2D-t, DE Y-t eldobta és Z-t negálta (-p.z).
-      // Ezért a visszaállítás: x = 2d.x, z = -2d.y. Y = height (+ thickness?).
-      // A worktop teteje: height + conf.thickness.
-      // A worktop alja: height.
-      // A user a tetejére akar snapelni.
-      const topY = height + conf.thickness
-      const worldCorners = corners.map((c) => new THREE.Vector3(c[0], topY, -c[1]))
-      this.worktopCornersCache.set(cabinet.uuid, worldCorners)
-    })
-
-    // Hidak generálása (csak a csoporton belül)
-    this.generateBridges(cabinetData, polygons, conf.gapThreshold)
-
-    if (polygons.length === 0) return
-
-    try {
-      const merged = polygonClipping.union(polygons as any)
-      const shapes = this.createShapesFromPolygon(merged)
-
-      // Lyukak kivágása (csak azokat a bútorokat nézzük, amik ebben a csoportban vannak)
-      this.applyHoles(cabinets, shapes, conf.defaultDepth)
-
-      const geometry = new THREE.ExtrudeGeometry(shapes, {
-        depth: conf.thickness,
-        bevelEnabled: false,
-      })
-
-      // Anyag kezelés (egyelőre default, később ide jöhet a textúra)
-      const material = this.getWorktopMaterial()
-
-      const mesh = new THREE.Mesh(geometry, material)
-      mesh.name = ProceduralConstants.MESH_WORKTOP
-      mesh.rotation.x = -Math.PI / 2
-
-      // Pozicionálás: A csoport magassága + pici emelés (Z-fighting ellen)
-      mesh.position.y = height + 0.001
-
-      this.applyBoxUVs(geometry)
-      mesh.castShadow = true
-      mesh.receiveShadow = true
-      this.scene.add(mesh)
-    } catch (error) {
-      console.error('❌ Error generating worktop group:', error)
-    }
-  }
-
   private generateBridges(cabinetData: any[], polygons: any[], threshold: number) {
     for (let i = 0; i < cabinetData.length; i++) {
       for (let j = i + 1; j < cabinetData.length; j++) {
@@ -655,16 +719,14 @@ export default class ProceduralManager {
           cabA.corners[1][0] - cabB.corners[0][0],
           cabA.corners[1][1] - cabB.corners[0][1],
         )
-        if (distBack > 0.001 && distBack < threshold) {
+        if (distBack > 0.001 && distBack < threshold)
           polygons.push([[cabA.corners[1], cabB.corners[0], cabB.corners[3], cabA.corners[2]]])
-        }
         const distBackRev = Math.hypot(
           cabA.corners[0][0] - cabB.corners[1][0],
           cabA.corners[0][1] - cabB.corners[1][1],
         )
-        if (distBackRev > 0.001 && distBackRev < threshold) {
+        if (distBackRev > 0.001 && distBackRev < threshold)
           polygons.push([[cabB.corners[1], cabA.corners[0], cabA.corners[3], cabB.corners[2]]])
-        }
       }
     }
   }
@@ -681,6 +743,7 @@ export default class ProceduralManager {
         const holeCorners = this.getWorktopCorners(
           cabinet,
           holeWidth,
+          0,
           { hasLeft: true, hasRight: true },
           true,
           holeDepth,
@@ -701,226 +764,6 @@ export default class ProceduralManager {
         }
       }
     })
-  }
-
-  // --------------------------------------------------------------------------
-  // ÚJ SEGÉDFÜGGVÉNY: L-Alak generálása a FAL SARKÁTÓL (0,0)
-  // --------------------------------------------------------------------------
-  /**
-   * Ez a függvény mindig a "Falhoz" (0,0) képest generálja az L-alakot.
-   * @param widthX A jobb oldali szár hossza (X tengelyen)
-   * @param depthZ A bal oldali szár hossza (Z tengelyen)
-   * @param armThickness A szárak vastagsága (pl. 600mm munkapultnál)
-   * @param endOverhangX Túlnyúlás a jobb szár végén
-   * @param endOverhangZ Túlnyúlás a bal szár végén
-   */
-  private getLShapeCornersFromWall(
-    widthX: number,
-    depthZ: number,
-    armThickness: number,
-    endOverhangX: number = 0,
-    endOverhangZ: number = 0,
-  ) {
-    // Shape: ┐ (Felső szár + Jobb oldali szár)
-
-    // X tengely: Szélesség (Jobbra)
-    // Z tengely: Mélység (Előre)
-
-    // Teljes méretek túllógással
-    const totalW = widthX + endOverhangX
-    const totalD = depthZ + endOverhangZ
-
-    // 1. Bal Hátsó (Pivot - Fal Sarok)
-    const p1 = { x: 0, z: 0 }
-
-    // 2. Jobb Hátsó (Jobb felső sarok)
-    const p2 = { x: totalW, z: 0 }
-
-    // 3. Jobb Első (Jobb szár vége - Jobb alsó sarok)
-    const p3 = { x: totalW, z: totalD }
-
-    // 4. Jobb Belső (Jobb szár belső oldala)
-    // X: Visszajövünk a vastagsággal
-    const p4 = { x: totalW - armThickness, z: totalD }
-
-    // 5. Belső Sarok
-    // Z: Felmegyünk a felső szár vastagságáig
-    const p5 = { x: totalW - armThickness, z: armThickness }
-
-    // 6. Bal Belső (Felső szár alja)
-    // X: Visszamegyünk 0-ig
-    const p6 = { x: 0, z: armThickness }
-
-    return [p1, p2, p3, p4, p5, p6]
-  }
-
-  // --------------------------------------------------------------------------
-  // 1. LÁBAZAT GENERÁLÁS (Korpuszhoz igazítva)
-  // --------------------------------------------------------------------------
-  private getPlinthCorners(obj: THREE.Object3D, width: number, depth: number, _zOffset: number) {
-    const corpusConfig = this.getCorpusConfig(obj)
-    const structureType = (corpusConfig as any)?.structureType || 'standard'
-
-    // Globális beállítások (később jöhetnek a store-ból)
-    const frontRecess = 0.05 // 5cm visszaugrás elöl
-    const backRecess = 0.02 // 2cm visszaugrás hátul (ha van)
-
-    let points: THREE.Vector3[] = []
-
-    if (structureType === 'corner_L') {
-      // --- L-ALAK (Sarok) ---
-      const rawSideDepth = (corpusConfig?.properties as any)?.sideDepth ?? 560
-      const sideDepth = rawSideDepth / 1000
-
-      // A lábazat vastagsága: Korpusz szár - (első visszaugrás + hátsó visszaugrás)
-      // Megjegyzés: Ha a hátsó visszaugrást a faltól mérjük, akkor bonyolultabb.
-      // Most feltételezzük, hogy a lábazat a korpusz hátuljától indul (vagy backRecess-el beljebb).
-
-      const plinthThickness = sideDepth - (frontRecess + backRecess)
-
-      // A lábazat méretei (szintén csökkentve a visszaugrásokkal)
-      const plinthWidth = width - backRecess // Jobb szélénél nem biztos, hogy kell recess, de most egységes
-      const plinthDepth = depth - backRecess
-
-      // Generálás (Faltól számolva, de a backRecess miatt eltolva)
-      // Itt a "Fal" a korpusz hátulja.
-      const lPoints = this.getLShapeCornersFromWall(plinthWidth, plinthDepth, plinthThickness, 0, 0)
-
-      // Eltolás: A korpusz Pivotja (0,0) a bal hátsó sarok.
-      // Ha backRecess van, akkor pozitív irányba toljuk X és Z tengelyen is.
-      points = lPoints.map((p) => new THREE.Vector3(p.x + backRecess, 0, p.z + backRecess))
-    } else {
-      // --- STANDARD TÉGLALAP ---
-      // Pivot: Bal Hátsó Sarok (0,0)
-      // X: 0 -> Width
-      // Z: 0 -> Depth
-
-      const pLeft = 0 // Szomszéd felé nincs recess? (Opcionális)
-      const pRight = width
-      const pBack = backRecess
-      const pFront = depth - frontRecess
-
-      points = [
-        new THREE.Vector3(pLeft, 0, pBack),
-        new THREE.Vector3(pRight, 0, pBack),
-        new THREE.Vector3(pRight, 0, pFront),
-        new THREE.Vector3(pLeft, 0, pFront),
-      ]
-    }
-
-    obj.updateMatrixWorld()
-    const corners: [number, number][] = []
-    points.forEach((p) => {
-      p.applyMatrix4(obj.matrixWorld)
-      corners.push([p.x, -p.z])
-    })
-    return corners
-  }
-
-  // --------------------------------------------------------------------------
-  // 2. MUNKAPULT GENERÁLÁS (Faltól számolva, Gap kezeléssel)
-  // --------------------------------------------------------------------------
-  private getWorktopCorners(
-    obj: THREE.Object3D,
-    width: number, // Ez a korpusz szélessége
-    neighbors: { hasLeft: boolean; hasRight: boolean },
-    isHole = false,
-    customDepth?: number,
-    sideOverhang = 0.015,
-    defaultDepth = 0.6, // Ez a CÉL mélység (pl. 600mm)
-  ) {
-    const corpusConfig = this.getCorpusConfig(obj)
-    const structureType = (corpusConfig as any)?.structureType || 'standard'
-
-    // GAP SZÁMÍTÁS FRISSÍTÉSE
-    const corpusDepth = (corpusConfig?.properties?.depth ?? 560) / 1000
-    const frontOverhang = this.proceduralStore.worktop.frontOverhang || 0.025
-    const doorThickness = 0.02 // 2cm ajtó vastagság (fix vagy configból)
-
-    // Gap = Munkapult - (Korpusz + Ajtó + Túllógás)
-    // Ha sarokszekrény, akkor a sideDepth-et kell használni a korpuszmélység helyett!
-    let effectiveCorpusDepth = corpusDepth
-
-    if (structureType === 'corner_L') {
-      const rawSideDepth = (corpusConfig?.properties as any)?.sideDepth ?? 560
-      effectiveCorpusDepth = rawSideDepth / 1000
-    }
-
-    let gap = defaultDepth - (effectiveCorpusDepth + doorThickness + frontOverhang)
-    if (gap < 0) gap = 0
-
-    let points: THREE.Vector3[] = []
-
-    if (structureType === 'corner_L' && !isHole) {
-      // --- L-ALAK (Sarok) ---
-
-      // A munkapult vastagsága FIXEN a defaultDepth (pl. 600mm)
-      // Ez biztosítja, hogy a faltól mérve 600mm legyen.
-      const armThickness = defaultDepth
-
-      // Generálás a FALTÓL (0,0)
-      // A width és depth a korpusz méretei. A munkapultnak a falig kell érnie.
-      // Ezért hozzáadjuk a gap-et a méretekhez.
-      const worktopWidthX = width + gap
-      const worktopDepthZ = corpusDepth + gap // Vagy simán 'depth + gap'
-
-      const lPoints = this.getLShapeCornersFromWall(
-        worktopWidthX,
-        worktopDepthZ,
-        armThickness,
-        sideOverhang, // Jobb túllógás
-        sideOverhang, // Bal túllógás
-      )
-
-      // ELTOLÁS (A lényeg!)
-      // A generált pontok a Falhoz (World 0,0) vannak.
-      // A bútor Pivotja viszont a Gap-nél van (World Gap, Gap).
-      // Ezért ki kell vonnunk a Gap-et, hogy megkapjuk a pontokat a Bútor Lokális terében.
-      // (Mert a matrixWorld majd hozzáadja a Gap-et, amikor a helyére teszi a bútort).
-
-      points = lPoints.map((p) => new THREE.Vector3(p.x - gap, 0, p.z - gap))
-    } else {
-      // --- STANDARD TÉGLALAP ---
-      // Pivot: Bal Hátsó Sarok (0,0)
-
-      const overhangSide = isHole ? 0 : sideOverhang
-
-      // Koordináták a Bútor Lokális terében:
-
-      // Bal szél: 0 - bal túllógás
-      const xLeft = -overhangSide
-      // Jobb szél: Szélesség + jobb túllógás
-      const xRight = width + overhangSide
-
-      // Hátulja: A falnál van. Mivel a bútor a Gap-nél van, a fal a -Gap pozíció.
-      const zBack = -gap
-
-      // Eleje: A falhoz képest defaultDepth (600mm).
-      // Lokálisan: defaultDepth - gap. (Ami pont corpusDepth + frontOverhang)
-      const zFront = defaultDepth - gap
-
-      // Lyuk kezelés (Mosogató)
-      if (isHole && customDepth) {
-        // A lyukat a bútor közepére/elejére rakjuk, nem a falhoz
-        // const holeCenterZ = corpusDepth / 2 // Korpusz közepe
-        // ... itt lehet finomítani, de most hagyjuk a standard logikát
-      }
-
-      points = [
-        new THREE.Vector3(xLeft, 0, zBack),
-        new THREE.Vector3(xRight, 0, zBack),
-        new THREE.Vector3(xRight, 0, zFront),
-        new THREE.Vector3(xLeft, 0, zFront),
-      ]
-    }
-
-    obj.updateMatrixWorld()
-    const corners: [number, number][] = []
-    points.forEach((p) => {
-      p.applyMatrix4(obj.matrixWorld)
-      corners.push([p.x, -p.z])
-    })
-    return corners
   }
 
   private createShapesFromPolygon(mergedPolygon: any): THREE.Shape[] {
@@ -952,48 +795,32 @@ export default class ProceduralManager {
 
   private applyBoxUVs(geometry: THREE.BufferGeometry) {
     geometry.computeVertexNormals()
-
     const posAttribute = geometry.attributes.position
     const normAttribute = geometry.attributes.normal
     const uvAttribute = geometry.attributes.uv
-
-    // JAVÍTÁS: Ha bármelyik hiányzik, azonnal kilépünk, így a TS megnyugszik
     if (!posAttribute || !normAttribute || !uvAttribute) return
-
     const scale = 1.0
-
-    // Innentől a TS már tudja, hogy ezek léteznek, nem fog sírni
     for (let i = 0; i < posAttribute.count; i++) {
       const x = posAttribute.getX(i)
       const y = posAttribute.getY(i)
       const z = posAttribute.getZ(i)
-
       const nx = Math.abs(normAttribute.getX(i))
       const ny = Math.abs(normAttribute.getY(i))
       const nz = Math.abs(normAttribute.getZ(i))
-
       let u = 0
       let v = 0
-
-      // 1. TETŐ és ALJA (Local Z domináns -> World Y)
       if (nz > nx && nz > ny) {
         u = y * scale
-        v = x * scale // 90 fokos forgatás
-      }
-      // 2. OLDALAK (Local X domináns)
-      else if (nx > ny && nx > nz) {
+        v = x * scale
+      } else if (nx > ny && nx > nz) {
         u = y * scale
         v = z * scale
-      }
-      // 3. ELŐLAP/HÁTLAP (Local Y domináns)
-      else {
+      } else {
         u = x * scale
         v = z * scale
       }
-
       uvAttribute.setXY(i, u, v)
     }
-
     uvAttribute.needsUpdate = true
   }
 }

@@ -44,11 +44,12 @@ export interface ComponentProperties {
   width?: number
   height?: number
   depth?: number
+  physicalDepth?: number // <--- A doboz valós mélysége (mm)
   weight?: number
   price?: number
   wallThickness?: number // Falvastagság (mm) - FONTOS a polc matekhoz!
   maxShelves?: number // Max polc szám - FONTOS a korláthoz!
-  sideDepth?: number
+  sideDepth?: number // Sarokszekrénynél a szár mélysége (mm)
 }
 
 // --- CSATLAKOZÁSI PONT ---
