@@ -147,6 +147,7 @@ export interface FurnitureConfig {
   id: string
   name: string
   category: string
+  structureType?: 'straight' | 'corner_L'
   componentSlots: ComponentSlotConfig[]
   slotGroups?: SlotGroup[]
   price?: number

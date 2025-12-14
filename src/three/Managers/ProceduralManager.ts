@@ -30,6 +30,21 @@ export default class ProceduralManager {
     color: 0x333333,
   })
 
+  /* --------------------------------------------------
+                        PUBLIC ACCESSORS
+  -------------------------------------------------- */
+  public getProceduralMeshes(): THREE.Object3D[] {
+    const meshes: THREE.Object3D[] = []
+
+    // Munkapult keresése
+    this.scene.traverse((child) => {
+      if (child.name === ProceduralConstants.MESH_WORKTOP) meshes.push(child)
+      if (child.name.includes(ProceduralConstants.MESH_PLINTH)) meshes.push(child)
+    })
+
+    return meshes
+  }
+
   // --- CACHE ---
   private worktopCornersCache = new Map<string, THREE.Vector3[]>()
   private excludedObject: THREE.Object3D | null = null
@@ -215,29 +230,17 @@ export default class ProceduralManager {
       const visualModel = cabinet.children.find((c) => c.type === 'Group' || c.type === 'Mesh')
 
       if (visualModel) {
-        // Reset
+        // 1. Reset
         visualModel.position.set(0, 0, 0)
-        visualModel.rotation.set(0, 0, 0)
+        visualModel.rotation.set(0, 0, 0) // <--- NINCS FORGATÁS!
 
         if ((config as any).structureType === 'corner_L') {
-          // --- SAROKSZEKRÉNY KORREKCIÓ ---
-
-          // 1. Forgatás (Ez jó volt, megtartjuk)
-          visualModel.rotation.y = Math.PI / 2
-
-          // 2. Méretek lekérése a visszahúzáshoz
-          // Mivel elforgattuk 90 fokkal, a bútor "Mélysége" (Depth) került az X tengelyre.
-          // Ezt a távolságot kell kivonnunk, hogy visszakerüljön a sarokba.
-          const rawDepth = config.properties?.depth ?? config.properties?.width ?? 600
-          const depth = rawDepth / 1000
-
-          // 3. Pozíció beállítása
-          // X: Gap - Depth (Visszahúzzuk a testet a falhoz)
-          // Z: Gap (Ez jó helyen van, csak el kell tolni a faltól)
+          // --- SAROKSZEKRÉNY (EREDETI POZÍCIÓ) ---
+          // Csak a Gap miatt toljuk el, hogy a sarok (0,0) üres legyen
           visualModel.position.x = gap
-          visualModel.position.z = gap + depth
+          visualModel.position.z = gap
 
-          // --- DEBUG (Kék doboz) ---
+          // --- DEBUG ---
           visualModel.updateMatrixWorld()
           const box = new THREE.Box3().setFromObject(visualModel)
           this.createDebugLabel(new THREE.Vector3(box.min.x, 0, box.min.z), 'B0', 'blue', 0.1)
@@ -477,38 +480,56 @@ export default class ProceduralManager {
     const frontRecess = plinthConf.frontRecess || 0.05
     const backRecess = plinthConf.backRecess || 0.02
 
+    // --- ÚJ FORGATÁS: 180 fok (Math.PI) ---
+    // Mivel a GLB-t visszaforgattuk 0-ra (ami -90 a mostanihoz képest),
+    // a generálást is tovább kell forgatni -90-ről -180-ra.
+    const rotationAngle = -Math.PI / 2
+
     let points: THREE.Vector3[] = []
 
     if (structureType === 'corner_L') {
-      // --- L-ALAK (DIREKT GENERÁLÁS -90 FOKNAK MEGFELELŐEN) ---
-      // X tengely: Mélység irány (Depth)
-      // Z tengely: Szélesség irány (Width)
-
+      const lengthX = gap + width
       const rawDepth = corpusConfig?.properties?.depth ?? corpusConfig?.properties?.width ?? 600
-      const fullDepth = rawDepth / 1000
-
-      // Határok (0,0 a fal sarka)
+      const lengthZ = gap + rawDepth / 1000
+      const armThickness = gap + physicalDepth - frontRecess
       const start = gap + backRecess
 
-      // X irányú kiterjedés (Ez a mélység!)
-      const endX = gap + fullDepth
-
-      // Z irányú kiterjedés (Ez a szélesség!)
-      const endZ = gap + width
-
-      // Belső vastagság (szár mélysége)
-      const armThickness = gap + physicalDepth - frontRecess
-
       points = [
-        new THREE.Vector3(start, 0, start), // 1. Sarok (Falnál)
-        new THREE.Vector3(endX, 0, start), // 2. X-szár vége (Falnál)
-        new THREE.Vector3(endX, 0, armThickness), // 3. X-szár vége (Elöl)
-        new THREE.Vector3(armThickness, 0, armThickness), // 4. Belső sarok
-        new THREE.Vector3(armThickness, 0, endZ), // 5. Z-szár vége (Elöl)
-        new THREE.Vector3(start, 0, endZ), // 6. Z-szár vége (Falnál)
+        new THREE.Vector3(start, 0, start),
+        new THREE.Vector3(lengthX, 0, start),
+        new THREE.Vector3(lengthX, 0, armThickness),
+        new THREE.Vector3(armThickness, 0, armThickness),
+        new THREE.Vector3(armThickness, 0, lengthZ),
+        new THREE.Vector3(start, 0, lengthZ),
       ]
+
+      if (rotationAngle !== 0) {
+        const rot = new THREE.Matrix4().makeRotationY(rotationAngle)
+        points.forEach((p) => p.applyMatrix4(rot))
+
+        // KORREKCIÓ 180 FOKHOZ
+        // 180 foknál mindkét tengely negatívba fordul.
+        // X -> -X (tolás jobbra lengthX-el)
+        // Z -> -Z (tolás lefelé lengthZ-vel)
+
+        if (Math.abs(Math.abs(rotationAngle) - Math.PI) < 0.01) {
+          points.forEach((p) => {
+            p.x += lengthX
+            p.z += lengthZ
+          })
+        }
+      }
+
+      // Manuális finomhangolás (ha szükséges, most valószínűleg 0 kell)
+      const manualOffsetZ = 0
+      const manualOffsetX = lengthX + gap
+
+      points.forEach((p) => {
+        p.z += manualOffsetZ
+        p.x += manualOffsetX
+      })
     } else {
-      // --- STANDARD TÉGLALAP (Változatlan) ---
+      // Standard téglalap
       const zBack = gap + backRecess
       const zFront = gap + physicalDepth - frontRecess
       const xLeft = 0
@@ -544,51 +565,56 @@ export default class ProceduralManager {
     const corpusConfig = this.getCorpusConfig(obj)
     const structureType = (corpusConfig as any)?.structureType || 'standard'
 
+    // --- ÚJ FORGATÁS: 180 fok ---
+    const rotationAngle = -Math.PI / 2
+
     let points: THREE.Vector3[] = []
 
     if (structureType === 'corner_L' && !isHole) {
-      // --- ITT TUDSZ VARIÁLNI A TENGELYEKKEL ---
-      // Jelenlegi beállítás: X=Mélység, Z=Szélesség (Mert azt mondtad 90 fokkal balra van)
-      // Ha ez még mindig rossz, cseréld meg a lengthX és lengthZ definíciókat!
-
-      const rawDepth = corpusConfig?.properties?.depth ?? corpusConfig?.properties?.width ?? 600
-      const fullDepth = rawDepth / 1000
-
-      // A: Verzió (Ha a GLB Z-irányba széles)
-      // const lengthX = gap + fullDepth + sideOverhang
-      // const lengthZ = gap + width + sideOverhang
-
-      // B: Verzió (Ha a GLB X-irányba széles - Standard)
       const lengthX = gap + width + sideOverhang
-      const lengthZ = gap + fullDepth + sideOverhang
-
+      const rawDepth = corpusConfig?.properties?.depth ?? corpusConfig?.properties?.width ?? 600
+      const lengthZ = gap + rawDepth / 1000 + sideOverhang
       const armThickness = defaultDepth
 
-      // Generálás (Standard L-alak)
       points = [
-        new THREE.Vector3(0, 0, 0), // 0. Sarok
-        new THREE.Vector3(lengthX, 0, 0), // 1. X-szár vége (Falnál)
-        new THREE.Vector3(lengthX, 0, armThickness), // 2. X-szár vége (Elöl)
-        new THREE.Vector3(armThickness, 0, armThickness), // 3. Belső sarok
-        new THREE.Vector3(armThickness, 0, lengthZ), // 4. Z-szár vége (Elöl)
-        new THREE.Vector3(0, 0, lengthZ), // 5. Z-szár vége (Falnál)
+        new THREE.Vector3(0, 0, 0),
+        new THREE.Vector3(lengthX, 0, 0),
+        new THREE.Vector3(lengthX, 0, armThickness),
+        new THREE.Vector3(armThickness, 0, armThickness),
+        new THREE.Vector3(armThickness, 0, lengthZ),
+        new THREE.Vector3(0, 0, lengthZ),
       ]
 
-      // --- PIROS DEBUG: Generált pontok ---
-      // A pontokat transzformáljuk a bútor világkoordinátáiba, hogy ott jelenjenek meg, ahol lesznek
-      obj.updateMatrixWorld()
-      points.forEach((p, index) => {
-        const worldPos = p.clone().applyMatrix4(obj.matrixWorld)
-        this.createDebugLabel(worldPos, `P${index}`, 'red', 0.2 + index * 0.05)
+      if (rotationAngle !== 0) {
+        const rot = new THREE.Matrix4().makeRotationY(rotationAngle)
+        points.forEach((p) => p.applyMatrix4(rot))
+
+        // KORREKCIÓ 180 FOKHOZ
+        if (Math.abs(Math.abs(rotationAngle) - Math.PI) < 0.01) {
+          points.forEach((p) => {
+            p.x += lengthX
+            p.z += lengthZ
+          })
+        }
+      }
+
+      const manualOffsetZ = 0
+      const manualOffsetX = lengthX + gap - sideOverhang
+
+      points.forEach((p) => {
+        p.z += manualOffsetZ
+        p.x += manualOffsetX
       })
     } else {
       // Standard téglalap
       const overhangLeft = isHole ? 0 : sideOverhang
       const overhangRight = isHole ? 0 : sideOverhang
+
       const xLeft = -overhangLeft
       const xRight = width + overhangRight
       const zBack = 0
       const zFront = defaultDepth
+
       points = [
         new THREE.Vector3(xLeft, 0, zBack),
         new THREE.Vector3(xRight, 0, zBack),
@@ -604,6 +630,133 @@ export default class ProceduralManager {
       corners.push([p.x, -p.z])
     })
     return corners
+  }
+
+  // ==========================================================================
+  // PUBLIC API A PLACEMENT MANAGERNEK (SHARED LOGIC)
+  // ==========================================================================
+
+  public getFootprintForPlacement(
+    obj: THREE.Object3D,
+  ): { x: number; z: number; type: 'back' | 'left' | 'right' | 'front' }[] {
+    const config = this.getCorpusConfig(obj)
+    if (!config) return []
+
+    const structureType = (config as any).structureType || 'standard'
+    const worktopConf = this.proceduralStore.worktop
+
+    // Méretek (mm -> méter)
+    const rawWidth = config.properties?.width ?? 600
+    const width = rawWidth / 1000
+
+    // A munkalap szabvány mélysége (pl. 60cm)
+    const targetDepth = worktopConf.defaultDepth || 0.6
+    const sideOverhang = worktopConf.sideOverhang || 0.0
+    const gap = this.calculateGap(obj)
+
+    const points: { x: number; z: number; type: 'back' | 'left' | 'right' | 'front' }[] = []
+
+    // --- DEBUG: Ellenőrizzük a konzolon, hogy negatív számok jönnek-e ki ---
+    // console.log(`Calculating Footprint for ${structureType}. Width: ${width}, Depth: ${targetDepth}`)
+
+    if (structureType === 'corner_L') {
+      // --- SAROKSZEKRÉNY ---
+      // Pivot (0,0) a KÜLSŐ sarok (B2).
+      // A bútor innen JOBBRA (+X) és ELŐRE (+Z) terjed ki (Javított koordinátarendszer)
+
+      const lengthX = gap + width + sideOverhang
+      const rawDepth = config.properties?.depth ?? 600
+      const lengthZ = gap + rawDepth / 1000 + sideOverhang
+
+      // Javított koordináták (Pozitív irányba kiterjedés)
+
+      // 1. Jobb él (Wall Right): x = lengthX
+      // Fut: z=0-tól z=lengthZ-ig
+      points.push({ x: lengthX, z: 0, type: 'front' })
+      points.push({ x: lengthX, z: lengthZ, type: 'right' })
+
+      // 2. Első él (Wall Front): z = lengthZ
+      // Fut: x=lengthX-től x=0-ig
+      points.push({ x: lengthX, z: lengthZ, type: 'front' }) // type javítva 'front'-ra ha ez az eleje?
+      // Várj, az eredetiben:
+      // Bal (-X), Hátsó (-Z)
+      // Most tükrözzük: Jobb (+X), Első (+Z)?
+      // Ha a falak: Back (Zmin), Front (Zmax), Left (Xmin), Right (Xmax)
+
+      // Eredeti kód szerint:
+      // Bal él: x = -lengthX
+      // Hátsó él: z = -lengthZ
+
+      // Új kód (Invertálva):
+      // Jobb él: x = lengthX
+      // Első él: z = lengthZ (?)
+
+      // DE! A falak ID-jai fixek: BACK=Zmin, FRONT=Zmax, LEFT=Xmin, RIGHT=Xmax
+
+      // Ha invertálunk, akkor a doboz a +X, +Z tartományba esik.
+      // Tehát a határok:
+      // X: 0-tól lengthX-ig (0=Left/Bal, lengthX=Right/Jobb)
+      // Z: 0-tól lengthZ-ig (0=Back/Hátul, lengthZ=Front/Elöl)
+
+      // Nézzük így:
+      // 1. Bal él (X=0) -> type: 'left'
+      points.push({ x: 0, z: lengthZ, type: 'left' })
+      points.push({ x: 0, z: 0, type: 'left' })
+
+      // 2. Hátsó él (Z=0) -> type: 'back'
+      points.push({ x: 0, z: 0, type: 'back' })
+      points.push({ x: lengthX, z: 0, type: 'back' })
+
+      // 3. Jobb él (X=lengthX) -> type: 'right'
+      points.push({ x: lengthX, z: 0, type: 'right' })
+      points.push({ x: lengthX, z: lengthZ, type: 'right' })
+
+      // 4. Első él (Z=lengthZ) -> type: 'front'
+      points.push({ x: lengthX, z: lengthZ, type: 'front' })
+      points.push({ x: 0, z: lengthZ, type: 'front' })
+
+      // --- KORREKCIÓ (WORKTOP LOGIKA ALAPJÁN) ---
+      // A getWorktopCorners függvényben van egy utólagos eltolás, amit itt is alkalmazni kell,
+      // hogy a befoglaló doboz egyezzen a vizuális munkalappal.
+
+      const manualOffsetX = lengthX + gap - sideOverhang
+      // const manualOffsetZ = 0
+
+      points.forEach((p) => {
+        p.x += manualOffsetX - lengthX
+        // p.z += manualOffsetZ
+      })
+    } else {
+      // --- EGYENES SZEKRÉNY ---
+      // Pivot (0,0) a BAL-HÁTSÓ sarok (ha invertálunk).
+      // Kiterjedés: +X (Jobbra), +Z (Előre)
+
+      const totalWidth = width + sideOverhang * 2
+
+      const xLeft = 0 // Bal szél
+      const xRight = totalWidth // Jobb szél
+
+      const zBack = 0 // Hátsó szél
+      const zFront = targetDepth // Első szél
+
+      // Hátsó él (Back) - Z=0
+      points.push({ x: xRight, z: zBack, type: 'back' })
+      points.push({ x: xLeft, z: zBack, type: 'back' })
+
+      // Bal él (Left) - X=0
+      points.push({ x: xLeft, z: zBack, type: 'left' })
+      points.push({ x: xLeft, z: zFront, type: 'left' })
+
+      // Első él (Front) - Z=zFront
+      points.push({ x: xLeft, z: zFront, type: 'front' })
+      points.push({ x: xRight, z: zFront, type: 'front' })
+
+      // Jobb él (Right) - X=xRight
+      points.push({ x: xRight, z: zFront, type: 'right' })
+      points.push({ x: xRight, z: zBack, type: 'right' })
+    }
+
+    return points
   }
 
   // ==========================================================================

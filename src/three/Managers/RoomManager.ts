@@ -6,10 +6,19 @@ import { storeToRefs } from 'pinia'
 
 const UNIT_SCALE = 0.001
 
+// Fal azonosítók a könnyű hivatkozáshoz
+export const WALL_NAMES = {
+  0: 'WALL 0 (BACK)',
+  1: 'WALL 1 (RIGHT)',
+  2: 'WALL 2 (FRONT)',
+  3: 'WALL 3 (LEFT)',
+}
+
 export default class RoomManager {
   private experience: Experience
   private scene: THREE.Scene
   private roomGroup: THREE.Group
+  private debugGroup: THREE.Group // Külön csoport a debug elemeknek
   private roomStore: ReturnType<typeof useRoomStore>
 
   public get group() {
@@ -24,24 +33,28 @@ export default class RoomManager {
   constructor(experience: Experience) {
     this.experience = experience
     this.scene = experience.scene
+
     this.roomGroup = new THREE.Group()
+    this.debugGroup = new THREE.Group() // Debug réteg inicializálása
+
     this.scene.add(this.roomGroup)
+    this.scene.add(this.debugGroup) // Hozzáadjuk a scene-hez
 
     this.roomStore = useRoomStore()
 
-    // 1. FAL ALAP (Basic - Tiszta szín)
+    // 1. FAL ALAP
     this.wallMaterial = new THREE.MeshBasicMaterial({
       color: 0x4b4e52,
       side: THREE.FrontSide,
       transparent: true,
       opacity: 0.1,
-      depthWrite: false, // Átlátszóság miatt kell
+      depthWrite: false,
     })
 
-    // 2. ÁRNYÉK (ShadowMaterial - Most már bátran használhatjuk!)
+    // 2. ÁRNYÉK
     this.shadowMaterial = new THREE.ShadowMaterial({
       color: 0x000000,
-      opacity: 0.3, // Finom árnyék
+      opacity: 0.3,
       side: THREE.FrontSide,
       transparent: true,
       depthWrite: false,
@@ -76,7 +89,6 @@ export default class RoomManager {
       () => {
         this.buildRoom()
 
-        // Debounced history save
         if (roomHistoryTimeout) clearTimeout(roomHistoryTimeout)
         roomHistoryTimeout = setTimeout(() => {
           this.experience.historyStore.addState()
@@ -90,6 +102,7 @@ export default class RoomManager {
 
   private buildRoom() {
     this.roomGroup.clear()
+    this.debugGroup.clear() // Töröljük a régi debug elemeket is
 
     const width = this.roomStore.roomDimensions.width * UNIT_SCALE
     const depth = this.roomStore.roomDimensions.depth * UNIT_SCALE
@@ -102,15 +115,95 @@ export default class RoomManager {
     floor.position.y = 0
     floor.receiveShadow = true
     floor.castShadow = false
-    floor.name = 'RoomFloor' // JAVÍTÁS: Név adása a szűréshez
+    floor.name = 'RoomFloor'
     this.addEdges(floor, floorGeo)
     this.roomGroup.add(floor)
 
-    // FALAK
+    // FALAK LÉTREHOZÁSA
+    // Wall 0: Back (-Z)
     this.createWall(width, height, 0, new THREE.Vector3(0, height / 2, -depth / 2), 0)
-    this.createWall(width, height, 2, new THREE.Vector3(0, height / 2, depth / 2), Math.PI)
-    this.createWall(depth, height, 3, new THREE.Vector3(-width / 2, height / 2, 0), Math.PI / 2)
+    // Wall 1: Right (+X)
     this.createWall(depth, height, 1, new THREE.Vector3(width / 2, height / 2, 0), -Math.PI / 2)
+    // Wall 2: Front (+Z)
+    this.createWall(width, height, 2, new THREE.Vector3(0, height / 2, depth / 2), Math.PI)
+    // Wall 3: Left (-X)
+    this.createWall(depth, height, 3, new THREE.Vector3(-width / 2, height / 2, 0), Math.PI / 2)
+
+    // DEBUG VIZUALIZÁCIÓ (Falak nevei és normál vektorai)
+    this.buildDebugVisuals(width, height, depth)
+  }
+
+  private buildDebugVisuals(w: number, h: number, d: number) {
+    // 1. Tengelykereszt a padlón (X=Piros, Z=Kék)
+    const axesHelper = new THREE.AxesHelper(1.5)
+    axesHelper.position.y = 0.01
+    this.debugGroup.add(axesHelper)
+
+    // 2. Fal címkék és normál vektorok
+    const wallConfigs = [
+      { id: 0, pos: new THREE.Vector3(0, h / 2, -d / 2), normal: new THREE.Vector3(0, 0, 1) }, // Back
+      { id: 1, pos: new THREE.Vector3(w / 2, h / 2, 0), normal: new THREE.Vector3(-1, 0, 0) }, // Right
+      { id: 2, pos: new THREE.Vector3(0, h / 2, d / 2), normal: new THREE.Vector3(0, 0, -1) }, // Front
+      { id: 3, pos: new THREE.Vector3(-w / 2, h / 2, 0), normal: new THREE.Vector3(1, 0, 0) }, // Left
+    ]
+
+    wallConfigs.forEach((config) => {
+      // Címke (Sprite)
+      const label = this.createDebugLabel(config.id)
+      // Kicsit eltoljuk a faltól befelé, hogy látszódjon
+      label.position.copy(config.pos).add(config.normal.clone().multiplyScalar(0.2))
+      this.debugGroup.add(label)
+
+      // Nyíl (ArrowHelper) - A falból befelé mutat
+      const arrow = new THREE.ArrowHelper(
+        config.normal,
+        config.pos,
+        1.0,
+        0xffff00, // Sárga szín
+        0.2,
+        0.1,
+      )
+      this.debugGroup.add(arrow)
+    })
+  }
+
+  private createDebugLabel(wallId: number): THREE.Sprite {
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d')
+    const text = WALL_NAMES[wallId as keyof typeof WALL_NAMES] || `WALL ${wallId}`
+
+    canvas.width = 128
+    canvas.height = 32 // Szélesebb canvas
+
+    if (ctx) {
+      // Háttér
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+      // Keret színe fal szerint (hogy könnyebb legyen megkülönböztetni)
+      const colors = ['#00ffff', '#ff00ff', '#00ff00', '#ffaa00'] // Cyan, Magenta, Green, Orange
+      ctx.strokeStyle = colors[wallId] || 'white'
+      ctx.lineWidth = 5
+      ctx.strokeRect(2, 2, canvas.width - 2, canvas.height - 2)
+
+      // Szöveg
+      ctx.font = 'bold 10px Arial'
+      ctx.fillStyle = 'white'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(text, canvas.width / 2, canvas.height / 2)
+    }
+
+    const texture = new THREE.CanvasTexture(canvas)
+    const material = new THREE.SpriteMaterial({
+      map: texture,
+      depthTest: false, // Mindig látszódjon (falon át is)
+      depthWrite: false,
+    })
+
+    const sprite = new THREE.Sprite(material)
+    sprite.scale.set(2, 0.5, 1) // Méretarány
+    return sprite
   }
 
   private createWall(w: number, h: number, idx: number, pos: THREE.Vector3, rot: number) {
@@ -154,13 +247,12 @@ export default class RoomManager {
     wall.position.copy(pos)
     wall.rotation.y = rot
     wall.castShadow = false
-    wall.receiveShadow = false // Az alap fal nem fogad, csak a shadowMesh
+    wall.receiveShadow = false
 
     // B) ÁRNYÉK RÉTEG
     const shadowMesh = new THREE.Mesh(geometry, this.shadowMaterial)
     shadowMesh.receiveShadow = true
     shadowMesh.castShadow = false
-    // Pici eltolás, hogy ne vibráljon
     shadowMesh.position.z = 0.001
 
     wall.add(shadowMesh)

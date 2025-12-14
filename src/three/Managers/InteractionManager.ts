@@ -51,12 +51,17 @@ export default class InteractionManager {
     const configStore = this.experience.configStore
     let maxLift = 0
 
-    const furnitureConfig = object.userData.config
+    // JAVÍTÁS: Nem szabad a bútor SAJÁT magasságát használni emelésnek,
+    // mert az a fizikai mérete (pl. 715mm), nem pedig hogy mennyire kell felemelni a földről.
+    // Kivéve ha kifejezetten 'legs' kategória, de azt a lenti ciklus kezeli.
+
+    /*
     if (furnitureConfig && furnitureConfig.height) {
       maxLift = furnitureConfig.height
     } else if (furnitureConfig && furnitureConfig.properties?.height) {
       maxLift = furnitureConfig.properties.height
     }
+    */
 
     const componentState = object.userData.componentState
     if (componentState) {
@@ -222,6 +227,7 @@ export default class InteractionManager {
       if (result.rotation) {
         this.draggedObject.rotation.copy(result.rotation)
       }
+
       this.experience.debug.updateMovingObject(this.draggedObject)
 
       // ÚJ: Kijelölés (sárga doboz) frissítése mozgatás közben

@@ -8,9 +8,7 @@
         "slotId": "corpus_1",
         "name": "Korpusz 1",
         "componentType": "corpuses",
-        "allowedComponents": [
-          "corpus_bottom_60"
-        ],
+        "allowedComponents": ["corpus_bottom_60"],
         "defaultComponent": "corpus_bottom_60",
         "position": {
           "x": 0,
@@ -34,10 +32,7 @@
         "slotId": "front_1",
         "name": "Ajtó 1",
         "componentType": "fronts",
-        "allowedComponents": [
-          "front_bottom_keretes_60_l",
-          "front_bottom_sima_60_l"
-        ],
+        "allowedComponents": ["front_bottom_keretes_60_l", "front_bottom_sima_60_l"],
         "defaultComponent": "front_bottom_keretes_60_l",
         "position": {
           "x": 0,
@@ -57,22 +52,15 @@
         "attachToSlot": "corpus_1",
         "useAttachmentPoint": "",
         "attachmentMapping": {
-          "front_bottom_keretes_60_l": [
-            "attach_front_full_L"
-          ],
-          "front_bottom_sima_60_l": [
-            "attach_front_full_L"
-          ]
+          "front_bottom_keretes_60_l": ["attach_front_full_L"],
+          "front_bottom_sima_60_l": ["attach_front_full_L"]
         }
       },
       {
         "slotId": "handle_1",
         "name": "Fogantyú 1",
         "componentType": "handles",
-        "allowedComponents": [
-          "handle_standard",
-          "handle_design"
-        ],
+        "allowedComponents": ["handle_standard", "handle_design"],
         "defaultComponent": "handle_standard",
         "position": {
           "x": 0,
@@ -92,22 +80,15 @@
         "attachToSlot": "front_1",
         "useAttachmentPoint": "attach_handle_vertical_L",
         "attachmentMapping": {
-          "handle_design": [
-            "attach_handle_vertical_L"
-          ],
-          "handle_standard": [
-            "attach_handle_vertical_L"
-          ]
+          "handle_design": ["attach_handle_vertical_L"],
+          "handle_standard": ["attach_handle_vertical_L"]
         }
       },
       {
         "slotId": "leg_1",
         "name": "Láb 1",
         "componentType": "legs",
-        "allowedComponents": [
-          "leg_standard",
-          "leg_design"
-        ],
+        "allowedComponents": ["leg_standard", "leg_design"],
         "defaultComponent": "leg_standard",
         "position": {
           "x": 0,
@@ -127,15 +108,8 @@
         "attachToSlot": "corpus_1",
         "useAttachmentPoint": "attach_leg_C",
         "attachmentMapping": {
-          "leg_standard": [
-            "attach_leg_C"
-          ],
-          "leg_design": [
-            "attach_leg_FL",
-            "attach_leg_FR",
-            "attach_leg_BL",
-            "attach_leg_BR"
-          ]
+          "leg_standard": ["attach_leg_C"],
+          "leg_design": ["attach_leg_FL", "attach_leg_FR", "attach_leg_BL", "attach_leg_BR"]
         }
       }
     ]
@@ -149,9 +123,7 @@
         "slotId": "corpus_1",
         "name": "Korpusz 1",
         "componentType": "corpuses",
-        "allowedComponents": [
-          "corpus_bottom_60"
-        ],
+        "allowedComponents": ["corpus_bottom_60"],
         "defaultComponent": "corpus_bottom_60",
         "position": {
           "x": 0,
@@ -175,9 +147,7 @@
         "slotId": "front_1",
         "name": "Ajtó 1",
         "componentType": "fronts",
-        "allowedComponents": [
-          "front_bottom_keretes_60_l"
-        ],
+        "allowedComponents": ["front_bottom_keretes_60_l"],
         "defaultComponent": "front_bottom_keretes_60_l",
         "position": {
           "x": 0,
@@ -197,19 +167,14 @@
         "attachToSlot": "corpus_1",
         "useAttachmentPoint": "",
         "attachmentMapping": {
-          "front_bottom_keretes_60_l": [
-            "attach_front_full_L"
-          ]
+          "front_bottom_keretes_60_l": ["attach_front_full_L"]
         }
       },
       {
         "slotId": "handle_1",
         "name": "Fogantyú 1",
         "componentType": "handles",
-        "allowedComponents": [
-          "handle_standard",
-          "handle_design"
-        ],
+        "allowedComponents": ["handle_standard", "handle_design"],
         "defaultComponent": "handle_standard",
         "position": {
           "x": 0,
@@ -229,22 +194,15 @@
         "attachToSlot": "front_1",
         "useAttachmentPoint": "attach_handle_vertical_L",
         "attachmentMapping": {
-          "handle_standard": [
-            "attach_handle_vertical_L"
-          ],
-          "handle_design": [
-            "attach_handle_vertical_L"
-          ]
+          "handle_standard": ["attach_handle_vertical_L"],
+          "handle_design": ["attach_handle_vertical_L"]
         }
       },
       {
         "slotId": "leg_1",
         "name": "Láb 1",
         "componentType": "legs",
-        "allowedComponents": [
-          "leg_standard",
-          "leg_design"
-        ],
+        "allowedComponents": ["leg_standard", "leg_design"],
         "defaultComponent": "leg_standard",
         "position": {
           "x": 0,
@@ -264,15 +222,8 @@
         "attachToSlot": "corpus_1",
         "useAttachmentPoint": "attach_leg_C",
         "attachmentMapping": {
-          "leg_standard": [
-            "attach_leg_C"
-          ],
-          "leg_design": [
-            "attach_leg_BR",
-            "attach_leg_FL",
-            "attach_leg_BL",
-            "attach_leg_FR"
-          ]
+          "leg_standard": ["attach_leg_C"],
+          "leg_design": ["attach_leg_BR", "attach_leg_FL", "attach_leg_BL", "attach_leg_FR"]
         }
       }
     ],
@@ -292,16 +243,10 @@
             },
             "slotProperties": {
               "root__attach_front_full_L": {
-                "allowedComponents": [
-                  "front_bottom_keretes_60_l",
-                  "front_bottom_sima_60_l"
-                ]
+                "allowedComponents": ["front_bottom_keretes_60_l", "front_bottom_sima_60_l"]
               },
               "root__attach_front_full_L__attach_handle_vertical_L": {
-                "allowedComponents": [
-                  "handle_standard",
-                  "handle_design"
-                ]
+                "allowedComponents": ["handle_standard", "handle_design"]
               }
             }
           },
@@ -315,16 +260,10 @@
             },
             "slotProperties": {
               "root__attach_front_full_R": {
-                "allowedComponents": [
-                  "front_bottom_keretes_60_r",
-                  "front_bottom_sima_60_r"
-                ]
+                "allowedComponents": ["front_bottom_keretes_60_r", "front_bottom_sima_60_r"]
               },
               "root__attach_front_full_R__attach_handle_vertical_R": {
-                "allowedComponents": [
-                  "handle_standard",
-                  "handle_design"
-                ]
+                "allowedComponents": ["handle_standard", "handle_design"]
               }
             }
           },
@@ -340,28 +279,16 @@
             },
             "slotProperties": {
               "root__attach_front_full_L": {
-                "allowedComponents": [
-                  "front_bottom_keretes_30_l",
-                  "front_bottom_sima_30_l"
-                ]
+                "allowedComponents": ["front_bottom_keretes_30_l", "front_bottom_sima_30_l"]
               },
               "root__attach_front_full_L__attach_handle_vertical_L": {
-                "allowedComponents": [
-                  "handle_standard",
-                  "handle_design"
-                ]
+                "allowedComponents": ["handle_standard", "handle_design"]
               },
               "root__attach_front_full_R": {
-                "allowedComponents": [
-                  "front_bottom_keretes_30_r",
-                  "front_bottom_sima_30_r"
-                ]
+                "allowedComponents": ["front_bottom_keretes_30_r", "front_bottom_sima_30_r"]
               },
               "root__attach_front_full_R__attach_handle_vertical_R": {
-                "allowedComponents": [
-                  "handle_standard",
-                  "handle_design"
-                ]
+                "allowedComponents": ["handle_standard", "handle_design"]
               }
             }
           },
@@ -397,9 +324,7 @@
         "slotId": "corpus_1",
         "name": "Korpusz 1",
         "componentType": "corpuses",
-        "allowedComponents": [
-          "corpus_top_40"
-        ],
+        "allowedComponents": ["corpus_top_40"],
         "defaultComponent": "corpus_top_40",
         "position": {
           "x": 0,
@@ -447,25 +372,16 @@
         "attachToSlot": "corpus_1",
         "useAttachmentPoint": "attach_front_full_L",
         "attachmentMapping": {
-          "front_top_keretes_40_l": [
-            "attach_front_full_L"
-          ],
-          "front_top_sima_40_l": [
-            "attach_front_full_L"
-          ],
-          "front_top_uveges_40_l": [
-            "attach_front_full_L"
-          ]
+          "front_top_keretes_40_l": ["attach_front_full_L"],
+          "front_top_sima_40_l": ["attach_front_full_L"],
+          "front_top_uveges_40_l": ["attach_front_full_L"]
         }
       },
       {
         "slotId": "handle_1",
         "name": "Fogantyú 1",
         "componentType": "handles",
-        "allowedComponents": [
-          "handle_standard",
-          "handle_design"
-        ],
+        "allowedComponents": ["handle_standard", "handle_design"],
         "defaultComponent": "handle_standard",
         "position": {
           "x": 0,
@@ -485,12 +401,8 @@
         "attachToSlot": "front_1",
         "useAttachmentPoint": "attach_handle_vertical_R",
         "attachmentMapping": {
-          "handle_design": [
-            "attach_handle_vertical_R"
-          ],
-          "handle_standard": [
-            "attach_handle_vertical_R"
-          ]
+          "handle_design": ["attach_handle_vertical_R"],
+          "handle_standard": ["attach_handle_vertical_R"]
         }
       }
     ],
@@ -528,10 +440,7 @@
                 ]
               },
               "root__attach_front_full_R__attach_handle_vertical_L": {
-                "allowedComponents": [
-                  "handle_standard",
-                  "handle_design"
-                ],
+                "allowedComponents": ["handle_standard", "handle_design"],
                 "rotation": {
                   "x": 0,
                   "y": 0,
@@ -557,10 +466,7 @@
                 ]
               },
               "root__attach_front_full_L__attach_handle_vertical_R": {
-                "allowedComponents": [
-                  "handle_standard",
-                  "handle_design"
-                ],
+                "allowedComponents": ["handle_standard", "handle_design"],
                 "rotation": {
                   "x": 0,
                   "y": 0,
@@ -590,9 +496,7 @@
         "slotId": "corpus_1",
         "name": "Korpusz 1",
         "componentType": "corpuses",
-        "allowedComponents": [
-          "corpus_bottom_sarok_90"
-        ],
+        "allowedComponents": ["corpus_bottom_sarok_90"],
         "defaultComponent": "corpus_bottom_sarok_90",
         "position": {
           "x": 0,
@@ -616,9 +520,7 @@
         "slotId": "front_1",
         "name": "Ajtó 1",
         "componentType": "fronts",
-        "allowedComponents": [
-          "front_bottom_keretes_sarok_90_l"
-        ],
+        "allowedComponents": ["front_bottom_keretes_sarok_90_l"],
         "defaultComponent": "front_bottom_keretes_sarok_90_l",
         "position": {
           "x": 0,
@@ -638,19 +540,14 @@
         "attachToSlot": "corpus_1",
         "useAttachmentPoint": "",
         "attachmentMapping": {
-          "front_bottom_keretes_sarok_90_l": [
-            "attach_front_full_L"
-          ]
+          "front_bottom_keretes_sarok_90_l": ["attach_front_full_L"]
         }
       },
       {
         "slotId": "handle_1",
         "name": "Fogantyú 1",
         "componentType": "handles",
-        "allowedComponents": [
-          "handle_standard",
-          "handle_design"
-        ],
+        "allowedComponents": ["handle_standard", "handle_design"],
         "defaultComponent": "handle_standard",
         "position": {
           "x": 0,
@@ -670,22 +567,15 @@
         "attachToSlot": "front_1",
         "useAttachmentPoint": "attach_handle_vertical_L",
         "attachmentMapping": {
-          "handle_design": [
-            "attach_handle_vertical_L"
-          ],
-          "handle_standard": [
-            "attach_handle_vertical_L"
-          ]
+          "handle_design": ["attach_handle_vertical_L"],
+          "handle_standard": ["attach_handle_vertical_L"]
         }
       },
       {
         "slotId": "leg_1",
         "name": "Láb 1",
         "componentType": "legs",
-        "allowedComponents": [
-          "leg_standard",
-          "leg_design"
-        ],
+        "allowedComponents": ["leg_standard", "leg_design"],
         "defaultComponent": "leg_standard",
         "position": {
           "x": 0,
@@ -705,9 +595,7 @@
         "attachToSlot": "corpus_1",
         "useAttachmentPoint": "attach_leg_C",
         "attachmentMapping": {
-          "leg_standard": [
-            "attach_leg_C"
-          ],
+          "leg_standard": ["attach_leg_C"],
           "leg_design": [
             "attach_leg_FR",
             "attach_leg_BL",

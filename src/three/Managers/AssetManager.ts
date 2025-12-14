@@ -4,7 +4,6 @@ import {
   Texture,
   SRGBColorSpace,
   RepeatWrapping,
-  Vector3,
   Box3,
   Object3D,
   Mesh,
@@ -56,10 +55,7 @@ export default class AssetManager {
     componentState: Record<string, string>,
     propertyState: Record<string, Record<string, string | number | boolean>> = {},
   ): Promise<Group> {
-    // console.log('%c[AssetManager] Bútor építése...', 'color: blue'); // Kikommenteltem a spammelés ellen
-
     const furnitureProxy = new Group()
-    // Force new UUID for debugging if needed, but Three.js does it automatically.
     furnitureProxy.name = `proxy_${config.id}`
 
     const loadedComponents: Map<
@@ -71,12 +67,10 @@ export default class AssetManager {
     const loadPromises = config.componentSlots.map(async (slot) => {
       const componentId = componentState[slot.slotId]
 
-      // HA NINCS KOMPONENS (pl. "Nincs" opció vagy üres template):
+      // HA NINCS KOMPONENS
       if (!componentId) {
-        // Létrehozunk egy üres csoportot, hogy a hierarchia megmaradjon
         const emptyGroup = new Group()
         emptyGroup.name = slot.slotId
-        // Fontos: config null, mert nincs valódi komponens
         loadedComponents.set(slot.slotId, { model: emptyGroup, config: null, slot: slot })
         return
       }
@@ -84,7 +78,6 @@ export default class AssetManager {
       const componentConfig = ConfigManager.getComponentById(componentId)
       if (!componentConfig) {
         this.debugManager.logConfigNotFound('Komponens', componentId)
-        // Itt is üres csoportot adunk vissza hiba esetén
         const emptyGroup = new Group()
         emptyGroup.name = slot.slotId
         loadedComponents.set(slot.slotId, { model: emptyGroup, config: null, slot: slot })
@@ -95,12 +88,12 @@ export default class AssetManager {
       const componentModel = await this.loadModel(modelUrl)
       componentModel.name = slot.slotId
 
-      // Slot ID mentése a userData-ba (későbbi kereséshez, pl. front visibility)
+      // Slot ID mentése
       componentModel.userData.slotId = slot.slotId
+      // Config mentése a gyerekre is (biztonsági tartalék)
+      componentModel.userData.config = componentConfig
 
       // --- MULTI-MATERIAL LOGIKA ---
-
-      // 1. Eset: Új rendszer (Több slot)
       if (componentConfig.materialSlots && componentConfig.materialSlots.length > 0) {
         componentModel.traverse((child) => {
           if (child instanceof Mesh) {
@@ -108,26 +101,20 @@ export default class AssetManager {
               ? child.material[0].name
               : child.material.name
 
-            // Végignézzük az összes definiált slotot
             for (const matSlot of componentConfig.materialSlots!) {
-              // Ha a mesh anyagának neve tartalmazza a slot targetjét (pl. "Glass")
               if (matName.toLowerCase().includes(matSlot.target.toLowerCase())) {
                 child.userData.isMaterialTarget = true
-                child.userData.materialSlotKey = matSlot.key // pl. "glass"
+                child.userData.materialSlotKey = matSlot.key
                 child.userData.originalMaterialName = matName
-
-                // Fontos: Ha üveg slot, mentsük el, hogy később tudjuk
                 if (matSlot.key === 'glass' || matSlot.target.toLowerCase().includes('glass')) {
                   child.userData.isGlass = true
                 }
-                break // Megtaláltuk, nem kell tovább keresni ehhez a mesh-hez
+                break
               }
             }
           }
         })
-      }
-      // 2. Eset: Régi rendszer (Egyetlen target)
-      else if (componentConfig.materialTarget) {
+      } else if (componentConfig.materialTarget) {
         componentModel.traverse((child) => {
           if (child instanceof Mesh) {
             const matName = Array.isArray(child.material)
@@ -136,7 +123,6 @@ export default class AssetManager {
 
             if (matName.toLowerCase().includes(componentConfig.materialTarget!.toLowerCase())) {
               child.userData.isMaterialTarget = true
-              // Ha nincs slot definíció, akkor ez a "default" vagy "base" slot
               child.userData.materialSlotKey = 'base'
               child.userData.originalMaterialName = matName
             }
@@ -186,18 +172,12 @@ export default class AssetManager {
       const parentModel = assembledObjects.get(parentSlotId)
 
       if (!parentModel) {
-        // Ha a szülő nincs a fában (mert pl. opcionális és ki van kapcsolva),
-        // akkor a gyereket sem tudjuk hova tenni.
-        // console.warn(`[AssetManager] Kihagyás: ${slot.slotId} szülője (${parentSlotId}) hiányzik.`);
         continue
       }
 
-      // Csatolási logika
       const applyAttachment = (modelInstance: Group, attachmentPointName: string) => {
         const attachmentDummy = parentModel.getObjectByName(attachmentPointName)
         if (!attachmentDummy) {
-          // Ha nincs dummy pont, de a szülő létezik, akkor a 0,0,0-ra tesszük (vagy logolunk)
-          // console.warn(`[AssetManager] Csatlakozási pont (${attachmentPointName}) nem található a szülőn (${parentModel.name}).`);
           return
         }
 
@@ -226,23 +206,15 @@ export default class AssetManager {
       } else if (slot.useAttachmentPoint) {
         applyAttachment(model, slot.useAttachmentPoint)
       } else {
-        // --- JAVÍTÁS: KÉZI POZICIONÁLÁS (FALLBACK) ---
-
-        // Csak akkor állítunk pozíciót, ha a slot configban benne van!
-        // A régi elemeknél ez undefined, így azok maradnak 0,0,0-án, ahogy eddig.
         if (slot.position) {
           model.position.set(slot.position.x / 1000, slot.position.y / 1000, slot.position.z / 1000)
         }
-
         if (slot.rotation) {
           model.rotation.set(slot.rotation.x, slot.rotation.y, slot.rotation.z)
         }
-
-        // Skálázásnál figyelni kell, mert a default az 1,1,1, nem a 0,0,0
         if (slot.scale) {
           model.scale.set(slot.scale.x, slot.scale.y, slot.scale.z)
         }
-
         parentModel.add(model)
       }
 
@@ -251,15 +223,79 @@ export default class AssetManager {
 
     // 3. Pozícionálás (Pivot korrekció)
     const box = new Box3().setFromObject(furnitureProxy)
-    const center = new Vector3()
-    box.getCenter(center)
+    // A center nem kell, ha a sarokra igazítunk, de a biztonság kedvéért benne hagyhatjuk a változót, vagy töröljük.
+    // Inkább igazítsuk a Minimum pontra (Bal-Hátul-Alul), mert a PlacementManager sarokszekrény logikája ezt feltételezi.
 
-    furnitureProxy.userData = {
-      config: config,
-      componentState: JSON.parse(JSON.stringify(componentState)),
-      propertyState: JSON.parse(JSON.stringify(propertyState)),
-      materialState: {},
+    // Pivot beállítása: Bal-Hátul-Alul (0,0,0) legyen a sarok
+    for (const child of furnitureProxy.children) {
+      child.position.x -= box.min.x
+      child.position.z -= box.min.z
+      child.position.y -= box.min.y
     }
+
+    // --- ÚJ LOGIKA: Adatok felbuborékoltatása (BIZTONSÁGOS VERZIÓ) ---
+    // Nem használunk JSON deep clone-t a configra, mert az tönkreteheti a Vue Proxy-t!
+    try {
+      // 1. Sekély másolatot készítünk az eredeti configról
+      const enrichedConfig = { ...config } as any
+
+      let structuralComponentConfig: any = null
+
+      // Megkeressük a strukturális komponenst (pl. sarok korpusz)
+      for (const data of loadedComponents.values()) {
+        if (data.config) {
+          const conf = data.config as any
+          if (conf.structureType === 'corner_L') {
+            structuralComponentConfig = data.config
+            break
+          }
+          if (!structuralComponentConfig && data.config.componentType === 'corpuses') {
+            structuralComponentConfig = data.config
+          }
+        }
+      }
+
+      // Ha találtunk ilyet, óvatosan átmásoljuk az adatokat
+      if (structuralComponentConfig) {
+        const structConf = structuralComponentConfig as any
+
+        // Típus átvétele
+        if (structConf.structureType) {
+          enrichedConfig.structureType = structConf.structureType
+        }
+
+        // Properties összefésülése
+        // Itt is figyelünk, hogy ne írjuk felül az eredeti objektumot, hanem újat hozzunk létre
+        if (structuralComponentConfig.properties) {
+          enrichedConfig.properties = {
+            ...(enrichedConfig.properties || {}), // Eredeti tulajdonságok
+            ...structuralComponentConfig.properties, // Új tulajdonságok (pl. sideDepth)
+          }
+        }
+      }
+
+      console.log('[AssetManager] DEBUG: Bubbling complete.')
+      console.log('  -> Original Config:', config)
+      console.log('  -> Enriched Config:', enrichedConfig)
+
+      furnitureProxy.userData = {
+        config: enrichedConfig, // Most már a biztonságos, bővített configot használjuk
+        componentState: JSON.parse(JSON.stringify(componentState)),
+        propertyState: JSON.parse(JSON.stringify(propertyState)),
+        materialState: {},
+      }
+      console.log('  -> Proxy UserData set:', furnitureProxy.userData)
+    } catch (e) {
+      console.error('[AssetManager] Error bubbling config, falling back to original:', e)
+      // Fallback a biztonságos, eredeti működésre
+      furnitureProxy.userData = {
+        config: config,
+        componentState: JSON.parse(JSON.stringify(componentState)),
+        propertyState: JSON.parse(JSON.stringify(propertyState)),
+        materialState: {},
+      }
+    }
+
     return furnitureProxy
   }
 

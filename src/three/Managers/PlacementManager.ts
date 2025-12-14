@@ -1,490 +1,555 @@
-import { Group, Vector3, Box3, MathUtils, Euler } from 'three'
-import { FurnitureCategory } from '@/config/furniture'
+import {
+  Group,
+  Vector3,
+  MathUtils,
+  Euler,
+  Matrix4,
+  Vector2,
+  LineSegments,
+  MeshBasicMaterial,
+  Mesh,
+  BufferGeometry,
+  Float32BufferAttribute,
+  SphereGeometry,
+  Box3, // ✅ MOST MÁR ITT VAN!
+} from 'three'
 import { useProceduralStore } from '../../stores/procedural'
-import Experience from '../Experience'
 import { useRoomStore } from '../../stores/room'
+import Experience from '../Experience'
 
-const MAX_SNAP_CHECK_DISTANCE = 0.4
+// ==========================================================================
+// 0. KONFIGURÁCIÓ
+// ==========================================================================
+
+export const WALL_IDS = {
+  BACK: 0, // Z min
+  RIGHT: 1, // X max
+  FRONT: 2, // Z max
+  LEFT: 3, // X min
+} as const
+
+const SNAP_DISTANCE = 0.6
 const UNIT_SCALE = 0.001
 
-type SnapAxis = 'x' | 'z' | 'y'
-
-type SnapCandidate = {
-  priority: number
-  value: number
-  snapEdge: number
-  distance: number
-  targetObject: Group | string
-  axis: SnapAxis
-  rotation?: Euler
+type FootprintEdge = {
+  p1: Vector2
+  p2: Vector2
+  type: 'back' | 'left' | 'right' | 'front'
 }
 
-export type PlacementResult = {
+type SnapResult = {
   position: Vector3
-  rotation?: Euler
+  rotation: Euler
+  snappedWallIds: number[]
 }
 
 export default class PlacementManager {
-  constructor(private experience: Experience) {}
+  private proceduralStore = useProceduralStore()
+  private roomStore = useRoomStore()
 
-  /**
-   * Intelligens Bounding Box számítás.
-   * Figyelem: A box tartalmazza a ProceduralManager által eltolt mesh-t!
-   */
-  private getBoundingBox(
-    object: Group,
-    excludeXOverhang: boolean = false,
-    excludeWorktop: boolean = false,
-  ): Box3 {
+  // DEBUG HELPER GROUP
+  private debugGroup: Group = new Group()
+
+  constructor(private experience: Experience) {
+    this.experience.scene.add(this.debugGroup)
+  }
+
+  // ==========================================================================
+  // 1. FOOTPRINT LOGIKA (AUTOMATIKUS MÉRÉS - BOX3)
+  // ==========================================================================
+
+  private getFootprintEdges(object: Group): FootprintEdge[] {
+    // 1. PRÓBA: Procedurális "Source of Truth" lekérdezése
+    // Ez a legpontosabb, mert a konfigurációból számol, nem a geometriából
+    if (this.experience.proceduralManager) {
+      const points = this.experience.proceduralManager.getFootprintForPlacement(object)
+      if (points.length > 0) {
+        const edges: FootprintEdge[] = []
+        for (let i = 0; i < points.length; i += 2) {
+          // A ProceduralManager párosával adja vissza a pontokat (Start -> End) egy élhez
+          // Vagy folyamatosan? A kód alapján: p1, p2 (egy szakasz), p3, p4 (következő szakasz)...
+          // A ProceduralManager implementációban: push(p1), push(p2) minden típushoz.
+          // Tehát i és i+1 egy élt alkot.
+          if (i + 1 >= points.length) break
+
+          const pStart = points[i]!
+          const pEnd = points[i + 1]!
+
+          edges.push({
+            p1: new Vector2(pStart.x, pStart.z),
+            p2: new Vector2(pEnd.x, pEnd.z),
+            type: pStart.type as any,
+          })
+        }
+        return edges
+      }
+    }
+
+    // 2. FALLBACK: Geometriai mérés (Tight Box Fit)
+    // Ha nincs procedurális adat, mérjük le a geometriát.
+    // TRÜKK: Visszaforgatjuk 0-ra a mérés idejére, hogy a Box3 az objektum SAJÁT tengelyei mentén mérjen (OBB),
+    // ne a világ tengelyei mentén (AABB). Így elkerüljük a doboz "hízását" forgatáskor.
+
+    const visual = object.children.find((c) => c.type === 'Mesh' || c.type === 'Group')
+    if (!visual) return []
+
+    // a) Mentsük a jelenlegi állapotot
+    const originalRotation = object.rotation.clone()
+
+    // b) Forgatás nullázása és frissítés
+    object.rotation.set(0, 0, 0)
+    object.updateMatrixWorld(true) // Force update
+
+    // c) Mérés a "tiszta" állapoton
+    const box = new Box3().setFromObject(visual)
+    const inverseMatrix = object.matrixWorld.clone().invert()
+
+    // 2.a Minden sarokpontot transzformálunk (bár forgatás nélkül a sima box.min is elég lenne, de a biztonság kedvéért maradjon a logika)
+    const corners = [
+      new Vector3(box.min.x, box.min.y, box.min.z),
+      new Vector3(box.min.x, box.min.y, box.max.z),
+      new Vector3(box.min.x, box.max.y, box.min.z),
+      new Vector3(box.min.x, box.max.y, box.max.z),
+      new Vector3(box.max.x, box.min.y, box.min.z),
+      new Vector3(box.max.x, box.min.y, box.max.z),
+      new Vector3(box.max.x, box.max.y, box.min.z),
+      new Vector3(box.max.x, box.max.y, box.max.z),
+    ]
+
+    const min = new Vector3(Infinity, Infinity, Infinity)
+    const max = new Vector3(-Infinity, -Infinity, -Infinity)
+
+    corners.forEach((p) => {
+      p.applyMatrix4(inverseMatrix)
+      min.min(p)
+      max.max(p)
+    })
+
+    // d) Állapot visszaállítása
+    object.rotation.copy(originalRotation)
     object.updateMatrixWorld(true)
 
-    // Alap Three.js box (benne van a Gap miatti eltolás!)
-    const box = new Box3().setFromObject(object)
+    // e) Élek generálása a lokális min/max-ból
+    const edges: FootprintEdge[] = []
 
-    const config = object.userData.config
-    if (config && config.category === FurnitureCategory.BOTTOM_CABINET) {
-      const proceduralStore = useProceduralStore()
-      const worktopConf = proceduralStore.worktop
+    const config = this.getConfig(object)
+    const structureType = (config as any).structureType || 'standard'
 
-      // X irányú túllógás (sideOverhang)
-      if (!excludeXOverhang) {
-        const overhang = worktopConf.sideOverhang || 0
-        box.min.x -= overhang
-        box.max.x += overhang
-      }
+    // Megjegyzés: Itt a structureType ellenőrzés csak az alakzat (L vs I) miatt kell,
+    // de a méreteket már a pontos mérésből vesszük.
 
-      // Z irányú kiterjesztés (Munkapult eleje)
-      // A pult a Group Z=0-tól Z=defaultDepth-ig tart.
-      // A box.max.z a korpusz eleje (Gap + Depth).
-      // Ha a pult mélyebb mint a korpusz, akkor a boxot ki kell tolni.
-      if (!excludeWorktop) {
-        // Ez bonyolultabb forgatásnál, de egyenes állásnál:
-        // A Group Z pozíciója a fal.
-        // A pult vége lokálisan: defaultDepth.
-        // World-ben: object.position.z + defaultDepth (ha 0 rotáció).
-        // Hagyjuk a boxot ahogy van, az ütközéshez jó a fizikai kiterjedés.
-      }
-    }
-
-    return box
-  }
-
-  private isPositionColliding(
-    movingObject: Group,
-    position: Vector3,
-    objectsToCompare: Group[],
-  ): boolean {
-    const movingBox = this.getBoxAtPosition(movingObject, position, true)
-    const tolerance = new Vector3(0.002, 0.002, 0.002)
-    movingBox.expandByVector(tolerance.negate())
-
-    for (const staticObject of objectsToCompare) {
-      if (movingObject === staticObject) continue
-      const staticBox = this.getBoundingBox(staticObject, true, false)
-      if (movingBox.intersectsBox(staticBox)) {
-        return true
-      }
-    }
-    return false
-  }
-
-  private constrainToRoom(movingObject: Group, position: Vector3): Vector3 {
-    const roomStore = useRoomStore()
-    const halfWidth = (roomStore.roomDimensions.width * UNIT_SCALE) / 2
-    const halfDepth = (roomStore.roomDimensions.depth * UNIT_SCALE) / 2
-
-    const currentBox = this.getBoundingBox(movingObject, false, false)
-    const deltaLeft = currentBox.min.x - movingObject.position.x
-    const deltaRight = currentBox.max.x - movingObject.position.x
-    const deltaBack = currentBox.min.z - movingObject.position.z
-    const deltaFront = currentBox.max.z - movingObject.position.z
-
-    const constrained = position.clone()
-    const minX = -halfWidth - deltaLeft
-    const maxX = halfWidth - deltaRight
-    if (minX > maxX) constrained.x = 0
-    else constrained.x = MathUtils.clamp(constrained.x, minX, maxX)
-
-    const minZ = -halfDepth - deltaBack
-    const maxZ = halfDepth - deltaFront
-    if (minZ > maxZ) constrained.z = 0
-    else constrained.z = MathUtils.clamp(constrained.z, minZ, maxZ)
-
-    return constrained
-  }
-
-  // --- ÚJ SNAP LOGIKA: GROUP ORIGIN ALAPÚ ---
-  private getWallSnapCandidates(
-    movingObject: Group,
-    proposedPosition: Vector3,
-  ): { x: SnapCandidate[]; z: SnapCandidate[] } {
-    const roomStore = useRoomStore()
-    const roomHalfWidth = (roomStore.roomDimensions.width * UNIT_SCALE) / 2
-    const roomHalfDepth = (roomStore.roomDimensions.depth * UNIT_SCALE) / 2
-
-    const candidatesX: SnapCandidate[] = []
-    const candidatesZ: SnapCandidate[] = []
-
-    const config = movingObject.userData.config
-    const isCorner = config && config.structureType === 'corner_L'
-
-    // --- HÁTSÓ FAL (Z min) ---
-    // Mindenkinek a háta (0,0) megy a falra
-    const distBack = Math.abs(proposedPosition.z - -roomHalfDepth)
-    if (distBack < MAX_SNAP_CHECK_DISTANCE) {
-      candidatesZ.push({
-        priority: 0,
-        value: -roomHalfDepth,
-        snapEdge: -roomHalfDepth,
-        distance: distBack,
-        targetObject: 'Wall Back',
-        axis: 'z',
-        rotation: new Euler(0, 0, 0),
+    if (structureType === 'corner_L') {
+      // --- SAROKSZEKRÉNY (Box approximáció) ---
+      // Bal él (X min)
+      edges.push({
+        p1: new Vector2(min.x, min.z),
+        p2: new Vector2(min.x, max.z),
+        type: 'left',
       })
-    }
-
-    // --- ELSŐ FAL (Z max) ---
-    const distFront = Math.abs(proposedPosition.z - roomHalfDepth)
-    if (distFront < MAX_SNAP_CHECK_DISTANCE) {
-      candidatesZ.push({
-        priority: 0,
-        value: roomHalfDepth,
-        snapEdge: roomHalfDepth,
-        distance: distFront,
-        targetObject: 'Wall Front',
-        axis: 'z',
-        rotation: new Euler(0, Math.PI, 0),
+      // Hátsó él (Z min)
+      edges.push({
+        p1: new Vector2(min.x, min.z),
+        p2: new Vector2(max.x, min.z),
+        type: 'back',
       })
-    }
-
-    // --- BAL FAL (X min) ---
-    // Sarokszekrénynél: A (0,0) origót snappeljük a falhoz!
-    // Egyenesnél: A bal szélét (ami 0) snappeljük.
-    // Tehát mindkét esetben a proposedPosition.x-et nézzük.
-    const distLeft = Math.abs(proposedPosition.x - -roomHalfWidth)
-    if (distLeft < MAX_SNAP_CHECK_DISTANCE) {
-      candidatesX.push({
-        priority: 0,
-        value: -roomHalfWidth,
-        snapEdge: -roomHalfWidth,
-        distance: distLeft,
-        targetObject: 'Wall Left',
-        axis: 'x',
-        rotation: new Euler(0, 0, 0),
+      // Jobb él (X max)
+      edges.push({
+        p1: new Vector2(max.x, min.z),
+        p2: new Vector2(max.x, max.z),
+        type: 'right',
       })
-    }
-
-    // --- JOBB FAL (X max) ---
-    // Itt van a különbség!
-
-    if (isCorner) {
-      // Sarokszekrénynél a jobb falhoz illesztésnél el kell forgatni -90 fokkal.
-      // Ekkor a "háta" (Z tengely) kerül a jobb falra.
-      // A Group Origója (0,0) kerül a falra.
-      const targetRight = roomHalfWidth
-      const distRight = Math.abs(proposedPosition.x - targetRight)
-
-      if (distRight < MAX_SNAP_CHECK_DISTANCE) {
-        candidatesX.push({
-          priority: 0,
-          value: targetRight,
-          snapEdge: roomHalfWidth,
-          distance: distRight,
-          targetObject: 'Wall Right',
-          axis: 'x',
-          rotation: new Euler(0, -Math.PI / 2, 0), // Forgatás jobbra
-        })
-      }
+      // Első él (Z max)
+      edges.push({
+        p1: new Vector2(min.x, max.z),
+        p2: new Vector2(max.x, max.z),
+        type: 'front',
+      })
     } else {
-      // Egyenes szekrénynél a jobb szélét (Width) snappeljük
-      // Itt kell a bounding box, de vigyázat: a box tartalmazza a gap-et is!
-      // A "hasznos" szélesség a config.width.
-      const width = (config?.properties?.width ?? 600) / 1000
-      const targetRight = roomHalfWidth - width
-      const distRight = Math.abs(proposedPosition.x - targetRight)
-
-      if (distRight < MAX_SNAP_CHECK_DISTANCE) {
-        candidatesX.push({
-          priority: 0,
-          value: targetRight,
-          snapEdge: roomHalfWidth,
-          distance: distRight,
-          targetObject: 'Wall Right',
-          axis: 'x',
-          rotation: new Euler(0, 0, 0),
-        })
-      }
+      // --- EGYENES SZEKRÉNY ---
+      // Hátsó (Z min)
+      edges.push({
+        p1: new Vector2(min.x, min.z),
+        p2: new Vector2(max.x, min.z),
+        type: 'back',
+      })
+      // Bal (X min)
+      edges.push({
+        p1: new Vector2(min.x, min.z),
+        p2: new Vector2(min.x, max.z),
+        type: 'left',
+      })
+      // Jobb (X max)
+      edges.push({
+        p1: new Vector2(max.x, min.z),
+        p2: new Vector2(max.x, max.z),
+        type: 'right',
+      })
+      // Első (Z max)
+      edges.push({
+        p1: new Vector2(min.x, max.z),
+        p2: new Vector2(max.x, max.z),
+        type: 'front',
+      })
     }
 
-    return { x: candidatesX, z: candidatesZ }
+    return edges
   }
 
-  private getObjectSnapCandidates(
-    movingObject: Group,
-    proposedPosition: Vector3,
-    otherObjects: Group[],
-  ): { x: SnapCandidate[]; z: SnapCandidate[]; y: SnapCandidate[] } {
-    const candidatesX: SnapCandidate[] = []
-    const candidatesZ: SnapCandidate[] = []
-    const candidatesY: SnapCandidate[] = []
-
-    const corpusBox = this.getBoundingBox(movingObject, true, false)
-    const deltaLeft = corpusBox.min.x - movingObject.position.x
-    const deltaRight = corpusBox.max.x - movingObject.position.x
-    const deltaBack = corpusBox.min.z - movingObject.position.z
-
-    const config = movingObject.userData.config
-    const isUpperCabinet =
-      config && (config.category === 'top_cabinets' || config.category === 'wall_cabinets')
-
-    for (const staticObject of otherObjects) {
-      const staticBox = this.getBoundingBox(staticObject, true, false)
-
-      // X SNAP
-      const zOverlap =
-        (corpusBox.max.z > staticBox.min.z && corpusBox.min.z < staticBox.max.z) ||
-        Math.abs(proposedPosition.z - staticObject.position.z) < 1.0
-      if (zOverlap) {
-        const snapPosRight = staticBox.max.x - deltaLeft
-        if (Math.abs(proposedPosition.x - snapPosRight) < MAX_SNAP_CHECK_DISTANCE) {
-          candidatesX.push({
-            priority: 1,
-            value: snapPosRight,
-            snapEdge: staticBox.max.x,
-            distance: Math.abs(proposedPosition.x - snapPosRight),
-            targetObject: staticObject,
-            axis: 'x',
-          })
-        }
-        const snapPosLeft = staticBox.min.x - deltaRight
-        if (Math.abs(proposedPosition.x - snapPosLeft) < MAX_SNAP_CHECK_DISTANCE) {
-          candidatesX.push({
-            priority: 1,
-            value: snapPosLeft,
-            snapEdge: staticBox.min.x,
-            distance: Math.abs(proposedPosition.x - snapPosLeft),
-            targetObject: staticObject,
-            axis: 'x',
-          })
-        }
-      }
-
-      // Z SNAP
-      const xOverlap =
-        (corpusBox.max.x > staticBox.min.x && corpusBox.min.x < staticBox.max.x) ||
-        Math.abs(proposedPosition.x - staticObject.position.x) < 1.0
-      if (xOverlap) {
-        const snapPosAlignBack = staticBox.min.z - deltaBack
-        if (Math.abs(proposedPosition.z - snapPosAlignBack) < MAX_SNAP_CHECK_DISTANCE) {
-          candidatesZ.push({
-            priority: 1,
-            value: snapPosAlignBack,
-            snapEdge: staticBox.min.z,
-            distance: Math.abs(proposedPosition.z - snapPosAlignBack),
-            targetObject: staticObject,
-            axis: 'z',
-          })
-        }
-      }
-
-      // Y SNAP (Upper Cabinets)
-      if (isUpperCabinet) {
-        const c = staticObject.userData.config
-        if (c && (c.category === 'top_cabinets' || c.category === 'wall_cabinets')) {
-          const movingFullBox = this.getBoundingBox(movingObject, false, false)
-          const deltaBottom = movingFullBox.min.y - movingObject.position.y
-          const deltaTop = movingFullBox.max.y - movingObject.position.y
-          const staticFullBox = this.getBoundingBox(staticObject, false, false)
-          const distXZ = new Vector3(
-            staticObject.position.x,
-            0,
-            staticObject.position.z,
-          ).distanceTo(new Vector3(proposedPosition.x, 0, proposedPosition.z))
-
-          if (distXZ < 3.0) {
-            const snapPosBottom = staticFullBox.min.y - deltaBottom
-            if (Math.abs(proposedPosition.y - snapPosBottom) < MAX_SNAP_CHECK_DISTANCE) {
-              candidatesY.push({
-                priority: 1,
-                value: snapPosBottom,
-                snapEdge: staticFullBox.min.y,
-                distance: Math.abs(proposedPosition.y - snapPosBottom),
-                targetObject: staticObject,
-                axis: 'y',
-              })
-            }
-            const snapPosTop = staticFullBox.max.y - deltaTop
-            if (Math.abs(proposedPosition.y - snapPosTop) < MAX_SNAP_CHECK_DISTANCE) {
-              candidatesY.push({
-                priority: 1,
-                value: snapPosTop,
-                snapEdge: staticFullBox.max.y,
-                distance: Math.abs(proposedPosition.y - snapPosTop),
-                targetObject: staticObject,
-                axis: 'y',
-              })
-            }
-          }
-        }
-      }
-    }
-
-    return { x: candidatesX, z: candidatesZ, y: candidatesY }
-  }
+  // ==========================================================================
+  // 2. FŐ KALKULÁCIÓ
+  // ==========================================================================
 
   public calculateFinalPosition(
     movingObject: Group,
     proposedPosition: Vector3,
-    objectsToCompare: Group[],
-  ): PlacementResult {
-    this.experience.debug.hideAll()
+    _objectsToCompare: Group[],
+  ): SnapResult {
+    this.debugGroup.clear()
 
-    const fixedY = movingObject.position.y
-    const flatProposedPosition = proposedPosition.clone()
-    flatProposedPosition.y = fixedY
+    const roomHalfWidth = (this.roomStore.roomDimensions.width * UNIT_SCALE) / 2
+    const roomHalfDepth = (this.roomStore.roomDimensions.depth * UNIT_SCALE) / 2
 
-    const otherObjects = objectsToCompare.filter((obj) => obj.uuid !== movingObject.uuid)
+    const distBack = Math.abs(proposedPosition.z - -roomHalfDepth)
+    const distRight = Math.abs(proposedPosition.x - roomHalfWidth)
+    const distFront = Math.abs(proposedPosition.z - roomHalfDepth)
+    const distLeft = Math.abs(proposedPosition.x - -roomHalfWidth)
 
-    // 1. Get Candidates (Nincs Gap számítás, a Group origó a fal)
-    const wallCandidates = this.getWallSnapCandidates(movingObject, flatProposedPosition)
-    const objCandidates = this.getObjectSnapCandidates(
-      movingObject,
-      flatProposedPosition,
-      otherObjects,
-    )
+    const nearBack = distBack < SNAP_DISTANCE
+    const nearRight = distRight < SNAP_DISTANCE
+    const nearFront = distFront < SNAP_DISTANCE
+    const nearLeft = distLeft < SNAP_DISTANCE
 
-    const candidatesX = [...wallCandidates.x, ...objCandidates.x]
-    const candidatesZ = [...wallCandidates.z, ...objCandidates.z]
-    const candidatesY = [...objCandidates.y]
+    const activeWalls: number[] = []
+    if (nearBack) activeWalls.push(WALL_IDS.BACK)
+    if (nearRight) activeWalls.push(WALL_IDS.RIGHT)
+    if (nearFront) activeWalls.push(WALL_IDS.FRONT)
+    if (nearLeft) activeWalls.push(WALL_IDS.LEFT)
 
-    // 2. Sort Candidates
-    const sortFn = (a: SnapCandidate, b: SnapCandidate) => {
-      if (a.priority !== b.priority) return a.priority - b.priority
-      return a.distance - b.distance
-    }
-    candidatesX.sort(sortFn)
-    candidatesZ.sort(sortFn)
-    candidatesY.sort(sortFn)
+    const config = this.getConfig(movingObject)
+    const structureType = config?.structureType || config?.properties?.structureType || 'standard'
+    const isCorner = structureType === 'corner_L'
 
-    // 3. Selection
-    let finalX = flatProposedPosition.x
-    let finalZ = flatProposedPosition.z
-    let finalY = flatProposedPosition.y
-    let finalRotation: Euler | undefined = undefined
+    let result: SnapResult | null = null
 
-    let usedCandidateX: SnapCandidate | undefined = undefined
-    let usedCandidateZ: SnapCandidate | undefined = undefined
-    let usedCandidateY: SnapCandidate | undefined = undefined
-
-    if (candidatesX.length > 0) {
-      usedCandidateX = candidatesX[0]
-      if (usedCandidateX) finalX = usedCandidateX.value
+    if (isCorner && activeWalls.length >= 2) {
+      result = this.solveCornerLogic(movingObject, activeWalls, roomHalfWidth, roomHalfDepth)
     }
 
-    if (candidatesZ.length > 0) {
-      usedCandidateZ = candidatesZ[0]
-      if (usedCandidateZ) finalZ = usedCandidateZ.value
+    if (!result && activeWalls.length > 0) {
+      const primaryWall = activeWalls[0]!
+      result = this.solveWallLogic(
+        movingObject,
+        primaryWall,
+        proposedPosition,
+        roomHalfWidth,
+        roomHalfDepth,
+      )
     }
 
-    if (candidatesY.length > 0) {
-      usedCandidateY = candidatesY[0]
-      if (usedCandidateY) finalY = usedCandidateY.value
+    if (!result) {
+      const constrained = this.constrainToRoom(
+        movingObject,
+        proposedPosition,
+        movingObject.rotation,
+      )
+      result = {
+        position: constrained,
+        rotation: movingObject.rotation,
+        snappedWallIds: [],
+      }
     }
 
-    // 4. Rotation Logic
-    const isCornerCabinet = movingObject.userData.config?.structureType === 'corner_L'
+    this.drawDebugVisuals(movingObject, result.position, result.rotation)
 
-    if (isCornerCabinet && usedCandidateX && usedCandidateZ) {
-      const isLeft = usedCandidateX.targetObject === 'Wall Left'
-      const isRight = usedCandidateX.targetObject === 'Wall Right'
-      const isBack = usedCandidateZ.targetObject === 'Wall Back'
-      const isFront = usedCandidateZ.targetObject === 'Wall Front'
+    return result
+  }
 
-      if (isBack && isLeft) finalRotation = new Euler(0, 0, 0)
-      else if (isBack && isRight) finalRotation = new Euler(0, -Math.PI / 2, 0)
-      else if (isFront && isRight) finalRotation = new Euler(0, Math.PI, 0)
-      else if (isFront && isLeft) finalRotation = new Euler(0, Math.PI / 2, 0)
-      else if (usedCandidateZ.rotation) finalRotation = usedCandidateZ.rotation
-    } else {
-      if (usedCandidateX && usedCandidateX.rotation) finalRotation = usedCandidateX.rotation
-      if (usedCandidateZ && usedCandidateZ.rotation) {
-        if (!usedCandidateX) finalRotation = usedCandidateZ.rotation
-        else {
-          if (
-            usedCandidateZ.priority < usedCandidateX.priority ||
-            (usedCandidateZ.priority === usedCandidateX.priority &&
-              usedCandidateZ.distance < usedCandidateX.distance)
-          ) {
-            finalRotation = usedCandidateZ.rotation
+  // ==========================================================================
+  // 3. LOGIKAI MEGOLDÓK
+  // ==========================================================================
+
+  private solveCornerLogic(
+    obj: Group,
+    walls: number[],
+    roomW: number,
+    roomD: number,
+  ): SnapResult | null {
+    const rotations = [0, Math.PI / 2, Math.PI, -Math.PI / 2]
+
+    for (const rotY of rotations) {
+      const rotEuler = new Euler(0, rotY, 0)
+      const edges = this.getFootprintEdges(obj)
+      const rotMatrix = new Matrix4().makeRotationFromEuler(rotEuler)
+
+      let deltaX = 0
+      let deltaZ = 0
+      let matchedX = false
+      let matchedZ = false
+
+      const wallCoords: Record<number, number> = {
+        [WALL_IDS.BACK]: -roomD,
+        [WALL_IDS.FRONT]: roomD,
+        [WALL_IDS.LEFT]: -roomW,
+        [WALL_IDS.RIGHT]: roomW,
+      }
+
+      for (const wallId of walls) {
+        const wallCoord = wallCoords[wallId]!
+        let edge: FootprintEdge | null = null
+
+        if (wallId === WALL_IDS.BACK) {
+          edge = this.findEdgeFacing(edges, rotMatrix, 'negZ')
+          if (edge) {
+            deltaZ = wallCoord - this.getEdgeWorldZ(edge, rotMatrix, 0)
+            matchedZ = true
+          }
+        } else if (wallId === WALL_IDS.FRONT) {
+          edge = this.findEdgeFacing(edges, rotMatrix, 'posZ')
+          if (edge) {
+            deltaZ = wallCoord - this.getEdgeWorldZ(edge, rotMatrix, 0)
+            matchedZ = true
+          }
+        } else if (wallId === WALL_IDS.LEFT) {
+          edge = this.findEdgeFacing(edges, rotMatrix, 'negX')
+          if (edge) {
+            deltaX = wallCoord - this.getEdgeWorldX(edge, rotMatrix, 0)
+            matchedX = true
+          }
+        } else if (wallId === WALL_IDS.RIGHT) {
+          edge = this.findEdgeFacing(edges, rotMatrix, 'posX')
+          if (edge) {
+            deltaX = wallCoord - this.getEdgeWorldX(edge, rotMatrix, 0)
+            matchedX = true
           }
         }
       }
+
+      if (!matchedX || !matchedZ) continue
+
+      const proposedPos = new Vector3(deltaX, 0, deltaZ)
+      const bounds = this.getRotatedFootprintBounds(obj, rotEuler)
+      const TOLERANCE = 0.05
+
+      const isInside =
+        proposedPos.x + bounds.minX >= -roomW - TOLERANCE &&
+        proposedPos.x + bounds.maxX <= roomW + TOLERANCE &&
+        proposedPos.z + bounds.minZ >= -roomD - TOLERANCE &&
+        proposedPos.z + bounds.maxZ <= roomD + TOLERANCE
+
+      if (isInside) {
+        return { position: proposedPos, rotation: rotEuler, snappedWallIds: walls }
+      }
     }
+    return null
+  }
 
-    // 5. Final Position Construction & Collision Check
-    let finalPos = new Vector3(finalX, finalY, finalZ)
-    finalPos = this.constrainToRoom(movingObject, finalPos)
+  private solveWallLogic(
+    obj: Group,
+    wallId: number,
+    currentPos: Vector3,
+    roomW: number,
+    roomD: number,
+  ): SnapResult | null {
+    let targetRotY = 0
+    if (wallId === WALL_IDS.BACK) targetRotY = 0
+    else if (wallId === WALL_IDS.RIGHT) targetRotY = -Math.PI / 2
+    else if (wallId === WALL_IDS.FRONT) targetRotY = Math.PI
+    else if (wallId === WALL_IDS.LEFT) targetRotY = Math.PI / 2
 
-    if (this.isPositionColliding(movingObject, finalPos, otherObjects)) {
-      const fallbackPos = this.constrainToRoom(movingObject, flatProposedPosition)
-      if (!this.isPositionColliding(movingObject, fallbackPos, otherObjects)) {
-        finalPos = fallbackPos
-        usedCandidateX = undefined
-        usedCandidateZ = undefined
-        usedCandidateY = undefined
-        finalRotation = undefined
+    const rotEuler = new Euler(0, targetRotY, 0)
+    const rotMatrix = new Matrix4().makeRotationFromEuler(rotEuler)
+    const edges = this.getFootprintEdges(obj)
+
+    let deltaX = 0
+    let deltaZ = 0
+    let lockedX = false
+    let lockedZ = false
+
+    if (wallId === WALL_IDS.BACK) {
+      const edge = this.findEdgeFacing(edges, rotMatrix, 'negZ')
+      if (edge) {
+        deltaZ = -roomD - this.getEdgeWorldZ(edge, rotMatrix, currentPos.z)
+        lockedZ = true
+      }
+    } else if (wallId === WALL_IDS.FRONT) {
+      const edge = this.findEdgeFacing(edges, rotMatrix, 'posZ')
+      if (edge) {
+        deltaZ = roomD - this.getEdgeWorldZ(edge, rotMatrix, currentPos.z)
+        lockedZ = true
+      }
+    } else if (wallId === WALL_IDS.LEFT) {
+      const edge = this.findEdgeFacing(edges, rotMatrix, 'negX')
+      if (edge) {
+        deltaX = -roomW - this.getEdgeWorldX(edge, rotMatrix, currentPos.x)
+        lockedX = true
+      }
+    } else if (wallId === WALL_IDS.RIGHT) {
+      const edge = this.findEdgeFacing(edges, rotMatrix, 'posX')
+      if (edge) {
+        deltaX = roomW - this.getEdgeWorldX(edge, rotMatrix, currentPos.x)
+        lockedX = true
       }
     }
 
-    // 6. Visual Feedback
-    if (usedCandidateX) this.drawSnapLine(usedCandidateX, finalPos, 'x')
-    if (usedCandidateZ) this.drawSnapLine(usedCandidateZ, finalPos, 'z')
-    if (usedCandidateY) this.drawSnapLine(usedCandidateY, finalPos, 'y')
+    const finalPos = currentPos.clone()
+    if (lockedX) finalPos.x += deltaX
+    if (lockedZ) finalPos.z += deltaZ
 
-    return { position: finalPos, rotation: finalRotation }
+    const constrained = this.constrainToRoom(obj, finalPos, rotEuler)
+    return { position: constrained, rotation: rotEuler, snappedWallIds: [wallId] }
   }
 
-  private drawSnapLine(candidate: SnapCandidate, objectPos: Vector3, axis: SnapAxis) {
-    const start = new Vector3()
-    const end = new Vector3()
-    const size = 1.0
-    let safeTarget = candidate.targetObject
-    if (typeof safeTarget === 'string') safeTarget = new Group()
+  // ==========================================================================
+  // 4. DEBUG VIZUALIZÁCIÓ
+  // ==========================================================================
 
-    const debugCandidate = {
-      priority: candidate.priority,
-      distance: candidate.distance,
-      targetObject: safeTarget,
-      position: objectPos.clone(),
-      snapPoint: objectPos.clone(),
-    }
+  private drawDebugVisuals(obj: Group, pos: Vector3, rot: Euler) {
+    // 1. PIVOT PONT (Kék gömb)
+    const pivotGeo = new SphereGeometry(0.05, 16, 16)
+    const pivotMat = new MeshBasicMaterial({ color: 0x0000ff, depthTest: false })
+    const pivotMesh = new Mesh(pivotGeo, pivotMat)
+    pivotMesh.position.copy(pos)
+    this.debugGroup.add(pivotMesh)
 
-    if (axis === 'x') {
-      start.set(candidate.snapEdge, objectPos.y, objectPos.z - size)
-      end.set(candidate.snapEdge, objectPos.y, objectPos.z + size)
-      debugCandidate.snapPoint.x = candidate.snapEdge
-    } else if (axis === 'z') {
-      start.set(objectPos.x - size, objectPos.y, candidate.snapEdge)
-      end.set(objectPos.x + size, objectPos.y, candidate.snapEdge)
-      debugCandidate.snapPoint.z = candidate.snapEdge
-    } else if (axis === 'y') {
-      start.set(objectPos.x - size, candidate.snapEdge, objectPos.z)
-      end.set(objectPos.x + size, candidate.snapEdge, objectPos.z)
-      debugCandidate.snapPoint.y = candidate.snapEdge
-    }
+    const edges = this.getFootprintEdges(obj)
+    const rotMatrix = new Matrix4().makeRotationFromEuler(rot)
+    const HEIGHT = 0.9
 
-    const debugBox = new Box3().setFromPoints([start, end])
-    this.experience.debug.updateSnapHelpers(debugBox, debugCandidate as any)
+    const points: number[] = []
+
+    edges.forEach((edge) => {
+      const v1_bottom = new Vector3(edge.p1.x, 0, edge.p1.y).applyMatrix4(rotMatrix).add(pos)
+      const v2_bottom = new Vector3(edge.p2.x, 0, edge.p2.y).applyMatrix4(rotMatrix).add(pos)
+      const v1_top = new Vector3(edge.p1.x, HEIGHT, edge.p1.y).applyMatrix4(rotMatrix).add(pos)
+      const v2_top = new Vector3(edge.p2.x, HEIGHT, edge.p2.y).applyMatrix4(rotMatrix).add(pos)
+
+      // Zárt doboz rajzolása
+      points.push(v1_bottom.x, v1_bottom.y, v1_bottom.z, v2_bottom.x, v2_bottom.y, v2_bottom.z)
+      points.push(v1_top.x, v1_top.y, v1_top.z, v2_top.x, v2_top.y, v2_top.z)
+      points.push(v1_bottom.x, v1_bottom.y, v1_bottom.z, v1_top.x, v1_top.y, v1_top.z)
+      points.push(v2_bottom.x, v2_bottom.y, v2_bottom.z, v2_top.x, v2_top.y, v2_top.z)
+    })
+
+    const lineGeo = new BufferGeometry()
+    lineGeo.setAttribute('position', new Float32BufferAttribute(points, 3))
+
+    // ZÖLD SZÍN = MÉRÉS ALAPÚ DOBOZ
+    const lineMat = new MeshBasicMaterial({
+      color: 0x00ff00,
+      depthTest: false,
+      transparent: true,
+      opacity: 0.8,
+    })
+    const wireframe = new LineSegments(lineGeo, lineMat)
+    this.debugGroup.add(wireframe)
+
+    // Irányjelző
+    const forwardVec = new Vector3(0, 0, 0.5).applyMatrix4(rotMatrix).add(pos)
+    const dirPoints = [pos.x, pos.y + 0.1, pos.z, forwardVec.x, forwardVec.y + 0.1, forwardVec.z]
+    const dirGeo = new BufferGeometry()
+    dirGeo.setAttribute('position', new Float32BufferAttribute(dirPoints, 3))
+    const dirLine = new LineSegments(
+      dirGeo,
+      new MeshBasicMaterial({ color: 0xffff00, depthTest: false }),
+    )
+    this.debugGroup.add(dirLine)
   }
 
-  private getBoxAtPosition(
-    object: Group,
-    newPosition: Vector3,
-    excludeXOverhang: boolean = false,
-  ): Box3 {
-    const offset = newPosition.clone().sub(object.position)
-    const box = this.getBoundingBox(object, excludeXOverhang)
-    box.translate(offset)
-    return box
+  // ==========================================================================
+  // SEGÉDFÜGGVÉNYEK
+  // ==========================================================================
+
+  private getEdgeWorldZ(edge: FootprintEdge, rotMatrix: Matrix4, offsetZ: number): number {
+    const midX = (edge.p1.x + edge.p2.x) / 2
+    const midZ = (edge.p1.y + edge.p2.y) / 2
+    const vec = new Vector3(midX, 0, midZ).applyMatrix4(rotMatrix)
+    return offsetZ + vec.z
+  }
+
+  private getEdgeWorldX(edge: FootprintEdge, rotMatrix: Matrix4, offsetX: number): number {
+    const midX = (edge.p1.x + edge.p2.x) / 2
+    const midZ = (edge.p1.y + edge.p2.y) / 2
+    const vec = new Vector3(midX, 0, midZ).applyMatrix4(rotMatrix)
+    return offsetX + vec.x
+  }
+
+  private findEdgeFacing(
+    edges: FootprintEdge[],
+    rotMatrix: Matrix4,
+    direction: string,
+  ): FootprintEdge | null {
+    let bestEdge: FootprintEdge | null = null
+    let bestVal = direction.startsWith('pos') ? -Infinity : Infinity
+
+    for (const edge of edges) {
+      const p1 = new Vector3(edge.p1.x, 0, edge.p1.y).applyMatrix4(rotMatrix)
+      const p2 = new Vector3(edge.p2.x, 0, edge.p2.y).applyMatrix4(rotMatrix)
+
+      const isAlignedZ = Math.abs(p1.x - p2.x) < 0.01
+      const isAlignedX = Math.abs(p1.z - p2.z) < 0.01
+
+      if (direction.endsWith('X') && !isAlignedZ) continue
+      if (direction.endsWith('Z') && !isAlignedX) continue
+
+      const val = direction.endsWith('X') ? (p1.x + p2.x) / 2 : (p1.z + p2.z) / 2
+
+      if (direction.startsWith('pos')) {
+        if (val > bestVal) {
+          bestVal = val
+          bestEdge = edge
+        }
+      } else {
+        if (val < bestVal) {
+          bestVal = val
+          bestEdge = edge
+        }
+      }
+    }
+    return bestEdge
+  }
+
+  private getRotatedFootprintBounds(
+    obj: Group,
+    rot: Euler,
+  ): { minX: number; maxX: number; minZ: number; maxZ: number } {
+    const edges = this.getFootprintEdges(obj)
+    const matrix = new Matrix4().makeRotationFromEuler(rot)
+
+    let minX = Infinity,
+      maxX = -Infinity,
+      minZ = Infinity,
+      maxZ = -Infinity
+    if (edges.length === 0) return { minX: 0, maxX: 0, minZ: 0, maxZ: 0 }
+
+    edges.forEach((edge) => {
+      ;[edge.p1, edge.p2].forEach((p) => {
+        const vec = new Vector3(p.x, 0, p.y).applyMatrix4(matrix)
+        if (vec.x < minX) minX = vec.x
+        if (vec.x > maxX) maxX = vec.x
+        if (vec.z < minZ) minZ = vec.z
+        if (vec.z > maxZ) maxZ = vec.z
+      })
+    })
+    return { minX, maxX, minZ, maxZ }
+  }
+
+  private constrainToRoom(obj: Group, pos: Vector3, rot: Euler): Vector3 {
+    const roomW = (this.roomStore.roomDimensions.width * UNIT_SCALE) / 2
+    const roomD = (this.roomStore.roomDimensions.depth * UNIT_SCALE) / 2
+    const bounds = this.getRotatedFootprintBounds(obj, rot)
+
+    const minAllowedX = -roomW - bounds.minX
+    const maxAllowedX = roomW - bounds.maxX
+    const minAllowedZ = -roomD - bounds.minZ
+    const maxAllowedZ = roomD - bounds.maxZ
+
+    const safeX = minAllowedX > maxAllowedX ? 0 : MathUtils.clamp(pos.x, minAllowedX, maxAllowedX)
+    const safeZ = minAllowedZ > maxAllowedZ ? 0 : MathUtils.clamp(pos.z, minAllowedZ, maxAllowedZ)
+
+    return new Vector3(safeX, pos.y, safeZ)
+  }
+
+  private getConfig(object: Group): any {
+    return object.userData.config || null
   }
 }
