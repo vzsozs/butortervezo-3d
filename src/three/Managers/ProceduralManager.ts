@@ -763,7 +763,7 @@ export default class ProceduralManager {
   // 6. SEGÉDFÜGGVÉNYEK
   // ==========================================================================
 
-  private getCorpusConfig(obj: THREE.Object3D) {
+  public getCorpusConfig(obj: THREE.Object3D) {
     const state = obj.userData.componentState || {}
     for (const componentId of Object.values(state)) {
       if (typeof componentId !== 'string') continue
