@@ -58,6 +58,137 @@ export default class PlacementManager {
     this.experience.scene.add(this.debugGroup)
   }
 
+  private isUpperCabinet(obj: Group): boolean {
+    const config = this.getConfig(obj)
+    return (
+      (config as any)?.category === 'TopCabinet' ||
+      (config as any)?.category === 'WallCabinet' ||
+      config?.id?.includes('top_')
+    )
+  }
+
+  private getDefaultHeightForObject(obj: Group): number {
+    const config = this.getConfig(obj)
+    const category = config?.category || config?.properties?.category
+
+    // 1. FELSŐSZEKRÉNY DETEKTÁLÁS
+    const isUpperCabinet =
+      category === 'TopCabinet' ||
+      category === 'WallCabinet' ||
+      (config?.id && config.id.includes('top_'))
+
+    if (isUpperCabinet) {
+      // Admin beállítás vagy default 145cm
+      if (config?.properties?.defaultHeight !== undefined) {
+        return Number(config.properties.defaultHeight) * UNIT_SCALE
+      }
+      if (config?.defaultHeight !== undefined) {
+        return Number(config.defaultHeight) * UNIT_SCALE
+      }
+      return 1.45
+    }
+
+    // 2. ALSÓSZEKRÉNYEK / ÁLLÓSZEKRÉNYEK (LÁBAZAT KEZELÉS)
+    // Ha nem felsőszekrény, akkor feltételezzük, hogy lábon áll.
+    // Lekérjük az aktuális lábazat magasságot a store-ból.
+    const plinthHeight = this.proceduralStore?.plinth?.height ?? 0.15 // Default 15cm fallback
+
+    return plinthHeight
+  }
+
+  // ==========================================================================
+  // ÚJ: VERTIKÁLIS POZÍCIÓ ÉS SNAP SZÁMÍTÁS
+  // ==========================================================================
+  private calculateVerticalPosition(
+    movingObj: Group,
+    proposedPos: Vector3,
+    others: Group[],
+  ): number {
+    const isUpper = this.isUpperCabinet(movingObj)
+
+    // 1. ALSÓSZEKRÉNYEK: Fixen a lábazaton/padlón
+    if (!isUpper) {
+      return this.proceduralStore?.plinth?.height ?? 0.15
+    }
+
+    // 2. FELSŐSZEKRÉNYEK LOGIKÁJA
+
+    // Alapértelmezett magasság (pl. 145cm)
+    const defaultHeight = this.getDefaultHeightForObject(movingObj)
+
+    // A javasolt magasság az egér pozíciójából
+    let targetY = proposedPos.y
+
+    // A) PADLÓ VÉDELEM (Lerakás segítése)
+    // Ha az egér a padlón van (pl. < 50cm), akkor ne csússzon a földön a felsőszekrény,
+    // hanem ugorjon fel a default magasságra. Ez oldja meg a "lerakásnál legyen fix" kérést.
+    if (targetY < 0.5) {
+      targetY = defaultHeight
+    }
+
+    // B) DEFAULT HEIGHT SNAP (Mágneses alapmagasság)
+    // Ha közel vagyunk az alapbeállításhoz (pl. 15cm), odaugrunk.
+    if (Math.abs(targetY - defaultHeight) < 0.15) {
+      targetY = defaultHeight
+    }
+
+    // C) SZOMSZÉD SNAP (Igazodás más felsőszekrényekhez)
+    // Megnézzük, van-e olyan bútor, aminek az aljához vagy tetejéhez igazodhatunk.
+
+    const SNAP_Y_DIST = 0.1 // 10cm snap távolság
+    let bestSnapDist = Infinity
+    let snappedY = targetY
+
+    // Saját magasság kiszámolása
+    const myBox = new Box3().setFromObject(movingObj)
+    const myHeight = myBox.max.y - myBox.min.y
+
+    for (const other of others) {
+      if (other === movingObj) continue
+      if (!this.isUpperCabinet(other)) continue // Csak felsőhöz igazodjunk
+
+      const otherBox = new Box3().setFromObject(other)
+      const otherBottom = other.position.y // Feltételezve, hogy a pivot lent van
+      const otherTop = otherBottom + (otherBox.max.y - otherBox.min.y)
+
+      // Lehetséges igazodási pontok:
+      // 1. Alja az Aljához (Bottom-Bottom)
+      const distBB = Math.abs(targetY - otherBottom)
+      if (distBB < SNAP_Y_DIST && distBB < bestSnapDist) {
+        bestSnapDist = distBB
+        snappedY = otherBottom
+      }
+
+      // 2. Teteje a Tetejéhez (Top-Top)
+      // A saját tetőnk: targetY + myHeight
+      // Cél: targetY + myHeight = otherTop  =>  targetY = otherTop - myHeight
+      const targetForTopAlign = otherTop - myHeight
+      const distTT = Math.abs(targetY - targetForTopAlign)
+      if (distTT < SNAP_Y_DIST && distTT < bestSnapDist) {
+        bestSnapDist = distTT
+        snappedY = targetForTopAlign
+      }
+
+      // (Opcionális: Alja a Tetejéhez, stb. de konyhánál a fenti kettő a lényeg)
+    }
+
+    // Ha találtunk snap-et, azt használjuk
+    if (bestSnapDist < Infinity) {
+      return snappedY
+    }
+
+    return targetY
+  }
+
+  // ==========================================================================
+  // SEGÉDFÜGGVÉNY: GAP LEKÉRÉSE (ÚJ)
+  // ==========================================================================
+  private getWallGap(obj: Group): number {
+    // Lekérjük a ProceduralManager-től a pontos gap értéket.
+    // Ha valamiért nem elérhető, fallback-nek marad a 0.05 (5cm).
+    return this.experience.proceduralManager?.calculateGap(obj) ?? 0.05
+  }
+
   // ==========================================================================
   // SEGÉDFÜGGVÉNY: TÚLLÓGÁS LEKÉRDEZÉSE
   // ==========================================================================
@@ -66,34 +197,37 @@ export default class PlacementManager {
     const overhangData = config?.overhang ?? config?.properties?.overhang ?? config?.overhangs ?? {}
     const structureType = config?.structureType ?? config?.properties?.structureType ?? 'standard'
 
-    // 🔴 KONFIGURÁLHATÓ ÉRTÉK:
-    // 1. Alapérték lekérése a store-ból
-    const currentStoreOverhang = this.proceduralStore?.worktop?.sideOverhang ?? 0
+    // 1. FELSŐSZEKRÉNY DETEKTÁLÁS
+    // Ugyanaz a logika, amit a magasságnál is használtunk
+    const isUpper =
+      (config as any)?.category === 'TopCabinet' || // Ha van ilyen Enum értéked
+      (config as any)?.category === 'WallCabinet' ||
+      config?.id?.includes('top_')
 
-    // 2. A KÉRT SOR: A sarok illesztés legyen a sima overhang duplája
+    // 2. ALAPÉRTÉK MEGHATÁROZÁSA
+    // Ha felsőszekrény -> 0 (nincs munkalap túllógás, korpusz a korpuszhoz)
+    // Ha alsó -> Store érték (munkalap túllógás)
+    const currentStoreOverhang = isUpper ? 0 : (this.proceduralStore?.worktop?.sideOverhang ?? 0)
+
+    // 3. SAROK LOGIKA
+    // Ha 0 az alap, akkor a sarok adjustment is 0 lesz, ami felsőnél általában jó.
+    // Ha alsó, akkor marad a duplázás.
     const CORNER_ADJUSTMENT = currentStoreOverhang * 2
 
     const isCorner = structureType === 'corner_L'
 
-    // Segédfüggvény: Érték kinyerése
     const getValMm = (val: any, isCornerSide: boolean = false) => {
-      // 1. Ha van konkrét érték a konfigban, az a szentírás
       if (val !== undefined && val !== null) return Number(val) * UNIT_SCALE
 
-      // 2. HA SAROKSZEKRÉNY CSATLAKOZÓ OLDAL:
-      // Ha sarokszekrény csatlakozó oldal, akkor a duplázott értéket használjuk
       if (isCornerSide) return CORNER_ADJUSTMENT
 
-      // 3. Egyébként standard munkalap túllógás
       return currentStoreOverhang
     }
 
-    // Irányvektor lokális térbe
     const localDir = worldDirection.clone().applyQuaternion(obj.quaternion.clone().invert())
 
     // --- 1. BAL OLDAL (-X) ---
     if (localDir.x < -0.5) {
-      // Ha ez sarokszekrény, akkor ez valószínűleg csatlakozó oldal -> CORNER_ADJUSTMENT kell
       const v = getValMm(overhangData.left, isCorner)
       this.logOverhang(obj, worldDirection, v, `Left (-X) [isCorner:${isCorner}]`)
       return v
@@ -101,22 +235,7 @@ export default class PlacementManager {
 
     // --- 2. JOBB OLDAL (+X) ---
     if (localDir.x > 0.5) {
-      // A sarokszekrény másik vége általában falhoz megy vagy lezáró,
-      // de ha ide is csatlakozol, a logika ugyanaz lehet.
-      // Eredetileg itt FORCE FLUSH (0) volt, de ha ide is bútort teszel, lehet kell a passzléc.
-      // Visszarakom a FORCE FLUSH-t, ha ez a fal felőli oldal, de ez konfig függő.
-
-      // Ha a "jobb" oldal a sarokszekrény "vége" (nem a sarka), akkor oda 0 vagy standard kell.
-      // A biztonság kedvéért itt hagyjuk a standard lekérést, de a 'isCorner' flaget FALSE-ra állítom,
-      // mert a sarokszekrénynek általában csak az egyik szárán van a nagy passzléc.
-      // (Ezt finomhangolhatod, ha mindkét szár passzléces).
-
-      if (isCorner) {
-        // Ha a jobb oldal a fal felé néz, akkor 0. Ha nem, akkor standard.
-        // Most 0-t hagyok, ahogy az eredetiben volt, mert ott nem panaszkodtál.
-        return 0
-      }
-
+      if (isCorner) return 0
       const val = getValMm(overhangData.right, false)
       this.logOverhang(obj, worldDirection, val, `Right (+X)`)
       return val
@@ -124,7 +243,6 @@ export default class PlacementManager {
 
     // --- 3. HÁTULJA (-Z) ---
     if (localDir.z < -0.5) {
-      // Ez a másik tipikus csatlakozási pont saroknál
       const v = getValMm(overhangData.back, isCorner)
       this.logOverhang(obj, worldDirection, v, `Back (-Z) [isCorner:${isCorner}]`)
       return v
@@ -175,15 +293,24 @@ export default class PlacementManager {
       }
     }
 
-    // 2. FALLBACK: Box3 mérés
-    const visual = object.children.find((c) => c.type === 'Mesh' || c.type === 'Group')
-    if (!visual) return []
+    // 2. FALLBACK: Box3 mérés (JAVÍTOTT)
+    // Nem keresgélünk 'visual' gyereket, hanem az egész objektumot mérjük.
+    // Ez sokkal biztosabb, megtalálja a mélyen lévő Mesh-eket is.
 
     const originalRotation = object.rotation.clone()
     object.rotation.set(0, 0, 0)
     object.updateMatrixWorld(true)
 
-    const box = new Box3().setFromObject(visual)
+    // JAVÍTÁS: setFromObject(object) a visual helyett
+    const box = new Box3().setFromObject(object)
+
+    // Ha üres a box (pl. még nincs betöltve), adjunk vissza egy default méretet, hogy ne menjen ki
+    if (box.isEmpty()) {
+      const s = 0.3 // 30cm default
+      box.min.set(-s, 0, -s)
+      box.max.set(s, s, s)
+    }
+
     const inverseMatrix = object.matrixWorld.clone().invert()
 
     const corners = [
@@ -255,20 +382,19 @@ export default class PlacementManager {
     if (distLeft < SNAP_DISTANCE) activeWalls.push(WALL_IDS.LEFT)
 
     const config = this.getConfig(movingObject)
-    const structureType = config?.structureType || config?.properties?.structureType || 'standard'
+    const structureType = config?.structureType ?? config?.properties?.structureType ?? 'standard'
     const isCorner = structureType === 'corner_L'
 
     let result: SnapResult | null = null
 
-    // A) SAROK SNAP (2 fal)
+    // A) SAROK SNAP
     if (isCorner && activeWalls.length >= 2) {
       result = this.solveCornerLogic(movingObject, activeWalls, roomHalfWidth, roomHalfDepth)
     }
 
-    // B) FAL SNAP (1 fal) + BÚTOR SNAP (Opcionális)
+    // B) FAL SNAP + BÚTOR SNAP
     if (!result && activeWalls.length > 0) {
       const primaryWall = activeWalls[0]!
-      // Először odatapasztjuk a falhoz
       const wallSnapResult = this.solveWallLogic(
         movingObject,
         primaryWall,
@@ -278,42 +404,56 @@ export default class PlacementManager {
       )
 
       if (wallSnapResult) {
-        // 🔴 1. FELADAT: Ha falon vagyunk, nézzük meg, tudunk-e bútorhoz is igazodni a szabad tengelyen
-        // Fal snap esetén az egyik tengely (X vagy Z) fix, a másik szabad.
         const lockedAxis =
           primaryWall === WALL_IDS.BACK || primaryWall === WALL_IDS.FRONT ? 'z' : 'x'
 
         const objectSnapPos = this.solveObjectLogic(
           movingObject,
-          wallSnapResult.position, // A falhoz igazított pozícióból indulunk
+          wallSnapResult.position,
           wallSnapResult.rotation,
           objectsToCompare,
-          lockedAxis, // Csak a szabad tengelyen keresünk
+          lockedAxis,
         )
 
         if (objectSnapPos) {
+          // Ha találtunk bútort, frissítjük a pozíciót
           wallSnapResult.position.copy(objectSnapPos)
           wallSnapResult.snappedObjectId = 'object-secondary'
+
+          // 🔴 JAVÍTÁS 1: BIZTONSÁGI KORLÁTOZÁS
+          // Mivel a solveObjectLogic eltolhatta a bútort a szabad tengelyen,
+          // ellenőrizni kell, nem toltuk-e ki a szobából oldalirányba.
+          const safePos = this.constrainToRoom(
+            movingObject,
+            wallSnapResult.position,
+            wallSnapResult.rotation,
+          )
+          wallSnapResult.position.copy(safePos)
         }
         result = wallSnapResult
       }
     }
 
-    // C) CSAK BÚTOR SNAP (Szoba közepén)
+    // C) CSAK BÚTOR SNAP
     if (!result) {
-      // Alap forgatás megőrzése vagy resetelése? Most hagyjuk az eredetit.
       const currentRot = movingObject.rotation
       const objectSnapPos = this.solveObjectLogic(
         movingObject,
         proposedPosition,
         currentRot,
         objectsToCompare,
-        null, // Nincs lockolt tengely, mindkettőn keresünk
+        null,
       )
 
       if (objectSnapPos) {
+        // 🔴 JAVÍTÁS 2: BIZTONSÁGI KORLÁTOZÁS (EZ A KRITIKUS!)
+        // Ha a fal snap már elengedte (0.6 fölött), de a bútor snap még fogja (0.2),
+        // akkor eddig ez a pont simán kivihette a falon túlra.
+        // Most ráhúzzuk a szoba határait.
+        const safePos = this.constrainToRoom(movingObject, objectSnapPos, currentRot)
+
         result = {
-          position: objectSnapPos,
+          position: safePos, // objectSnapPos helyett safePos
           rotation: currentRot,
           snappedWallIds: [],
           snappedObjectId: 'object-primary',
@@ -322,7 +462,7 @@ export default class PlacementManager {
       }
     }
 
-    // D) SZOBA HATÁROK (Fallback)
+    // D) FALLBACK
     if (!result) {
       const constrained = this.constrainToRoom(
         movingObject,
@@ -337,8 +477,17 @@ export default class PlacementManager {
       }
     }
 
-    // 🟠 2. FELADAT: Ütközésvizsgálat
-    // Megnézzük, hogy a számított végleges pozíció ütközik-e mással
+    // Magasság beállítása (Padló vagy Default)
+    result.position.y = this.calculateVerticalPosition(
+      movingObject,
+      proposedPosition,
+      objectsToCompare,
+    )
+
+    // Szellem bútor vizuális korrekciója
+    this.applyPreviewGap(movingObject, isCorner)
+
+    // Ütközésvizsgálat (Ez már a 3D-s verzió, amit az előbb írtunk, így jó lesz)
     result.isColliding = this.checkCollision(
       movingObject,
       result.position,
@@ -351,6 +500,32 @@ export default class PlacementManager {
     }
 
     return result
+  }
+
+  // ==========================================================================
+  // ÚJ SEGÉDFÜGGVÉNY: PREVIEW GAP
+  // ==========================================================================
+  private applyPreviewGap(obj: Group, isCorner: boolean) {
+    // 1. Megkeressük a vizuális modellt a Group-on belül
+    const visualModel = obj.children.find((c) => c.type === 'Group' || c.type === 'Mesh')
+    if (!visualModel) return
+
+    // 2. Lekérjük a szükséges gap-et
+    const gap = this.getWallGap(obj)
+
+    // 3. Alkalmazzuk a helyi eltolást (ugyanaz a logika, mint a ProceduralManager-ben)
+    // Fontos: Ez a Group lokális koordinátarendszerében történik!
+    if (isCorner) {
+      // Sarokszekrény: X és Z irányba is eltoljuk
+      visualModel.position.set(gap, 0, gap)
+    } else {
+      // Egyenes szekrény: Csak mélységben (Z) toljuk el
+      // (Feltételezve, hogy a modell Z+ felé néz vagy onnan indul)
+      visualModel.position.set(0, 0, gap)
+    }
+
+    // Frissítjük a mátrixot, hogy a bounding box számítások pontosak legyenek
+    visualModel.updateMatrix()
   }
 
   // ==========================================================================
@@ -490,6 +665,7 @@ export default class PlacementManager {
     if (lockedZ) finalPos.z += deltaZ
 
     const constrained = this.constrainToRoom(obj, finalPos, rotEuler)
+
     return {
       position: constrained,
       rotation: rotEuler,
@@ -522,6 +698,16 @@ export default class PlacementManager {
 
     for (const other of others) {
       if (other === movingObj) continue
+
+      // 🔴 ÚJ SZŰRÉS: KATEGÓRIA ALAPJÁN
+      const isMovingUpper = this.isUpperCabinet(movingObj)
+      const isOtherUpper = this.isUpperCabinet(other)
+
+      // SZABÁLY: Alsószekrény (moving) NEM snappelhet Felsőszekrényhez (other)
+      // De fordítva (Felső az Alsóhoz) engedjük, hogy lehessen igazítani őket.
+      if (!isMovingUpper && isOtherUpper) {
+        continue
+      }
 
       const otherEdges = this.getFootprintEdges(other)
       const otherMatrix = new Matrix4().makeRotationFromEuler(other.rotation)
@@ -657,31 +843,54 @@ export default class PlacementManager {
     return null
   }
 
-  // 🟠 2. FELADAT IMPLEMENTÁCIÓJA: Ütközésvizsgálat (AABB)
+  // 🔴 2. Ütközésvizsgálat (3D - Magassággal együtt)
   private checkCollision(movingObj: Group, pos: Vector3, rot: Euler, others: Group[]): boolean {
-    // 1. Mozgó objektum határai a VILÁGBAN (World Space AABB)
-    // A getRotatedFootprintBounds lokális (0,0,0) körüli méreteket ad, hozzá kell adni a pozíciót.
+    // 1. Mozgó objektum 2D határai (Footprint)
     const myBoundsLocal = this.getRotatedFootprintBounds(movingObj, rot)
-    const myMinX = pos.x + myBoundsLocal.minX + 0.01 // Kis tolerancia, hogy a snap ne jelezzen ütközést
+    const myMinX = pos.x + myBoundsLocal.minX + 0.01
     const myMaxX = pos.x + myBoundsLocal.maxX - 0.01
     const myMinZ = pos.z + myBoundsLocal.minZ + 0.01
     const myMaxZ = pos.z + myBoundsLocal.maxZ - 0.01
 
+    // 2. Mozgó objektum MAGASSÁGI határai (Y tengely)
+    // Mivel a Box3 a világkoordinátákat nézi, trükköznünk kell kicsit,
+    // mert a movingObj még nincs a 'pos' helyen fizikailag.
+
+    // Lemérjük az objektum saját magasságát (bounding box height)
+    const tempBox = new Box3().setFromObject(movingObj)
+    const height = tempBox.max.y - tempBox.min.y
+
+    // A tervezett Y pozíció (pos.y) az alja, a teteje pedig pos.y + height
+    // (Feltételezve, hogy a pivot pont az alján van, ami nálad így van)
+    const myMinY = pos.y + 0.01 // Kis tolerancia
+    const myMaxY = pos.y + height - 0.01
+
     for (const other of others) {
       if (other === movingObj) continue
 
+      // --- A) MAGASSÁG VIZSGÁLAT (Gyors szűrés) ---
+      // Megnézzük a másik objektum magasságát a világban
+      const otherBox = new Box3().setFromObject(other)
+
+      // Ha nincs átfedés Y-ban, akkor NINCS ütközés, mehetünk tovább
+      // (pl. alsószekrény vs felsőszekrény)
+      if (myMaxY < otherBox.min.y || myMinY > otherBox.max.y) {
+        continue
+      }
+
+      // --- B) ALAPRAJZ (2D) VIZSGÁLAT ---
+      // Ha magasságban összeérnek, akkor megnézzük, hogy síkban is összeérnek-e
       const otherBoundsLocal = this.getRotatedFootprintBounds(other, other.rotation)
       const otherMinX = other.position.x + otherBoundsLocal.minX
       const otherMaxX = other.position.x + otherBoundsLocal.maxX
       const otherMinZ = other.position.z + otherBoundsLocal.minZ
       const otherMaxZ = other.position.z + otherBoundsLocal.maxZ
 
-      // AABB Intersection Test
       const overlapX = myMinX < otherMaxX && myMaxX > otherMinX
       const overlapZ = myMinZ < otherMaxZ && myMaxZ > otherMinZ
 
       if (overlapX && overlapZ) {
-        return true // Ütközés van!
+        return true // Tényleges 3D ütközés
       }
     }
 

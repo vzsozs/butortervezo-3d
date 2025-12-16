@@ -178,6 +178,17 @@ export default class ProceduralManager {
         this.fullUpdate()
       },
     )
+    watch(
+      () => this.experienceStore.placedObjects,
+      () => {
+        // Kis késleltetés kell, hogy a 3D objektumok biztosan betöltődjenek/frissüljenek
+        // mielőtt pozicionáljuk őket.
+        setTimeout(() => {
+          this.fullUpdate()
+        }, 50)
+      },
+      { deep: true }, // FONTOS: Ez veszi észre, ha egy meglévő bútoron belül változik valami (pl. Layout)
+    )
   }
 
   public update() {
@@ -200,6 +211,16 @@ export default class ProceduralManager {
   public calculateGap(obj: THREE.Object3D): number {
     const config = this.getCorpusConfig(obj)
     if (!config) return 0
+
+    // 🔴 JAVÍTÁS: FELSŐSZEKRÉNY DETEKTÁLÁS
+    const isUpper =
+      (config as any).category === FurnitureCategory.TOP_CABINET ||
+      (config as any).category === 'TopCabinet' ||
+      (config as any).category === 'WallCabinet' ||
+      config.id.includes('top_')
+
+    // Ha felsőszekrény, nincs "munkalap gap", a falon van a helye.
+    if (isUpper) return 0
 
     const worktopConf = this.proceduralStore.worktop
     const targetDepth = worktopConf.defaultDepth || 0.6
@@ -266,7 +287,19 @@ export default class ProceduralManager {
     const globalPlinthHeight = this.proceduralStore.plinth.height
 
     cabinets.forEach((cabinet) => {
-      if (!this.getCorpusConfig(cabinet)) return
+      const config = this.getCorpusConfig(cabinet)
+      if (!config) return
+
+      // 🔴 JAVÍTÁS: FELSŐSZEKRÉNYEK KIHAGYÁSA
+      // Ha ez felsőszekrény, ne nyúljunk a magasságához (azt a PlacementManager intézi)
+      if (
+        (config as any).category === FurnitureCategory.TOP_CABINET || // Ha van ilyen Enum
+        (config as any).category === 'TopCabinet' ||
+        (config as any).category === 'WallCabinet' ||
+        config.id.includes('top_')
+      ) {
+        return
+      }
       const isStandard = this.isStandardLegActive(cabinet)
 
       if (isStandard) {
@@ -307,9 +340,25 @@ export default class ProceduralManager {
     const globalConf = this.proceduralStore.plinth
 
     const heightGroups = new Map<number, THREE.Object3D[]>()
+
+    // Szűrés
     const cabinets = this.experienceStore.placedObjects.filter((obj) => {
       if (this.excludedObject && obj.uuid === this.excludedObject.uuid) return false
-      return this.getCorpusConfig(obj) !== null && this.isStandardLegActive(obj)
+
+      const config = this.getCorpusConfig(obj)
+      if (!config) return false
+
+      // 🔴 JAVÍTÁS: CSAK ALSÓSZEKRÉNYEK
+      if (
+        (config as any).category === FurnitureCategory.TOP_CABINET ||
+        (config as any).category === 'TopCabinet' ||
+        (config as any).category === 'WallCabinet' ||
+        config.id.includes('top_')
+      ) {
+        return false
+      }
+
+      return this.isStandardLegActive(obj)
     })
 
     cabinets.forEach((cab) => {
@@ -391,9 +440,25 @@ export default class ProceduralManager {
     })
 
     const conf = this.proceduralStore.worktop
+
+    // Szűrés
     const cabinets = this.experienceStore.placedObjects.filter((obj) => {
       if (this.excludedObject && obj.uuid === this.excludedObject.uuid) return false
-      return this.getCorpusConfig(obj) !== null
+
+      const config = this.getCorpusConfig(obj)
+      if (!config) return false
+
+      // 🔴 JAVÍTÁS: CSAK ALSÓSZEKRÉNYEK
+      if (
+        (config as any).category === FurnitureCategory.TOP_CABINET ||
+        (config as any).category === 'TopCabinet' ||
+        (config as any).category === 'WallCabinet' ||
+        config.id.includes('top_')
+      ) {
+        return false
+      }
+
+      return true
     })
 
     const heightGroups = new Map<number, THREE.Object3D[]>()
@@ -645,14 +710,31 @@ export default class ProceduralManager {
     const structureType = (config as any).structureType || 'standard'
     const worktopConf = this.proceduralStore.worktop
 
+    // 🔴 JAVÍTÁS: FELSŐSZEKRÉNY DETEKTÁLÁS
+    const isUpper =
+      (config as any).category === FurnitureCategory.TOP_CABINET ||
+      (config as any).category === 'TopCabinet' ||
+      (config as any).category === 'WallCabinet' ||
+      config.id.includes('top_')
+
     // Méretek (mm -> méter)
     const rawWidth = config.properties?.width ?? 600
     const width = rawWidth / 1000
 
-    // A munkalap szabvány mélysége (pl. 60cm)
-    const targetDepth = worktopConf.defaultDepth || 0.6
-    const sideOverhang = worktopConf.sideOverhang || 0.0
-    const gap = this.calculateGap(obj)
+    // 🔴 MÉLYSÉG LOGIKA:
+    // Ha alsó: Munkalap mélység (pl. 60cm)
+    // Ha felső: Fizikai mélység (pl. 35cm)
+    let targetDepth = worktopConf.defaultDepth || 0.6
+
+    if (isUpper) {
+      const rawDepth = config.properties?.physicalDepth ?? config.properties?.depth ?? 350
+      targetDepth = rawDepth / 1000
+    }
+
+    // Felsőszekrénynél nincs oldaltúllógás (sideOverhang)
+    const sideOverhang = isUpper ? 0 : worktopConf.sideOverhang || 0.0
+
+    const gap = this.calculateGap(obj) // Ez most már 0 lesz felsőnél
 
     const points: { x: number; z: number; type: 'back' | 'left' | 'right' | 'front' }[] = []
 
@@ -768,7 +850,12 @@ export default class ProceduralManager {
     for (const componentId of Object.values(state)) {
       if (typeof componentId !== 'string') continue
       const compConfig = this.configStore.getComponentById(componentId)
-      if (compConfig && (compConfig as any).category === FurnitureCategory.BOTTOM_CABINET) {
+
+      // JAVÍTÁS: Kivettem a szigorú BOTTOM_CABINET szűrést,
+      // vagy bővítsd ki: || category === FurnitureCategory.TOP_CABINET
+      if (compConfig) {
+        // Ha nagyon szűrni akarsz, akkor:
+        // if (compConfig.category === FurnitureCategory.BOTTOM_CABINET || compConfig.category === FurnitureCategory.TOP_CABINET)
         return compConfig
       }
     }
