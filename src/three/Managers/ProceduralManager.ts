@@ -20,6 +20,9 @@ export default class ProceduralManager {
   private plinthMesh: THREE.Mesh | null = null
   private debugHelpers: THREE.Group = new THREE.Group()
 
+  // 🔴 ZÁSZLÓ: Ezzel védjük ki a végtelen ciklust
+  private isUpdating = false
+
   private defaultWorktopMaterial: THREE.Material = new THREE.MeshStandardMaterial({
     color: 0xdddddd,
     roughness: 0.5,
@@ -178,16 +181,33 @@ export default class ProceduralManager {
         this.fullUpdate()
       },
     )
+
     watch(
       () => this.experienceStore.placedObjects,
       () => {
-        // Kis késleltetés kell, hogy a 3D objektumok biztosan betöltődjenek/frissüljenek
-        // mielőtt pozicionáljuk őket.
-        setTimeout(() => {
+        // 1. BIZTONSÁGI ELLENŐRZÉS
+        // Ha éppen mi frissítünk, akkor kilépünk, hogy ne legyen végtelen ciklus.
+        if (this.isUpdating) return
+
+        // 2. ZÁSZLÓ FELHÚZÁSA
+        this.isUpdating = true
+
+        // 3. FRISSÍTÉS (requestAnimationFrame)
+        // A requestAnimationFrame a legjobb kompromisszum:
+        // - Elég gyors, hogy még a következő képkocka kirajzolása ELŐTT lefusson (nincs ugrás).
+        // - De aszinkron, így hagy időt a Layout váltásnak végbemenni.
+        requestAnimationFrame(() => {
           this.fullUpdate()
-        }, 50)
+
+          // 4. ZÁSZLÓ LEENGEDÉSE (Késleltetve)
+          // Egy pici késleltetéssel engedjük vissza a figyelést,
+          // hogy a Vue reaktivitási köre biztosan lecsengjen.
+          setTimeout(() => {
+            this.isUpdating = false
+          }, 100)
+        })
       },
-      { deep: true }, // FONTOS: Ez veszi észre, ha egy meglévő bútoron belül változik valami (pl. Layout)
+      { deep: true },
     )
   }
 
