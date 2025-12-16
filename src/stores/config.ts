@@ -8,7 +8,7 @@ import type {
   GlobalGroupConfig,
   ComponentDatabase,
   MaterialConfig,
-  FurnitureStyle, // <--- ÚJ IMPORT
+  FurnitureStyle,
   GeneralSettings,
 } from '@/config/furniture'
 
@@ -24,6 +24,15 @@ export const useConfigStore = defineStore('config', () => {
   // --- ÚJ STATE: ÁLTALÁNOS BEÁLLÍTÁSOK ---
   const generalSettings = ref<GeneralSettings>({
     upperCabinet: { defaultElevation: 1.5 },
+    shelves: {
+      defaultType: 'wood',
+      thicknessWood: 0.018,
+      thicknessGlass: 0.006,
+      frontRecess: 0.02,
+      // --- ÚJ ALAPÉRTELMEZÉSEK ---
+      allowedCategoriesWood: ['wood', 'furniture_board'], // Ami logikus nálad
+      allowedCategoriesGlass: ['glass'],
+    },
   })
 
   const furnitureCategories = computed(() => {
@@ -177,14 +186,13 @@ export const useConfigStore = defineStore('config', () => {
   // --- BETÖLTÉS ---
   async function loadAllData() {
     try {
-      // Hozzáadtuk a styles.json-t is a betöltéshez
       const [furnitureRes, componentsRes, globalSettingsRes, materialsRes, stylesRes, generalRes] =
         await Promise.all([
           fetch('/database/furniture.json'),
           fetch('/database/components.json'),
           fetch('/database/globalSettings.json'),
           fetch('/database/materials.json'),
-          fetch('/database/styles.json').catch(() => null), // Ha nincs még file, ne haljon meg
+          fetch('/database/styles.json').catch(() => null),
           fetch('/database/general.json').catch(() => null),
         ])
 
@@ -198,19 +206,24 @@ export const useConfigStore = defineStore('config', () => {
         materials.value = []
       }
 
-      // Stílusok betöltése
       if (stylesRes && stylesRes.ok) {
         styles.value = await stylesRes.json()
       } else {
-        // Alapértelmezett, ha nincs fájl
         styles.value = []
       }
 
-      // General Settings betöltése
+      // General Settings betöltése és MERGE (hogy ne vesszenek el az új mezők ha a JSON régi)
       if (generalRes && generalRes.ok) {
         const data = await generalRes.json()
+
+        // Upper Cabinet
         if (data.upperCabinet) {
           generalSettings.value.upperCabinet = data.upperCabinet
+        }
+
+        // Shelves (Ha a mentett fájlban még nincs benne, maradjon az alapértelmezett)
+        if (data.shelves) {
+          generalSettings.value.shelves = data.shelves
         }
       }
 

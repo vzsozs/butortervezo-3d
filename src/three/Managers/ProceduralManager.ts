@@ -20,6 +20,9 @@ export default class ProceduralManager {
   private plinthMesh: THREE.Mesh | null = null
   private debugHelpers: THREE.Group = new THREE.Group()
 
+  // --- ÚJ: Polc anyag cache ---
+  private glassMaterial: THREE.MeshPhysicalMaterial
+
   // 🔴 ZÁSZLÓ: Ezzel védjük ki a végtelen ciklust
   private isUpdating = false
 
@@ -57,6 +60,20 @@ export default class ProceduralManager {
     this.scene = experience.scene
     this.scene.add(this.debugHelpers)
     this.scene.add(this.debugLabels) // Hozzáadjuk a label csoportot a jelenethez
+
+    // --- ÚJ: Üveg anyag inicializálása ---
+    this.glassMaterial = new THREE.MeshPhysicalMaterial({
+      color: 0xffffff,
+      metalness: 0.1,
+      roughness: 0.05,
+      transmission: 0.95, // Üvegszerű átlátszóság
+      thickness: 0.01, // Fénytöréshez
+      transparent: true,
+      opacity: 1,
+      envMapIntensity: 1.5,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.1,
+    })
 
     this.initWatchers()
   }
@@ -178,6 +195,7 @@ export default class ProceduralManager {
     watch(
       () => this.proceduralStore.updateTrigger,
       () => {
+        // 🔥 ITT FUT LE A FRISSÍTÉS, HA A CSÚSZKÁT HÚZOD
         this.fullUpdate()
       },
     )
@@ -185,23 +203,10 @@ export default class ProceduralManager {
     watch(
       () => this.experienceStore.placedObjects,
       () => {
-        // 1. BIZTONSÁGI ELLENŐRZÉS
-        // Ha éppen mi frissítünk, akkor kilépünk, hogy ne legyen végtelen ciklus.
         if (this.isUpdating) return
-
-        // 2. ZÁSZLÓ FELHÚZÁSA
         this.isUpdating = true
-
-        // 3. FRISSÍTÉS (requestAnimationFrame)
-        // A requestAnimationFrame a legjobb kompromisszum:
-        // - Elég gyors, hogy még a következő képkocka kirajzolása ELŐTT lefusson (nincs ugrás).
-        // - De aszinkron, így hagy időt a Layout váltásnak végbemenni.
         requestAnimationFrame(() => {
           this.fullUpdate()
-
-          // 4. ZÁSZLÓ LEENGEDÉSE (Késleltetve)
-          // Egy pici késleltetéssel engedjük vissza a figyelést,
-          // hogy a Vue reaktivitási köre biztosan lecsengjen.
           setTimeout(() => {
             this.isUpdating = false
           }, 100)
@@ -222,6 +227,9 @@ export default class ProceduralManager {
     this.updateCabinetVerticalPositions()
     this.generateWorktop()
     this.generatePlinth()
+
+    // --- ÚJ: Polcok generálása ---
+    this.updateShelves()
   }
 
   // ==========================================================================
@@ -1082,5 +1090,182 @@ export default class ProceduralManager {
       uvAttribute.setXY(i, u, v)
     }
     uvAttribute.needsUpdate = true
+  }
+
+  // ==========================================================================
+  // 7. POLC GENERÁLÁS (SHELVES) - ÚJ SZEKCIÓ
+  // ==========================================================================
+
+  private updateShelves() {
+    const cabinets = this.experienceStore.placedObjects
+    cabinets.forEach((cabinet) => {
+      this.generateShelvesForCabinet(cabinet)
+    })
+  }
+
+  private generateShelvesForCabinet(object: THREE.Object3D) {
+    // 1. Korpusz keresése
+    const corpusMesh = this.findCorpusMesh(object)
+    if (!corpusMesh) return
+
+    const targetParent = corpusMesh.parent || object
+
+    // 2. Takarítás
+    for (let i = targetParent.children.length - 1; i >= 0; i--) {
+      const child = targetParent.children[i]
+      if (!child) continue
+      if (child.name.startsWith('proc_shelf_')) {
+        if (child instanceof THREE.Mesh) child.geometry.dispose()
+        targetParent.remove(child)
+      }
+    }
+
+    // 3. Kell-e polc?
+    const shelfCount = object.userData.shelfCount || 0
+    if (shelfCount <= 0) return
+
+    // 4. Config
+    const settings = this.configStore.generalSettings.shelves
+    const defaultType = settings?.defaultType || 'wood'
+    const thicknessWood = settings?.thicknessWood || 0.018
+    const thicknessGlass = settings?.thicknessGlass || 0.006
+    const frontRecess = settings?.frontRecess || 0.02
+
+    const type = object.userData.shelfType || defaultType
+    const thickness = type === 'glass' ? thicknessGlass : thicknessWood
+
+    // 5. Méretek (Logikai)
+    const corpusConfig = this.getCorpusConfig(object)
+    if (!corpusConfig) return
+
+    const rawWidth = corpusConfig.properties?.width ?? 600
+    const rawHeight = corpusConfig.properties?.height ?? 720
+    const rawDepth = corpusConfig.properties?.depth ?? 560
+
+    const width = rawWidth / 1000
+    const height = rawHeight / 1000
+    const depth = rawDepth / 1000
+
+    const wallThickness = 0.018
+    const backThickness = 0.018
+
+    const innerWidth = width - 2 * wallThickness
+    const innerDepth = depth - backThickness - frontRecess
+    const innerHeight = height - 2 * wallThickness
+
+    // 6. Anyag
+    let material: THREE.Material = this.glassMaterial
+    if (type === 'wood') {
+      if (corpusMesh.material) {
+        if (Array.isArray(corpusMesh.material)) {
+          if (corpusMesh.material.length > 0) material = corpusMesh.material[0]
+        } else {
+          material = corpusMesh.material as THREE.Material
+        }
+      } else {
+        material = new THREE.MeshStandardMaterial({ color: 0xeeeeee })
+      }
+    }
+
+    // 7. Geometria
+    const geometry = new THREE.BoxGeometry(innerWidth, thickness, innerDepth)
+    this.applyBoxUVs(geometry)
+
+    // 8. Elhelyezés (MÁTRIX TRANSZFORMÁCIÓVAL)
+
+    // Kiszámoljuk a korpusz határait a SZÜLŐ koordinátarendszerében.
+    // Ez figyelembe veszi a pozíciót, forgatást és skálázást is.
+    corpusMesh.geometry.computeBoundingBox()
+    const geomBbox = corpusMesh.geometry.boundingBox
+    if (!geomBbox) return
+
+    // A geometria 8 sarka
+    const corners = [
+      new THREE.Vector3(geomBbox.min.x, geomBbox.min.y, geomBbox.min.z),
+      new THREE.Vector3(geomBbox.min.x, geomBbox.min.y, geomBbox.max.z),
+      new THREE.Vector3(geomBbox.min.x, geomBbox.max.y, geomBbox.min.z),
+      new THREE.Vector3(geomBbox.min.x, geomBbox.max.y, geomBbox.max.z),
+      new THREE.Vector3(geomBbox.max.x, geomBbox.min.y, geomBbox.min.z),
+      new THREE.Vector3(geomBbox.max.x, geomBbox.min.y, geomBbox.max.z),
+      new THREE.Vector3(geomBbox.max.x, geomBbox.max.y, geomBbox.min.z),
+      new THREE.Vector3(geomBbox.max.x, geomBbox.max.y, geomBbox.max.z),
+    ]
+
+    // Transzformáljuk a pontokat a szülő terébe
+    const parentBox = new THREE.Box3()
+    corners.forEach((p) => {
+      p.applyMatrix4(corpusMesh.matrix) // Ez tartalmazza a position, rotation, scale-t
+      parentBox.expandByPoint(p)
+    })
+
+    // Most a parentBox.min.y a TÉNYLEGES vizuális alja a korpusznak a csoporton belül.
+    const startY = parentBox.min.y + wallThickness
+    const startX = parentBox.min.x + wallThickness
+    const startZ = parentBox.min.z + backThickness
+
+    const spacing = innerHeight / (shelfCount + 1)
+
+    for (let i = 1; i <= shelfCount; i++) {
+      const shelf = new THREE.Mesh(geometry, material)
+      shelf.name = `proc_shelf_${i}`
+
+      const yOffset = i * spacing
+
+      // X: Bal szél + fél szélesség
+      shelf.position.x = startX + innerWidth / 2
+
+      // Y: Alja + eltolás
+      shelf.position.y = startY + yOffset
+
+      // Z: Hátulja + fél mélység
+      shelf.position.z = startZ + innerDepth / 2
+
+      shelf.castShadow = true
+      shelf.receiveShadow = true
+
+      targetParent.add(shelf)
+    }
+  }
+
+  private findCorpusMesh(group: THREE.Object3D): THREE.Mesh | null {
+    let found: THREE.Mesh | null = null
+
+    group.traverse((child) => {
+      if (found) return
+      if (child instanceof THREE.Mesh) {
+        if (
+          child.name.includes('proc_') ||
+          child.name.includes('worktop') ||
+          child.name.includes('plinth')
+        )
+          return
+        const name = child.name.toLowerCase()
+        if (name.includes('corpus') || name.includes('body') || name.includes('carcass')) {
+          found = child
+        }
+      }
+    })
+
+    if (!found) {
+      group.traverse((child) => {
+        if (found) return
+        if (child instanceof THREE.Mesh) {
+          if (
+            child.name.includes('proc_') ||
+            child.name.includes('worktop') ||
+            child.name.includes('plinth')
+          )
+            return
+          if (child.geometry) {
+            child.geometry.computeBoundingBox()
+            const size = new THREE.Vector3()
+            child.geometry.boundingBox?.getSize(size)
+            if (size.y > 0.3) found = child
+          }
+        }
+      })
+    }
+
+    return found
   }
 }

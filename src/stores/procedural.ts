@@ -21,7 +21,10 @@ export const useProceduralStore = defineStore('procedural', () => {
     depthOffset: 0.05, // Mennyivel van beljebb
     defaultMaterialId: 'plinth_dark_grey', // Fallback anyag
   })
-  const updateTrigger = ref(0) // ÚJ
+
+  // 🔥 EZ A KULCS A POLCOKHOZ!
+  // Ezt figyeli a ProceduralManager, és ezt növeli az Inspector csúszka.
+  const updateTrigger = ref(0)
 
   // --- ACTIONS ---
 
@@ -29,7 +32,7 @@ export const useProceduralStore = defineStore('procedural', () => {
     updateTrigger.value++
   }
 
-  // --- ÚJ: BETÖLTŐ FÜGGVÉNY ---
+  // --- BETÖLTŐ FÜGGVÉNY ---
   async function loadSettings() {
     try {
       const response = await fetch('/database/procedural.json')
@@ -51,22 +54,20 @@ export const useProceduralStore = defineStore('procedural', () => {
     }
   }
 
-  // Itt később lehet API hívás a mentéshez/betöltéshez
+  // Beállítások frissítése (pl. Admin felületről)
   function updateWorktopSetting(key: keyof typeof worktop.value, value: any) {
-    // JAVÍTÁS: (worktop.value as any) használata
     ;(worktop.value as any)[key] = value
   }
 
   function updatePlinthSetting(key: keyof typeof plinth.value, value: any) {
-    // JAVÍTÁS: (plinth.value as any) használata
     ;(plinth.value as any)[key] = value
   }
 
   return {
     worktop,
     plinth,
-    updateTrigger,
-    triggerUpdate,
+    updateTrigger, // Exportálva
+    triggerUpdate, // Exportálva
     updateWorktopSetting,
     updatePlinthSetting,
     loadSettings,

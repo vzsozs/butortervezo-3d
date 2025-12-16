@@ -3,7 +3,7 @@
 import { defineStore } from 'pinia'
 import type { Group } from 'three'
 import { ref, computed, shallowRef, triggerRef } from 'vue'
-import type { FurnitureConfig, ComponentSlotConfig } from '@/config/furniture'
+import type { FurnitureConfig } from '@/config/furniture' // JAVÍTÁS: ComponentSlotConfig kivéve
 import { ComponentType } from '@/config/furniture'
 import Experience from '@/three/Experience'
 import { useConfigStore } from '@/stores/config'
@@ -84,21 +84,16 @@ export const useSelectionStore = defineStore('selection', () => {
     if (!selectedObject.value) return
 
     // 1. AZONNALI UI FRISSÍTÉS (Optimista update)
-    // Nem várjuk meg, amíg a 3D engine végez, azonnal beírjuk a state-be,
-    // hogy a gomb színe rögtön átváltson.
     const currentMatState = selectedObject.value.userData.materialState || {}
 
     updates.forEach((update) => {
       currentMatState[update.slotId] = update.materialId
     })
 
-    // Biztosítjuk, hogy a referencia megmaradjon
     selectedObject.value.userData.materialState = currentMatState
-
-    // 🔥 EZ A KULCS: Kényszerítjük a Vue-t, hogy vegye észre a mély változást!
     triggerRef(selectedObject)
 
-    // 2. KÜLDÉS A 3D ENGINE-NEK (A háttérben színezi a modellt)
+    // 2. KÜLDÉS A 3D ENGINE-NEK
     updates.forEach((update, index) => {
       setTimeout(() => {
         materialChangeRequest.value = {
@@ -119,25 +114,18 @@ export const useSelectionStore = defineStore('selection', () => {
 
     console.group(`[SelectionStore] 🎨 Stílus csere: ${slotId} -> ${newComponentId}`)
 
-    // 1. State másolása
     const currentComponentState = JSON.parse(
       JSON.stringify(selectedObject.value.userData.componentState || {}),
     )
 
-    // 2. Az új érték beállítása
     currentComponentState[slotId] = newComponentId
 
     // 3. 🧹 SZIGORÚ TAKARÍTÁS (SANITIZATION)
-    // Lekérjük az összes JELENLEG érvényes slot ID-t a configból.
-    // (Ez tartalmazza a fix slotokat és az aktív layout által generáltakat is)
     const validSlotIds = selectedObjectConfig.value.componentSlots.map((s) => s.slotId)
 
-    // Végigmegyünk a state összes kulcsán...
     Object.keys(currentComponentState).forEach((stateKey) => {
-      // ...és ha olyan kulcsot találunk, ami nincs a valid slotok között...
       if (!validSlotIds.includes(stateKey)) {
         console.warn(`[SelectionStore] 🗑️ Szellem elem törlése a state-ből: ${stateKey}`)
-        // ...azt töröljük! Így nem épül fel a régi "szellem" modell.
         delete currentComponentState[stateKey]
       }
     })
@@ -145,13 +133,11 @@ export const useSelectionStore = defineStore('selection', () => {
     console.log('Tisztított State:', currentComponentState)
     console.groupEnd()
 
-    // 4. Újraépítés a tiszta state-tel
     await rebuildObjectWithNewState(currentComponentState)
   }
 
   // 🔥 ÚJ: Tömeges csere a versenyhelyzetek elkerülésére
   async function changeStyles(updates: Record<string, string>) {
-    // 1. Ha épp dolgozunk, vagy nincs kijelölés, STOP.
     if (isBusy.value || !selectedObject.value || !selectedObjectConfig.value) return
 
     try {
@@ -163,16 +149,13 @@ export const useSelectionStore = defineStore('selection', () => {
         JSON.stringify(selectedObject.value.userData.componentState || {}),
       )
 
-      // Update
       Object.entries(updates).forEach(([slotId, newComponentId]) => {
         currentComponentState[slotId] = newComponentId
       })
 
-      // Takarítás
       const validSlotIds = selectedObjectConfig.value.componentSlots.map((s) => s.slotId)
       Object.keys(currentComponentState).forEach((stateKey) => {
         if (!validSlotIds.includes(stateKey)) {
-          // console.warn(`[SelectionStore] 🗑️ Szellem elem törlése: ${stateKey}`)
           delete currentComponentState[stateKey]
         }
       })
@@ -180,16 +163,15 @@ export const useSelectionStore = defineStore('selection', () => {
       console.log('Új state:', currentComponentState)
       console.groupEnd()
 
-      // Építés
       await rebuildObjectWithNewState(currentComponentState)
     } catch (error) {
       console.error('[SelectionStore] ❌ Hiba a stílus cserénél:', error)
     } finally {
-      isBusy.value = false // 🔓 ZÁROLÁS KI (Mindenképp lefut)
+      isBusy.value = false // 🔓 ZÁROLÁS KI
     }
   }
 
-  // --- 🔄 JAVÍTOTT LAYOUT VÁLTÁS (Auto Polc Pozicionálás + Cleanup) ---
+  // --- 🔄 JAVÍTOTT LAYOUT VÁLTÁS (Polc logika eltávolítva) ---
   async function applySchema(groupIndex: number, schemaId: string) {
     if (isBusy.value || !selectedObject.value || !selectedObjectConfig.value) return
 
@@ -216,9 +198,8 @@ export const useSelectionStore = defineStore('selection', () => {
         targetTypes.add(ComponentType.FRONT)
         targetTypes.add(ComponentType.HANDLE)
         targetTypes.add(ComponentType.DRAWER)
-      } else if (schema.type === 'shelf') {
-        targetTypes.add(ComponentType.SHELF)
       }
+      // POLC TÖRLÉS KIVETTVE - A procedurális rendszer kezeli
 
       Object.values(schema.apply).forEach((compId) => {
         const comp = configStore.getComponentById(compId as string)
@@ -227,12 +208,6 @@ export const useSelectionStore = defineStore('selection', () => {
 
       // State takarítás
       Object.keys(currentComponentState).forEach((slotId) => {
-        // Polc váltásnál minden korábbi polcot törlünk
-        if (schema.type === 'shelf' && slotId.startsWith('shelf_')) {
-          delete currentComponentState[slotId]
-          return
-        }
-
         const currentCompId = currentComponentState[slotId]
         if (currentCompId) {
           const staticSlotDef = selectedObjectConfig.value?.componentSlots.find(
@@ -243,11 +218,8 @@ export const useSelectionStore = defineStore('selection', () => {
 
           if (slotType === ComponentType.CORPUS) return
 
-          // JAVÍTÁS: Polc módosításnál NE töröljük az attach_ slotokat (ajtók, stb.)
-          // Csak akkor törlünk attach_ slotot, ha NEM polc sémát alkalmazunk,
-          // VAGY ha az adott slot típusa benne van a törlendők között.
-          const isShelfUpdate = schema.type === 'shelf'
-          const shouldDeleteAttach = !isShelfUpdate && slotId.includes('attach_')
+          // attach_ slotok törlése, ha releváns
+          const shouldDeleteAttach = slotId.includes('attach_')
 
           if ((slotType && targetTypes.has(slotType)) || shouldDeleteAttach) {
             delete currentComponentState[slotId]
@@ -260,19 +232,6 @@ export const useSelectionStore = defineStore('selection', () => {
         if (componentId) currentComponentState[slotId] = componentId
       })
 
-      // Polc state generálás
-      const generatedShelfSlots: string[] = []
-      if (schema.type === 'shelf' && (schema as any).shelfConfig) {
-        const { count, componentId } = (schema as any).shelfConfig
-        if (count > 0 && componentId) {
-          for (let i = 1; i <= count; i++) {
-            const slotId = `shelf_${i}`
-            currentComponentState[slotId] = componentId
-            generatedShelfSlots.push(slotId)
-          }
-        }
-      }
-
       // 3. 🛠️ CONFIG PATCHELÉS (Slotok kezelése)
       const newConfig = JSON.parse(JSON.stringify(selectedObjectConfig.value)) as FurnitureConfig
       const corpusSlot = newConfig.componentSlots.find(
@@ -283,7 +242,7 @@ export const useSelectionStore = defineStore('selection', () => {
       // A) Fix slotok (pl. fogantyú) hozzáadása
       Object.keys(schema.apply).forEach((slotId) => {
         if (newConfig.componentSlots.find((s) => s.slotId === slotId)) return
-        // ... (ez a rész változatlan, a slot definíció létrehozása) ...
+
         const parts = slotId.split('__')
         let attachTo = parts.slice(0, -1).join('__')
         const point = parts[parts.length - 1]
@@ -291,7 +250,6 @@ export const useSelectionStore = defineStore('selection', () => {
         const compId = schema.apply[slotId]
         const compDef = configStore.getComponentById(compId as string)
 
-        // 🔥 JAVÍTÁS: Egyedi tulajdonságok betöltése (pl. forgatás!)
         const savedProps = (schema.slotProperties && schema.slotProperties[slotId]) || {}
 
         newConfig.componentSlots.push({
@@ -306,51 +264,13 @@ export const useSelectionStore = defineStore('selection', () => {
           rotation: { x: 0, y: 0, z: 0 },
           scale: { x: 1, y: 1, z: 1 },
           isAutoGenerated: true,
-          ...savedProps, // Felülírjuk az alapértelmezett értékeket
+          ...savedProps,
         })
       })
 
-      // B) POLC SLOTOK FRISSÍTÉSE (Törlés és Újragenerálás)
-
-      // 1. Lépés: Töröljük a régi generált polc slotokat a configból
-      // Ez azért kell, hogy ne maradjanak "szellem" slotok, és a pozíciók frissüljenek
-      newConfig.componentSlots = newConfig.componentSlots.filter(
-        (s) => !s.slotId.startsWith('shelf_'),
-      )
-
-      // 2. Lépés: Pozíció számítás
-      const corpusId = currentComponentState[corpusSlotId]
-      const corpusComp = configStore.getComponentById(corpusId)
-      const corpusHeight = corpusComp?.properties?.height || 720
-
-      // +1 osztás, hogy egyenletes legyen (pl. 1 polc -> 2 térfél)
-      const segmentHeight = corpusHeight / (generatedShelfSlots.length + 1)
-
-      // 3. Lépés: Új slotok beszúrása a helyes pozícióval
-      generatedShelfSlots.forEach((slotId, index) => {
-        const yPos = segmentHeight * (index + 1)
-
-        // Korrekció: A korpusz origója általában az alján van.
-        // Ha a modellben máshogy van, itt kell offsetelni.
-        // Jelenleg feltételezzük: Y=0 a korpusz alja.
-
-        const newSlotDef: ComponentSlotConfig = {
-          slotId: slotId,
-          name: `Auto Shelf ${slotId}`,
-          componentType: ComponentType.SHELF,
-          allowedComponents: [currentComponentState[slotId]],
-          defaultComponent: currentComponentState[slotId],
-          attachToSlot: corpusSlotId,
-          useAttachmentPoint: undefined, // Kikapcsoljuk a pont keresést
-          position: { x: 0, y: yPos, z: 0 }, // Abszolút pozíció a korpuszhoz képest
-          rotation: { x: 0, y: 0, z: 0 },
-          scale: { x: 1, y: 1, z: 1 },
-          isAutoGenerated: true,
-        }
-
-        console.log(`✨ Polc slot frissítve: ${slotId} @ Y=${Math.round(yPos)}mm`)
-        newConfig.componentSlots.push(newSlotDef)
-      })
+      // B) POLC SLOTOK FRISSÍTÉSE - KIVETTVE
+      // A procedurális rendszer nem igényel slotokat a configban,
+      // mert közvetlenül a Three.js scene-hez adja a BoxGeometry-ket.
 
       console.log('📝 Új állapot:', currentComponentState)
       console.groupEnd()
@@ -364,7 +284,6 @@ export const useSelectionStore = defineStore('selection', () => {
   }
 
   // --- SEGÉDFÜGGVÉNY: ÚJRAÉPÍTÉS ---
-  // JAVÍTÁS: Kivettük a felesleges eslint-disable sort
   async function rebuildObjectWithNewState(
     newComponentState: any,
     overrideConfig?: FurnitureConfig,
@@ -386,6 +305,10 @@ export const useSelectionStore = defineStore('selection', () => {
     const rotation = originalObject.rotation.clone()
     const uuidToReplace = originalObject.uuid
 
+    // Polc adatok átmentése
+    const shelfCount = originalObject.userData.shelfCount
+    const shelfType = originalObject.userData.shelfType
+
     try {
       const newObject = await experience.assetManager.buildFurnitureFromConfig(
         config,
@@ -394,8 +317,11 @@ export const useSelectionStore = defineStore('selection', () => {
 
       newObject.userData.materialState = materialState
       newObject.userData.config = config
-      // 🔥 JAVÍTÁS: Inicializált állapot átmentése
       newObject.userData.initialized = originalObject.userData.initialized
+
+      // Polc adatok visszaírása (EZ A LÉNYEG!)
+      if (shelfCount !== undefined) newObject.userData.shelfCount = shelfCount
+      if (shelfType !== undefined) newObject.userData.shelfType = shelfType
 
       await experience.stateManager.applyMaterialsToObject(newObject)
 
@@ -408,7 +334,6 @@ export const useSelectionStore = defineStore('selection', () => {
       experience.experienceStore.replaceObject(uuidToReplace, newObject)
       selectObject(newObject)
 
-      // 🔥 JAVÍTÁS: Történet mentése változtatás után
       experience.historyStore.addState()
 
       console.log('[SelectionStore] ✅ Objektum sikeresen cserélve.')

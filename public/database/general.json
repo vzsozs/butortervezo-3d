@@ -1,5 +1,21 @@
 {
   "upperCabinet": {
     "defaultElevation": 1.6
+  },
+  "shelves": {
+    "defaultType": "wood",
+    "thicknessWood": 0.018,
+    "thicknessGlass": 0.006,
+    "frontRecess": 0.02,
+    "allowedCategoriesWood": [
+      "wood",
+      "furniture_board",
+      "Bútorlap",
+      "general"
+    ],
+    "allowedCategoriesGlass": [
+      "glass",
+      "Üveg"
+    ]
   }
 }

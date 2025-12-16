@@ -66,6 +66,90 @@ const plinthOffsetMm = computed({
   get: () => Math.round(plinth.value.depthOffset * 1000),
   set: (val) => plinth.value.depthOffset = val / 1000
 });
+
+// --- ÚJ: POLC KONVERTEREK ---
+// Segédfüggvény az inicializáláshoz, ha hiányozna
+function ensureShelvesConfig() {
+  if (!configStore.generalSettings.shelves) {
+    configStore.generalSettings.shelves = {
+      defaultType: 'wood',
+      thicknessWood: 0.018,
+      thicknessGlass: 0.006,
+      frontRecess: 0.02,
+      // --- EZEKET HIÁNYOLTA A TYPESCRIPT: ---
+      allowedCategoriesWood: ['wood', 'furniture_board'],
+      allowedCategoriesGlass: ['glass']
+    };
+  }
+}
+
+const shelfCategoriesWood = computed({
+  get: () => {
+    ensureShelvesConfig();
+    // Ha még nincs a JSON-ben, adjunk vissza üres tömböt
+    return configStore.generalSettings.shelves!.allowedCategoriesWood || [];
+  },
+  set: (val) => {
+    ensureShelvesConfig();
+    configStore.generalSettings.shelves!.allowedCategoriesWood = val;
+  }
+});
+
+const shelfCategoriesGlass = computed({
+  get: () => {
+    ensureShelvesConfig();
+    return configStore.generalSettings.shelves!.allowedCategoriesGlass || [];
+  },
+  set: (val) => {
+    ensureShelvesConfig();
+    configStore.generalSettings.shelves!.allowedCategoriesGlass = val;
+  }
+});
+
+const shelfDefaultType = computed({
+  get: () => {
+    ensureShelvesConfig();
+    return configStore.generalSettings.shelves!.defaultType;
+  },
+  set: (val) => {
+    ensureShelvesConfig();
+    configStore.generalSettings.shelves!.defaultType = val;
+  }
+});
+
+const shelfThicknessWoodMm = computed({
+  get: () => {
+    ensureShelvesConfig();
+    return Math.round(configStore.generalSettings.shelves!.thicknessWood * 1000);
+  },
+  set: (val) => {
+    ensureShelvesConfig();
+    configStore.generalSettings.shelves!.thicknessWood = val / 1000;
+  }
+});
+
+const shelfThicknessGlassMm = computed({
+  get: () => {
+    ensureShelvesConfig();
+    return Math.round(configStore.generalSettings.shelves!.thicknessGlass * 1000);
+  },
+  set: (val) => {
+    ensureShelvesConfig();
+    configStore.generalSettings.shelves!.thicknessGlass = val / 1000;
+  }
+});
+
+const shelfRecessMm = computed({
+  get: () => {
+    ensureShelvesConfig();
+    return Math.round(configStore.generalSettings.shelves!.frontRecess * 1000);
+  },
+  set: (val) => {
+    ensureShelvesConfig();
+    configStore.generalSettings.shelves!.frontRecess = val / 1000;
+  }
+});
+
 // Ezek kezelik a min/max értékeket mm-ben az admin felületen
 const constructionMinMm = computed({
   get: () => editingData.value.construction?.minHeight ? Math.round(editingData.value.construction.minHeight * 1000) : 100,
@@ -507,6 +591,81 @@ function saveAllSettings() {
             </div>
           </div>
 
+          <!-- POLCOK (SHELVES) -->
+          <div class="bg-gray-800 p-6 rounded-lg border border-gray-700">
+            <h3 class="text-xl font-bold mb-4 text-indigo-400 border-b border-gray-700 pb-2">Polcok (Shelves)</h3>
+
+            <div class="space-y-6">
+
+              <!-- Általános -->
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-sm text-gray-400 font-bold mb-1">Alapértelmezett Típus</label>
+                  <select v-model="shelfDefaultType" class="admin-input">
+                    <option value="wood">Bútorlap (Wood)</option>
+                    <option value="glass">Üveg (Glass)</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-sm text-gray-400">Visszahúzás az elejétől (mm)</label>
+                  <input type="number" step="1" v-model="shelfRecessMm" class="admin-input">
+                </div>
+              </div>
+
+              <hr class="border-gray-700" />
+
+              <!-- BÚTORLAP BEÁLLÍTÁSOK -->
+              <div>
+                <h4 class="text-sm font-bold text-white mb-2">Bútorlap Polc Beállítások</h4>
+                <div class="mb-3">
+                  <label class="block text-xs text-gray-400 mb-1">Vastagság (mm)</label>
+                  <input type="number" step="1" v-model="shelfThicknessWoodMm" class="admin-input w-32">
+                </div>
+
+                <!-- Kategória választó (Wood) -->
+                <div class="bg-gray-900/50 p-3 rounded border border-gray-700/50">
+                  <label class="block text-[10px] text-gray-400 mb-2 uppercase">Engedélyezett Anyagkategóriák
+                    (Bútorlap)</label>
+                  <div class="flex flex-wrap gap-2">
+                    <label v-for="cat in availableMaterialCategories" :key="cat"
+                      class="cursor-pointer select-none px-2 py-1 rounded text-[10px] font-medium border transition-all"
+                      :class="shelfCategoriesWood.includes(cat)
+                        ? 'bg-indigo-600 border-indigo-500 text-white'
+                        : 'bg-gray-800 border-gray-600 text-gray-500 hover:border-gray-500 hover:text-gray-300'">
+                      <input type="checkbox" :value="cat" v-model="shelfCategoriesWood" class="hidden" />
+                      {{ cat }}
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <!-- ÜVEG BEÁLLÍTÁSOK -->
+              <div>
+                <h4 class="text-sm font-bold text-white mb-2">Üveg Polc Beállítások</h4>
+                <div class="mb-3">
+                  <label class="block text-xs text-gray-400 mb-1">Vastagság (mm)</label>
+                  <input type="number" step="1" v-model="shelfThicknessGlassMm" class="admin-input w-32">
+                </div>
+
+                <!-- Kategória választó (Glass) -->
+                <div class="bg-gray-900/50 p-3 rounded border border-gray-700/50">
+                  <label class="block text-[10px] text-gray-400 mb-2 uppercase">Engedélyezett Anyagkategóriák
+                    (Üveg)</label>
+                  <div class="flex flex-wrap gap-2">
+                    <label v-for="cat in availableMaterialCategories" :key="cat"
+                      class="cursor-pointer select-none px-2 py-1 rounded text-[10px] font-medium border transition-all"
+                      :class="shelfCategoriesGlass.includes(cat)
+                        ? 'bg-cyan-600 border-cyan-500 text-white'
+                        : 'bg-gray-800 border-gray-600 text-gray-500 hover:border-gray-500 hover:text-gray-300'">
+                      <input type="checkbox" :value="cat" v-model="shelfCategoriesGlass" class="hidden" />
+                      {{ cat }}
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
         </div>
 
         <div class="max-w-5xl mx-auto mt-6 flex justify-end">

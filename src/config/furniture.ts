@@ -248,4 +248,14 @@ export interface GeneralSettings {
   upperCabinet: {
     defaultElevation: number
   }
+  // --- EZT A RÉSZT ADD HOZZÁ: ---
+  shelves?: {
+    defaultType: 'wood' | 'glass'
+    thicknessWood: number
+    thicknessGlass: number
+    frontRecess: number
+    // --- ÚJ MEZŐK ---
+    allowedCategoriesWood: string[] // Pl. ['wood', 'furniture_board']
+    allowedCategoriesGlass: string[] // Pl. ['glass', 'transparent']
+  }
 }
