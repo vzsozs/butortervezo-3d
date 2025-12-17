@@ -295,13 +295,15 @@ export default class ProceduralManager {
           visualModel.position.x = gap
           visualModel.position.z = gap
 
-          // --- DEBUG ---
+          // --- DEBUG --- // Sarokszekrény sarkait mutatja
+          /*
           visualModel.updateMatrixWorld()
           const box = new THREE.Box3().setFromObject(visualModel)
           this.createDebugLabel(new THREE.Vector3(box.min.x, 0, box.min.z), 'B0', 'blue', 0.1)
           this.createDebugLabel(new THREE.Vector3(box.max.x, 0, box.min.z), 'B1', 'blue', 0.1)
           this.createDebugLabel(new THREE.Vector3(box.max.x, 0, box.max.z), 'B2', 'blue', 0.1)
           this.createDebugLabel(new THREE.Vector3(box.min.x, 0, box.max.z), 'B3', 'blue', 0.1)
+          */
         } else {
           // --- EGYENES SZEKRÉNY ---
           visualModel.position.z = gap
@@ -1166,7 +1168,7 @@ export default class ProceduralManager {
       // --- BÚTORLAP ---
       if (corpusMesh.material) {
         if (Array.isArray(corpusMesh.material)) {
-          if (corpusMesh.material.length > 0) material = corpusMesh.material[0]
+          if (corpusMesh.material.length > 0) material = corpusMesh.material[0]!
         } else {
           material = corpusMesh.material as THREE.Material
         }

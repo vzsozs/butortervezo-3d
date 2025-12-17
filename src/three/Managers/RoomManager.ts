@@ -130,10 +130,10 @@ export default class RoomManager {
     this.createWall(depth, height, 3, new THREE.Vector3(-width / 2, height / 2, 0), Math.PI / 2)
 
     // DEBUG VIZUALIZÁCIÓ (Falak nevei és normál vektorai)
-    this.buildDebugVisuals(width, height, depth)
+    // this.buildDebugVisuals(width, height, depth)
   }
 
-  private buildDebugVisuals(w: number, h: number, d: number) {
+  /* private buildDebugVisuals(w: number, h: number, d: number) {
     // 1. Tengelykereszt a padlón (X=Piros, Z=Kék)
     const axesHelper = new THREE.AxesHelper(1.5)
     axesHelper.position.y = 0.01
@@ -204,7 +204,7 @@ export default class RoomManager {
     const sprite = new THREE.Sprite(material)
     sprite.scale.set(2, 0.5, 1) // Méretarány
     return sprite
-  }
+  }*/
 
   private createWall(w: number, h: number, idx: number, pos: THREE.Vector3, rot: number) {
     const wallOpenings = this.roomStore.openings.filter((o) => o.wallIndex === idx)

@@ -496,7 +496,8 @@ export default class PlacementManager {
     )
 
     if (this.debugMode) {
-      this.drawDebugVisuals(movingObject, result.position, result.rotation, result.isColliding)
+      // Ha kellenek a befoglaló dobozok kirajzolása ezt kell visszakapcsolni.
+      // this.drawDebugVisuals(movingObject, result.position, result.rotation, result.isColliding)
     }
 
     return result
