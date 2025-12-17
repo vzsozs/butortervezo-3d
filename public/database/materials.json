@@ -140,11 +140,11 @@
       "Üveg"
     ],
     "type": "color",
-    "value": "#f0fbff",
+    "value": "#ffffff",
     "properties": {
-      "roughness": 0,
-      "metalness": 0,
-      "transmission": 1,
+      "roughness": 0.05,
+      "metalness": 0.1,
+      "transmission": 0.95,
       "opacity": 1,
       "transparent": true
     }

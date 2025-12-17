@@ -105,7 +105,7 @@ watch(() => selectedObject.value, async (newObj) => {
 </script>
 
 <template>
-  <div v-if="selectedObject && furnitureDef" ref="panelRef" :style="style"
+  <div id="inspector-root" v-if="selectedObject && furnitureDef" ref="panelRef" :style="style"
     class="fixed w-80 bg-[#1e1e1e] border border-gray-700 shadow-2xl rounded-lg flex flex-col z-50 overflow-hidden transition-opacity duration-200"
     :class="{ 'opacity-80 pointer-events-none select-none': selectionStore.isBusy }" style="max-height: 90vh;">
 

@@ -63,16 +63,20 @@ export default class ProceduralManager {
 
     // --- ÚJ: Üveg anyag inicializálása ---
     this.glassMaterial = new THREE.MeshPhysicalMaterial({
-      color: 0xffffff,
-      metalness: 0.1,
-      roughness: 0.05,
-      transmission: 0.95, // Üvegszerű átlátszóság
-      thickness: 0.01, // Fénytöréshez
-      transparent: true,
-      opacity: 1,
-      envMapIntensity: 1.5,
-      clearcoat: 1.0,
-      clearcoatRoughness: 0.1,
+      color: 0xffffff, // Fehér alapszín
+      metalness: 0.9, // Magas fémesség -> Tükröződés (üveges hatás)
+      roughness: 0.05, // Sima felület
+
+      transmission: 0, // KIKAPCSOLVA: Így nem "lencseként" viselkedik
+      transparent: true, // Hagyományos átlátszóság
+      opacity: 0.3, // Mennyire látszik (0.3 = enyhén áttetsző üveg)
+
+      envMapIntensity: 1.0, // Környezet tükröződése
+      clearcoat: 1.0, // Lakkréteg a csillogáshoz
+      clearcoatRoughness: 0.0,
+
+      side: THREE.DoubleSide, // Mindkét oldala látszódjon
+      depthWrite: false, // Ne takarja ki a mögötte lévő dolgokat a mélység-pufferben
     })
 
     this.initWatchers()
@@ -221,6 +225,8 @@ export default class ProceduralManager {
     this.debugHelpers.clear()
     this.fullUpdate()
   }
+
+  private shelfMaterialCache = new Map<string, THREE.Material>()
 
   private fullUpdate() {
     this.updateCabinetHorizontalPositions()
@@ -1153,9 +1159,11 @@ export default class ProceduralManager {
     const innerDepth = depth - backThickness - frontRecess
     const innerHeight = height - 2 * wallThickness
 
-    // 6. Anyag
+    // 6. Anyag Kiválasztása (JAVÍTOTT RÉSZ)
     let material: THREE.Material = this.glassMaterial
+
     if (type === 'wood') {
+      // --- BÚTORLAP ---
       if (corpusMesh.material) {
         if (Array.isArray(corpusMesh.material)) {
           if (corpusMesh.material.length > 0) material = corpusMesh.material[0]
@@ -1165,21 +1173,61 @@ export default class ProceduralManager {
       } else {
         material = new THREE.MeshStandardMaterial({ color: 0xeeeeee })
       }
+    } else if (type === 'glass') {
+      // --- ÜVEG ---
+      const customMatId = object.userData.shelfMaterialId
+
+      if (customMatId) {
+        // Megnézzük, van-e már cache-elve ez az anyag
+        if (this.shelfMaterialCache.has(customMatId)) {
+          material = this.shelfMaterialCache.get(customMatId)!
+        } else {
+          // Ha nincs, megpróbáljuk létrehozni a config alapján
+          const matDef = this.configStore.getMaterialById(customMatId)
+
+          if (matDef) {
+            // Klónozzuk az alap üveg anyagot, hogy a fizikai tulajdonságok (törésmutató stb.) megmaradjanak
+            const newGlass = this.glassMaterial.clone()
+
+            // Szín beállítása
+            if (matDef.value && !matDef.value.includes('/')) {
+              newGlass.color = new THREE.Color(matDef.value)
+            }
+            // Textúra beállítása (ha van)
+            else if (matDef.value || (matDef as any).textureUrl) {
+              const url = (matDef as any).textureUrl || matDef.value
+              const texture = new THREE.TextureLoader().load(url)
+              newGlass.map = texture
+            }
+
+            // Tejüveg / Frosted hatás (Név alapján heurisztika)
+            // Ha a névben benne van a "tej" vagy "frosted", mattítjuk a felületet
+            if (
+              matDef.name.toLowerCase().includes('tej') ||
+              matDef.name.toLowerCase().includes('frosted')
+            ) {
+              newGlass.roughness = 0.4
+              newGlass.transmission = 0.6
+              newGlass.clearcoatRoughness = 0.5
+            }
+
+            // Cache-eljük
+            this.shelfMaterialCache.set(customMatId, newGlass)
+            material = newGlass
+          }
+        }
+      }
     }
 
     // 7. Geometria
     const geometry = new THREE.BoxGeometry(innerWidth, thickness, innerDepth)
     this.applyBoxUVs(geometry)
 
-    // 8. Elhelyezés (MÁTRIX TRANSZFORMÁCIÓVAL)
-
-    // Kiszámoljuk a korpusz határait a SZÜLŐ koordinátarendszerében.
-    // Ez figyelembe veszi a pozíciót, forgatást és skálázást is.
+    // 8. Elhelyezés
     corpusMesh.geometry.computeBoundingBox()
     const geomBbox = corpusMesh.geometry.boundingBox
     if (!geomBbox) return
 
-    // A geometria 8 sarka
     const corners = [
       new THREE.Vector3(geomBbox.min.x, geomBbox.min.y, geomBbox.min.z),
       new THREE.Vector3(geomBbox.min.x, geomBbox.min.y, geomBbox.max.z),
@@ -1191,14 +1239,12 @@ export default class ProceduralManager {
       new THREE.Vector3(geomBbox.max.x, geomBbox.max.y, geomBbox.max.z),
     ]
 
-    // Transzformáljuk a pontokat a szülő terébe
     const parentBox = new THREE.Box3()
     corners.forEach((p) => {
-      p.applyMatrix4(corpusMesh.matrix) // Ez tartalmazza a position, rotation, scale-t
+      p.applyMatrix4(corpusMesh.matrix)
       parentBox.expandByPoint(p)
     })
 
-    // Most a parentBox.min.y a TÉNYLEGES vizuális alja a korpusznak a csoporton belül.
     const startY = parentBox.min.y + wallThickness
     const startX = parentBox.min.x + wallThickness
     const startZ = parentBox.min.z + backThickness
@@ -1211,13 +1257,8 @@ export default class ProceduralManager {
 
       const yOffset = i * spacing
 
-      // X: Bal szél + fél szélesség
       shelf.position.x = startX + innerWidth / 2
-
-      // Y: Alja + eltolás
       shelf.position.y = startY + yOffset
-
-      // Z: Hátulja + fél mélység
       shelf.position.z = startZ + innerDepth / 2
 
       shelf.castShadow = true
@@ -1230,22 +1271,33 @@ export default class ProceduralManager {
   private findCorpusMesh(group: THREE.Object3D): THREE.Mesh | null {
     let found: THREE.Mesh | null = null
 
+    // 1. Keresés név alapján (Bővített kulcsszavak)
     group.traverse((child) => {
       if (found) return
       if (child instanceof THREE.Mesh) {
+        // Kizárjuk a procedurális elemeket
         if (
           child.name.includes('proc_') ||
           child.name.includes('worktop') ||
           child.name.includes('plinth')
         )
           return
+
         const name = child.name.toLowerCase()
-        if (name.includes('corpus') || name.includes('body') || name.includes('carcass')) {
+        // Bővített lista: structure, test, váz
+        if (
+          name.includes('corpus') ||
+          name.includes('body') ||
+          name.includes('carcass') ||
+          name.includes('structure') ||
+          name.includes('váz')
+        ) {
           found = child
         }
       }
     })
 
+    // 2. Fallback: Ha nincs név egyezés, keressük a legnagyobb dobozt
     if (!found) {
       group.traverse((child) => {
         if (found) return
@@ -1260,6 +1312,7 @@ export default class ProceduralManager {
             child.geometry.computeBoundingBox()
             const size = new THREE.Vector3()
             child.geometry.boundingBox?.getSize(size)
+            // Ha elég magas (>30cm), valószínűleg ez a korpusz
             if (size.y > 0.3) found = child
           }
         }
