@@ -11,18 +11,27 @@
         "maxShelves": 3
       },
       "componentType": "corpuses",
-      "allowedMaterialCategories": ["Bútorlap", "general"],
+      "allowedMaterialCategories": [
+        "Bútorlap",
+        "general"
+      ],
       "model": "/models/corpuses/corpus_top_40.glb",
       "materialTarget": "MAT_Korpusz",
-      "materialOptions": ["MAT_Korpusz"],
+      "materialOptions": [
+        "MAT_Korpusz"
+      ],
       "attachmentPoints": [
         {
           "id": "attach_front_full_R",
-          "allowedComponentTypes": ["fronts"]
+          "allowedComponentTypes": [
+            "fronts"
+          ]
         },
         {
           "id": "attach_front_full_L",
-          "allowedComponentTypes": ["fronts"]
+          "allowedComponentTypes": [
+            "fronts"
+          ]
         }
       ],
       "price": 34000,
@@ -41,42 +50,63 @@
         "maxShelves": 2
       },
       "componentType": "corpuses",
-      "allowedMaterialCategories": ["Bútorlap", "general"],
+      "allowedMaterialCategories": [
+        "Bútorlap",
+        "general"
+      ],
       "model": "/models/corpuses/corpus_bottom_sarok_90.glb",
       "materialTarget": "MAT_Korpusz",
-      "materialOptions": ["MAT_Korpusz"],
+      "materialOptions": [
+        "MAT_Korpusz"
+      ],
       "attachmentPoints": [
         {
           "id": "attach_front_full_L",
-          "allowedComponentTypes": ["fronts"]
+          "allowedComponentTypes": [
+            "fronts"
+          ]
         },
         {
           "id": "attach_leg_FR",
-          "allowedComponentTypes": ["legs"]
+          "allowedComponentTypes": [
+            "legs"
+          ]
         },
         {
           "id": "attach_leg_BL",
-          "allowedComponentTypes": ["legs"]
+          "allowedComponentTypes": [
+            "legs"
+          ]
         },
         {
           "id": "attach_leg_FL",
-          "allowedComponentTypes": ["legs"]
+          "allowedComponentTypes": [
+            "legs"
+          ]
         },
         {
           "id": "attach_leg_BR",
-          "allowedComponentTypes": ["legs"]
+          "allowedComponentTypes": [
+            "legs"
+          ]
         },
         {
           "id": "attach_front_full_R",
-          "allowedComponentTypes": ["fronts"]
+          "allowedComponentTypes": [
+            "fronts"
+          ]
         },
         {
           "id": "attach_leg_C",
-          "allowedComponentTypes": ["legs"]
+          "allowedComponentTypes": [
+            "legs"
+          ]
         },
         {
           "id": "attach_leg_C1",
-          "allowedComponentTypes": ["legs"]
+          "allowedComponentTypes": [
+            "legs"
+          ]
         }
       ],
       "price": 78000,
@@ -94,41 +124,110 @@
         "maxShelves": 2
       },
       "componentType": "corpuses",
-      "allowedMaterialCategories": ["Bútorlap", "general"],
+      "allowedMaterialCategories": [
+        "Bútorlap",
+        "general"
+      ],
       "model": "/models/corpuses/corpus_bottom_60.glb",
       "materialTarget": "MAT_Korpusz",
-      "materialOptions": ["MAT_Korpusz"],
+      "materialOptions": [
+        "MAT_Korpusz"
+      ],
       "attachmentPoints": [
         {
           "id": "attach_front_full_L",
-          "allowedComponentTypes": ["fronts"]
+          "allowedComponentTypes": [
+            "fronts"
+          ]
         },
         {
           "id": "attach_leg_FR",
-          "allowedComponentTypes": ["legs"]
+          "allowedComponentTypes": [
+            "legs"
+          ]
         },
         {
           "id": "attach_leg_BL",
-          "allowedComponentTypes": ["legs"]
+          "allowedComponentTypes": [
+            "legs"
+          ]
         },
         {
           "id": "attach_leg_FL",
-          "allowedComponentTypes": ["legs"]
+          "allowedComponentTypes": [
+            "legs"
+          ]
         },
         {
           "id": "attach_leg_BR",
-          "allowedComponentTypes": ["legs"]
+          "allowedComponentTypes": [
+            "legs"
+          ]
         },
         {
           "id": "attach_front_full_R",
-          "allowedComponentTypes": ["fronts"]
+          "allowedComponentTypes": [
+            "fronts"
+          ]
         },
         {
           "id": "attach_leg_C",
-          "allowedComponentTypes": ["legs"]
+          "allowedComponentTypes": [
+            "legs"
+          ]
         }
       ],
       "price": 48000,
+      "materialSlots": [],
+      "category": "bottom_cabinets"
+    },
+    {
+      "name": "corpus bottom 15",
+      "id": "corpus_bottom_15",
+      "properties": {
+        "width": 150,
+        "height": 715,
+        "depth": 464,
+        "wallThickness": 18,
+        "maxShelves": 5
+      },
+      "componentType": "corpuses",
+      "allowedMaterialCategories": [
+        "Bútorlap",
+        "general"
+      ],
+      "model": "/models/corpuses/corpus_bottom_15.glb",
+      "materialTarget": "MAT_Korpusz",
+      "materialOptions": [
+        "MAT_Korpusz"
+      ],
+      "attachmentPoints": [
+        {
+          "id": "attach_leg_B",
+          "allowedComponentTypes": [
+            "legs"
+          ]
+        },
+        {
+          "id": "attach_front_L",
+          "allowedComponentTypes": [
+            "fronts"
+          ]
+        },
+        {
+          "id": "attach_leg_F",
+          "allowedComponentTypes": [
+            "legs"
+          ]
+        },
+        {
+          "id": "attach_front_R",
+          "allowedComponentTypes": [
+            "fronts"
+          ]
+        }
+      ],
+      "price": 21000,
       "materialSlots": [],
       "category": "bottom_cabinets"
     }
@@ -143,14 +242,21 @@
         "width": 294,
         "depth": 19
       },
-      "allowedMaterialCategories": ["Bútorlap", "general"],
+      "allowedMaterialCategories": [
+        "Bútorlap",
+        "general"
+      ],
       "model": "/models/fronts/front_bottom_keretes_30_l.glb",
       "materialTarget": "MAT_Frontok",
-      "materialOptions": ["MAT_Frontok"],
+      "materialOptions": [
+        "MAT_Frontok"
+      ],
       "attachmentPoints": [
         {
           "id": "attach_handle_vertical_L",
-          "allowedComponentTypes": ["handles"]
+          "allowedComponentTypes": [
+            "handles"
+          ]
         }
       ],
       "price": 12000,
@@ -165,14 +271,21 @@
         "width": 294,
         "depth": 19
       },
-      "allowedMaterialCategories": ["Bútorlap", "general"],
+      "allowedMaterialCategories": [
+        "Bútorlap",
+        "general"
+      ],
       "model": "/models/fronts/front_bottom_keretes_30_r.glb",
       "materialTarget": "MAT_Frontok",
-      "materialOptions": ["MAT_Frontok"],
+      "materialOptions": [
+        "MAT_Frontok"
+      ],
       "attachmentPoints": [
         {
           "id": "attach_handle_vertical_R",
-          "allowedComponentTypes": ["handles"]
+          "allowedComponentTypes": [
+            "handles"
+          ]
         }
       ],
       "price": 12000,
@@ -187,14 +300,21 @@
         "width": 596,
         "depth": 19
       },
-      "allowedMaterialCategories": ["Bútorlap", "general"],
+      "allowedMaterialCategories": [
+        "Bútorlap",
+        "general"
+      ],
       "model": "/models/fronts/front_bottom_keretes_60_l.glb",
       "materialTarget": "MAT_Frontok",
-      "materialOptions": ["MAT_Frontok"],
+      "materialOptions": [
+        "MAT_Frontok"
+      ],
       "attachmentPoints": [
         {
           "id": "attach_handle_vertical_L",
-          "allowedComponentTypes": ["handles"]
+          "allowedComponentTypes": [
+            "handles"
+          ]
         }
       ],
       "price": 27500,
@@ -209,14 +329,21 @@
         "width": 596,
         "depth": 19
       },
-      "allowedMaterialCategories": ["Bútorlap", "general"],
+      "allowedMaterialCategories": [
+        "Bútorlap",
+        "general"
+      ],
       "model": "/models/fronts/front_bottom_keretes_60_r.glb",
       "materialTarget": "MAT_Frontok",
-      "materialOptions": ["MAT_Frontok"],
+      "materialOptions": [
+        "MAT_Frontok"
+      ],
       "attachmentPoints": [
         {
           "id": "attach_handle_vertical_R",
-          "allowedComponentTypes": ["handles"]
+          "allowedComponentTypes": [
+            "handles"
+          ]
         }
       ],
       "price": 27500,
@@ -231,14 +358,21 @@
         "width": 294,
         "depth": 19
       },
-      "allowedMaterialCategories": ["Bútorlap", "general"],
+      "allowedMaterialCategories": [
+        "Bútorlap",
+        "general"
+      ],
       "model": "/models/fronts/front_bottom_sima_30_l.glb",
       "materialTarget": "MAT_Frontok",
-      "materialOptions": ["MAT_Frontok"],
+      "materialOptions": [
+        "MAT_Frontok"
+      ],
       "attachmentPoints": [
         {
           "id": "attach_handle_vertical_L",
-          "allowedComponentTypes": ["handles"]
+          "allowedComponentTypes": [
+            "handles"
+          ]
         }
       ],
       "price": 9800,
@@ -253,14 +387,21 @@
         "width": 294,
         "depth": 19
       },
-      "allowedMaterialCategories": ["Bútorlap", "general"],
+      "allowedMaterialCategories": [
+        "Bútorlap",
+        "general"
+      ],
       "model": "/models/fronts/front_bottom_sima_30_r.glb",
       "materialTarget": "MAT_Frontok",
-      "materialOptions": ["MAT_Frontok"],
+      "materialOptions": [
+        "MAT_Frontok"
+      ],
       "attachmentPoints": [
         {
           "id": "attach_handle_vertical_R",
-          "allowedComponentTypes": ["handles"]
+          "allowedComponentTypes": [
+            "handles"
+          ]
         }
       ],
       "price": 9800,
@@ -275,14 +416,21 @@
         "width": 596,
         "depth": 19
       },
-      "allowedMaterialCategories": ["Bútorlap", "general"],
+      "allowedMaterialCategories": [
+        "Bútorlap",
+        "general"
+      ],
       "model": "/models/fronts/front_bottom_sima_60_l.glb",
       "materialTarget": "MAT_Frontok",
-      "materialOptions": ["MAT_Frontok"],
+      "materialOptions": [
+        "MAT_Frontok"
+      ],
       "attachmentPoints": [
         {
           "id": "attach_handle_vertical_L",
-          "allowedComponentTypes": ["handles"]
+          "allowedComponentTypes": [
+            "handles"
+          ]
         }
       ],
       "price": 20500,
@@ -297,14 +445,21 @@
         "width": 596,
         "depth": 19
       },
-      "allowedMaterialCategories": ["Bútorlap", "general"],
+      "allowedMaterialCategories": [
+        "Bútorlap",
+        "general"
+      ],
       "model": "/models/fronts/front_bottom_sima_60_r.glb",
       "materialTarget": "MAT_Frontok",
-      "materialOptions": ["MAT_Frontok"],
+      "materialOptions": [
+        "MAT_Frontok"
+      ],
       "attachmentPoints": [
         {
           "id": "attach_handle_vertical_R",
-          "allowedComponentTypes": ["handles"]
+          "allowedComponentTypes": [
+            "handles"
+          ]
         }
       ],
       "price": 20500,
@@ -319,14 +474,21 @@
         "depth": 19
       },
       "componentType": "fronts",
-      "allowedMaterialCategories": ["Bútorlap", "general"],
+      "allowedMaterialCategories": [
+        "Bútorlap",
+        "general"
+      ],
       "model": "/models/fronts/front_top_keretes_40_l.glb",
       "materialTarget": "MAT_Frontok",
-      "materialOptions": ["MAT_Frontok"],
+      "materialOptions": [
+        "MAT_Frontok"
+      ],
       "attachmentPoints": [
         {
           "id": "attach_handle_vertical_R",
-          "allowedComponentTypes": ["handles"]
+          "allowedComponentTypes": [
+            "handles"
+          ]
         }
       ],
       "price": 18000,
@@ -341,14 +503,21 @@
         "depth": 19
       },
       "componentType": "fronts",
-      "allowedMaterialCategories": ["Bútorlap", "general"],
+      "allowedMaterialCategories": [
+        "Bútorlap",
+        "general"
+      ],
       "model": "/models/fronts/front_top_keretes_40_r.glb",
       "materialTarget": "MAT_Frontok",
-      "materialOptions": ["MAT_Frontok"],
+      "materialOptions": [
+        "MAT_Frontok"
+      ],
       "attachmentPoints": [
         {
           "id": "attach_handle_vertical_L",
-          "allowedComponentTypes": ["handles"]
+          "allowedComponentTypes": [
+            "handles"
+          ]
         }
       ],
       "price": 18000,
@@ -363,14 +532,21 @@
         "depth": 19
       },
       "componentType": "fronts",
-      "allowedMaterialCategories": ["Bútorlap", "general"],
+      "allowedMaterialCategories": [
+        "Bútorlap",
+        "general"
+      ],
       "model": "/models/fronts/front_top_sima_40_l.glb",
       "materialTarget": "MAT_Frontok",
-      "materialOptions": ["MAT_Frontok"],
+      "materialOptions": [
+        "MAT_Frontok"
+      ],
       "attachmentPoints": [
         {
           "id": "attach_handle_vertical_R",
-          "allowedComponentTypes": ["handles"]
+          "allowedComponentTypes": [
+            "handles"
+          ]
         }
       ],
       "price": 10800,
@@ -385,14 +561,21 @@
         "depth": 19
       },
       "componentType": "fronts",
-      "allowedMaterialCategories": ["Bútorlap", "general"],
+      "allowedMaterialCategories": [
+        "Bútorlap",
+        "general"
+      ],
       "model": "/models/fronts/front_top_sima_40_r.glb",
       "materialTarget": "MAT_Frontok",
-      "materialOptions": ["MAT_Frontok"],
+      "materialOptions": [
+        "MAT_Frontok"
+      ],
       "attachmentPoints": [
         {
           "id": "attach_handle_vertical_L",
-          "allowedComponentTypes": ["handles"]
+          "allowedComponentTypes": [
+            "handles"
+          ]
         }
       ],
       "price": 10800,
@@ -409,11 +592,16 @@
       "componentType": "fronts",
       "allowedMaterialCategories": [],
       "model": "/models/fronts/front_top_uveges_40_l.glb",
-      "materialOptions": ["MAT_Frontok", "MAT_Uveg"],
+      "materialOptions": [
+        "MAT_Frontok",
+        "MAT_Uveg"
+      ],
       "attachmentPoints": [
         {
           "id": "attach_handle_vertical_R",
-          "allowedComponentTypes": ["handles"]
+          "allowedComponentTypes": [
+            "handles"
+          ]
         }
       ],
       "price": 22000,
@@ -422,13 +610,18 @@
           "key": "base",
           "name": "Keret",
           "target": "MAT_Frontok",
-          "allowedCategories": ["Bútorlap", "general"]
+          "allowedCategories": [
+            "Bútorlap",
+            "general"
+          ]
         },
         {
           "key": "glass",
           "name": "Üveg",
           "target": "MAT_Uveg",
-          "allowedCategories": ["Üveg"]
+          "allowedCategories": [
+            "Üveg"
+          ]
         }
       ],
       "styleId": "style_1765178017197_wik2i"
@@ -444,11 +637,16 @@
       "componentType": "fronts",
       "allowedMaterialCategories": [],
       "model": "/models/fronts/front_top_uveges_40_r.glb",
-      "materialOptions": ["MAT_Frontok", "MAT_Uveg"],
+      "materialOptions": [
+        "MAT_Frontok",
+        "MAT_Uveg"
+      ],
       "attachmentPoints": [
         {
           "id": "attach_handle_vertical_L",
-          "allowedComponentTypes": ["handles"]
+          "allowedComponentTypes": [
+            "handles"
+          ]
         }
       ],
       "price": 22000,
@@ -457,13 +655,18 @@
           "key": "base",
           "name": "Keret",
           "target": "MAT_Frontok",
-          "allowedCategories": ["general", "Bútorlap"]
+          "allowedCategories": [
+            "general",
+            "Bútorlap"
+          ]
         },
         {
           "key": "glass",
           "name": "Üveg",
           "target": "MAT_Uveg",
-          "allowedCategories": ["Üveg"]
+          "allowedCategories": [
+            "Üveg"
+          ]
         }
       ],
       "styleId": "style_1765178017197_wik2i"
@@ -477,14 +680,21 @@
         "depth": 409
       },
       "componentType": "fronts",
-      "allowedMaterialCategories": ["Bútorlap", "general"],
+      "allowedMaterialCategories": [
+        "Bútorlap",
+        "general"
+      ],
       "model": "/models/fronts/front_bottom_keretes_sarok_90_l.glb",
       "materialTarget": "MAT_Frontok",
-      "materialOptions": ["MAT_Frontok"],
+      "materialOptions": [
+        "MAT_Frontok"
+      ],
       "attachmentPoints": [
         {
           "id": "attach_handle_vertical_L",
-          "allowedComponentTypes": ["handles"]
+          "allowedComponentTypes": [
+            "handles"
+          ]
         }
       ],
       "price": 24000,
@@ -499,17 +709,82 @@
         "depth": 409
       },
       "componentType": "fronts",
-      "allowedMaterialCategories": ["Bútorlap", "general"],
+      "allowedMaterialCategories": [
+        "Bútorlap",
+        "general"
+      ],
       "model": "/models/fronts/front_bottom_keretes_sarok_90_r.glb",
       "materialTarget": "MAT_Frontok",
-      "materialOptions": ["MAT_Frontok"],
+      "materialOptions": [
+        "MAT_Frontok"
+      ],
       "attachmentPoints": [
         {
           "id": "attach_handle_vertical_R",
-          "allowedComponentTypes": ["handles"]
+          "allowedComponentTypes": [
+            "handles"
+          ]
         }
       ],
       "price": 24000,
+      "materialSlots": []
+    },
+    {
+      "name": "front bottom sima 15",
+      "id": "front_bottom_sima_15",
+      "properties": {
+        "width": 147,
+        "height": 711,
+        "depth": 19
+      },
+      "componentType": "fronts",
+      "allowedMaterialCategories": [
+        "Bútorlap",
+        "general"
+      ],
+      "model": "/models/fronts/front_bottom_sima_15.glb",
+      "materialTarget": "MAT_Frontok",
+      "materialOptions": [
+        "MAT_Frontok"
+      ],
+      "attachmentPoints": [
+        {
+          "id": "attach_handle_vertical",
+          "allowedComponentTypes": [
+            "handles"
+          ]
+        }
+      ],
+      "price": 8500,
+      "materialSlots": []
+    },
+    {
+      "name": "front highcabinet oven-micro bottom keretes 30 L",
+      "id": "front_highcabinet_oven-micro_bottom_keretes_30_l",
+      "properties": {
+        "width": 294,
+        "height": 661,
+        "depth": 19
+      },
+      "componentType": "fronts",
+      "allowedMaterialCategories": [
+        "Bútorlap",
+        "general"
+      ],
+      "model": "/models/fronts/front_highcabinet_oven-micro_bottom_keretes_30_l.glb",
+      "materialTarget": "MAT_Frontok",
+      "materialOptions": [
+        "MAT_Frontok"
+      ],
+      "attachmentPoints": [
+        {
+          "id": "attach_handle_vertical_L",
+          "allowedComponentTypes": [
+            "handles"
+          ]
+        }
+      ],
+      "price": 11000,
       "materialSlots": []
     }
   ],
@@ -523,10 +798,14 @@
         "width": 10,
         "depth": 25
       },
-      "allowedMaterialCategories": ["Fém"],
+      "allowedMaterialCategories": [
+        "Fém"
+      ],
       "model": "/models/handles/handle_standard.glb",
       "materialTarget": "MAT_Fem_Kiegeszitok",
-      "materialOptions": ["MAT_Fem_Kiegeszitok"],
+      "materialOptions": [
+        "MAT_Fem_Kiegeszitok"
+      ],
       "attachmentPoints": [],
       "price": 3500
     },
@@ -539,10 +818,14 @@
         "width": 30,
         "depth": 30
       },
-      "allowedMaterialCategories": ["Fém"],
+      "allowedMaterialCategories": [
+        "Fém"
+      ],
       "model": "/models/handles/handle_design.glb",
       "materialTarget": "MAT_Fem_Kiegeszitok",
-      "materialOptions": ["MAT_Fem_Kiegeszitok"],
+      "materialOptions": [
+        "MAT_Fem_Kiegeszitok"
+      ],
       "attachmentPoints": [],
       "price": 1980
     }
@@ -557,10 +840,15 @@
         "width": 600,
         "depth": 464
       },
-      "allowedMaterialCategories": ["Bútorlap", "general"],
+      "allowedMaterialCategories": [
+        "Bútorlap",
+        "general"
+      ],
       "model": "/models/legs/leg_standard.glb",
       "materialTarget": "MAT_Korpusz",
-      "materialOptions": ["MAT_Korpusz"],
+      "materialOptions": [
+        "MAT_Korpusz"
+      ],
       "attachmentPoints": [],
       "price": 6800,
       "materialSource": "corpus"
@@ -574,82 +862,105 @@
         "width": 31,
         "depth": 31
       },
-      "allowedMaterialCategories": ["Fém"],
+      "allowedMaterialCategories": [
+        "Fém"
+      ],
       "model": "/models/legs/leg_design.glb",
       "materialTarget": "MAT_Lab_Fem",
-      "materialOptions": ["MAT_Lab_Fem"],
+      "materialOptions": [
+        "MAT_Lab_Fem"
+      ],
       "attachmentPoints": [],
       "price": 3800
     }
   ],
-  "shelves": [
+  "shelves": [],
+  "High Cabinets": [
     {
-      "componentType": "shelves",
-      "name": "shelf bottom standard 60",
-      "id": "shelf_bottom_standard_60",
+      "name": "corpus highcabinet oven-micro 60",
+      "id": "corpus_highcabinet_oven-micro_60",
       "properties": {
-        "height": 19,
-        "width": 562,
-        "depth": 428
+        "width": 600,
+        "height": 2050,
+        "depth": 464,
+        "wallThickness": 18,
+        "maxShelves": 1
       },
-      "allowedMaterialCategories": ["Bútorlap", "general"],
-      "model": "/models/shelves/shelf_bottom_standard_60.glb",
-      "materialTarget": "Material",
-      "materialOptions": ["Material"],
-      "attachmentPoints": [],
-      "price": 5600,
-      "materialSource": "corpus"
-    },
-    {
-      "name": "shelf top standard 40",
-      "id": "shelf_top_standard_40",
-      "properties": {
-        "height": 19,
-        "width": 361,
-        "depth": 267
-      },
-      "componentType": "shelves",
-      "allowedMaterialCategories": [],
-      "model": "/models/shelves/shelf_top_standard_40.glb",
-      "materialTarget": "MAT_Frontok",
-      "materialOptions": ["MAT_Frontok"],
-      "attachmentPoints": [],
-      "price": 3600,
-      "materialSource": "corpus"
-    },
-    {
-      "name": "shelf top glass 40",
-      "id": "shelf_top_glass_40",
-      "properties": {
-        "height": 6,
-        "width": 361,
-        "depth": 267
-      },
-      "componentType": "shelves",
-      "allowedMaterialCategories": [],
-      "model": "/models/shelves/shelf_top_glass_40.glb",
-      "materialTarget": "MAT_Uveg",
-      "materialOptions": ["MAT_Uveg"],
-      "attachmentPoints": [],
-      "price": 6900
-    },
-    {
-      "name": "shelf bottom standard sarok 90",
-      "id": "shelf_bottom_standard_sarok_90",
-      "properties": {
-        "width": 842,
-        "height": 19,
-        "depth": 841
-      },
-      "componentType": "shelves",
-      "allowedMaterialCategories": ["Bútorlap", "general"],
-      "model": "/models/shelves/shelf_bottom_standard_sarok_90.glb",
-      "materialTarget": "Material",
-      "materialOptions": ["Material"],
-      "attachmentPoints": [],
-      "price": 9200,
+      "componentType": "corpuses",
+      "allowedMaterialCategories": [
+        "Bútorlap",
+        "general"
+      ],
+      "model": "/models/High Cabinets/corpus_highcabinet_oven-micro_60.glb",
+      "materialTarget": "MAT_Korpusz",
+      "materialOptions": [
+        "MAT_Korpusz"
+      ],
+      "attachmentPoints": [
+        {
+          "id": "attach_front_full_bottom_L",
+          "allowedComponentTypes": [
+            "fronts"
+          ]
+        },
+        {
+          "id": "attach_leg_FR",
+          "allowedComponentTypes": [
+            "legs"
+          ]
+        },
+        {
+          "id": "attach_leg_BL",
+          "allowedComponentTypes": [
+            "legs"
+          ]
+        },
+        {
+          "id": "attach_leg_FL",
+          "allowedComponentTypes": [
+            "legs"
+          ]
+        },
+        {
+          "id": "attach_leg_BR",
+          "allowedComponentTypes": [
+            "legs"
+          ]
+        },
+        {
+          "id": "attach_front_full_bottom_R",
+          "allowedComponentTypes": [
+            "fronts"
+          ]
+        },
+        {
+          "id": "attach_leg_C",
+          "allowedComponentTypes": [
+            "legs"
+          ]
+        },
+        {
+          "id": "attach_front_full_top_L",
+          "allowedComponentTypes": [
+            "fronts"
+          ]
+        },
+        {
+          "id": "attach_front_full_top_R",
+          "allowedComponentTypes": [
+            "fronts"
+          ]
+        },
+        {
+          "id": "attach_front_full_top_T",
+          "allowedComponentTypes": [
+            "fronts"
+          ]
+        }
+      ],
+      "price": 104000,
       "materialSlots": [],
-      "materialSource": "corpus"
+      "category": "bottom_cabinets"
     }
   ]
 }

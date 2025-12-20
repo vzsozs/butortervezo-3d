@@ -134,32 +134,20 @@ export default class AdminExperience extends EventTarget {
 
   // --- A JAVÍTOTT UPDATE FÜGGVÉNY ---
   private isUpdating = false // Új flag a versenyhelyzetek ellen
+  private latestRequestId = 0 // Egyedi azonosító a kérések nyomon követésére
 
   public async updateObject(config: FurnitureConfig, resetCamera: boolean) {
     // Ha már fut egy frissítés, akkor is engedjük, de tudnunk kell róla.
-    // A legjobb védekezés a "Brutális Takarítás".
+    const requestId = ++this.latestRequestId
 
-    console.groupCollapsed('🎨 [Experience] Updating 3D Object')
+    console.groupCollapsed(`🎨 [Experience] Updating 3D Object (ReqID: ${requestId})`)
 
-    // 1. BRUTÁLIS TAKARÍTÁS: Nem bízunk a this.currentObject-ben.
-    // Megkeresünk mindent a Scene-ben, ami bútornak vagy markernek néz ki.
-    const childrenToRemove: Object3D[] = []
+    // 1. NEM TÖRÖLJÜK MÁR BRUTÁLISAN AZ ELEJÉN
+    // Mert ha kitörlöljük a 'proxy_'-t, de az await buildFurnitureFromConfig sokáig tart,
+    // akkor addig üres a képernyő (villogás).
+    // Csak a végén cserélünk, ha még valid a kérésünk.
 
-    this.scene.children.forEach((child) => {
-      // Ha a neve 'proxy_' -val kezdődik (bútor) VAGY 'attachment_markers'
-      if (child.name.startsWith('proxy_') || child.name === 'attachment_markers') {
-        childrenToRemove.push(child)
-      }
-    })
-
-    if (childrenToRemove.length > 0) {
-      console.log(`🗑️ Found ${childrenToRemove.length} stale objects in scene. Nuking them...`)
-      childrenToRemove.forEach((child) => this.disposeObject(child))
-    }
-
-    this.currentObject = null
-    this.clearHighlight()
-    this.clearHover()
+    // (A régi cleanup kódot kivettük)
 
     // 2. STATE ELŐKÉSZÍTÉS
     const componentState: Record<string, string> = {}
@@ -198,11 +186,32 @@ export default class AdminExperience extends EventTarget {
     })
 
     // 4. MEGJELENÍTÉS
-    // MÉG EGYSZER ELLENŐRIZZÜK, hogy nem került-e be valami, amíg vártunk
-    const doubleCheck = this.scene.children.filter((c) => c.name.startsWith('proxy_'))
-    if (doubleCheck.length > 0) {
-      console.warn('⚠️ Race condition detected! Cleaning up late arrivals...')
-      doubleCheck.forEach((c) => this.disposeObject(c))
+    // 4. MEGJELENÍTÉS - BIZTONSÁGOS FRISSÍTÉS ID ALAPJÁN
+
+    // Ha időközben érkezett egy újabb kérés, akkor ez az eredmény már elavult -> eldobjuk.
+    if (requestId !== this.latestRequestId) {
+      console.warn(
+        `🛑 Stale update detected (ReqID: ${requestId} < Latest: ${this.latestRequestId}). Discarding result.`,
+      )
+      // Takarítunk, mert ezt az objektumot nem használjuk fel
+      this.disposeObject(newObject)
+      return
+    }
+
+    // Ha még mi vagyunk a "főnök", akkor most már biztonságos cserélni.
+
+    // 1. Régi törlése (ha van)
+    if (this.currentObject) {
+      this.disposeObject(this.currentObject)
+    }
+
+    // 2. Extra biztonság: Minden más proxy törlése ("Ghosting" ellen)
+    const strays = this.scene.children.filter(
+      (c) => c.name.startsWith('proxy_') && c !== this.currentObject,
+    )
+    if (strays.length > 0) {
+      console.log(`🧹 Cleaning up ${strays.length} stray objects.`)
+      strays.forEach((c) => this.disposeObject(c))
     }
 
     this.currentObject = newObject

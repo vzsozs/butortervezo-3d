@@ -184,6 +184,27 @@
     transform: rotate(45deg);
   }
 
+  /* ÚJ: RADIO BUTTON STÍLUS */
+  .radio-styled {
+    @apply appearance-none w-4 h-4 bg-gray-700 border border-gray-600 rounded-full cursor-pointer relative;
+    /* Checked state */
+    @apply checked:bg-blue-500 checked:border-blue-500;
+    /* Focus state */
+    @apply focus:ring-2 focus:ring-blue-500 focus:outline-none;
+  }
+
+  /* Dot icon using pseudo-element */
+  .radio-styled:checked::after {
+    content: '';
+    position: absolute;
+    left: 4px;
+    top: 4px;
+    width: 6px;
+    height: 6px;
+    background-color: white;
+    border-radius: 50%;
+  }
+
   /* === SCROLLBAR === */
   .custom-scrollbar::-webkit-scrollbar {
     width: 6px;

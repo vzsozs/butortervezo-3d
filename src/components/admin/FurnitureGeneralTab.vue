@@ -67,7 +67,22 @@ function addSlotFromTemplate(template: { name: string, type: string, prefix: str
   if (!editableFurniture.value.componentSlots) editableFurniture.value.componentSlots = [];
 
   const suggestions = getSuggestedComponentConfig(template.type, storeComponents.value);
-  const count = editableFurniture.value.componentSlots.filter(s => s.slotId.startsWith(template.prefix)).length + 1;
+
+  // JAVÍTVA: Robusztusabb ID generálás (Max Index Keresés)
+  // A sima .length nem jó, ha töröltünk elemet (pl. van shelf_2, töröljük shelf_1 -> length=1 -> új: shelf_2 -> DUPLIKÁCIÓ)
+  const existingSlots = editableFurniture.value.componentSlots.filter(s => s.slotId.startsWith(template.prefix));
+  let maxIndex = 0;
+  existingSlots.forEach(s => {
+    // Feltételezzük a 'prefix_szám' formátumot
+    const parts = s.slotId.split('_');
+    const lastPart = parts[parts.length - 1] || '0';
+    const num = parseInt(lastPart, 10);
+    if (!isNaN(num) && num > maxIndex) {
+      maxIndex = num;
+    }
+  });
+
+  const count = maxIndex + 1;
 
   const newSlot: ComponentSlotConfig = {
     slotId: `${template.prefix}_${count}`,

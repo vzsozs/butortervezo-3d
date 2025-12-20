@@ -100,6 +100,18 @@ function updateSlot<K extends keyof ComponentSlotConfig>(key: K, value: Componen
 function removeSlot() { emit('remove:slot', props.node.slotId); }
 
 function updateAllowedComponent(componentId: string, isChecked: boolean) {
+  // SPECIÁLIS ESET: Korpusz választásnál (Radio Button logika)
+  if (props.node.componentType === 'corpus' || props.node.componentType === 'corpuses') {
+    if (isChecked) {
+      // Csak egyet engedünk
+      updateSlot('allowedComponents', [componentId]);
+      // Mindenképp állítsuk be default-nak is, ahogy a felhasználó kérte
+      updateSlot('defaultComponent', componentId);
+    }
+    return;
+  }
+
+  // ALAPESET: Checkbox logika
   const newAllowed = [...(props.node.allowedComponents || [])];
   const index = newAllowed.indexOf(componentId);
   if (isChecked && index === -1) newAllowed.push(componentId);
@@ -260,15 +272,31 @@ function rotate(axis: 'x' | 'y' | 'z', degrees: number) {
             Nincsenek kompatibilis komponensek (Szélesség: {{ parentComponentWidth ? parentComponentWidth + 'mm' :
               'Bármely' }}).
           </div>
-          <label v-for="comp in filteredComponents" :key="comp.id"
-            class="flex items-center gap-2 cursor-pointer p-1 rounded hover:bg-gray-700/50 transition-colors">
-            <input type="checkbox" :checked="node.allowedComponents?.includes(comp.id)"
-              @change="updateAllowedComponent(comp.id, ($event.target as HTMLInputElement).checked)"
-              class="checkbox-styled" />
-            <span class="text-gray-300">{{ comp.name }}</span>
-            <!-- JAVÍTÁS: properties.width használata -->
-            <span v-if="comp.properties?.width" class="text-xs text-gray-500">({{ comp.properties.width }} mm)</span>
-          </label>
+
+          <!-- RADÍÓ GOMBOK (Ha corpus) -->
+          <template v-if="node.componentType === 'corpuses' || node.componentType === 'corpus'">
+            <label v-for="comp in filteredComponents" :key="comp.id"
+              class="flex items-center gap-2 cursor-pointer p-1 rounded hover:bg-gray-700/50 transition-colors">
+              <input type="radio" :checked="node.allowedComponents?.includes(comp.id)"
+                @change="updateAllowedComponent(comp.id, true)" :name="'radio_group_' + node.slotId"
+                class="radio-styled" />
+              <span class="text-gray-300">{{ comp.name }}</span>
+              <span v-if="comp.properties?.width" class="text-xs text-gray-500">({{ comp.properties.width }} mm)</span>
+            </label>
+          </template>
+
+          <!-- CHECKBOXOK (Minden más) -->
+          <template v-else>
+            <label v-for="comp in filteredComponents" :key="comp.id + '_cb'"
+              class="flex items-center gap-2 cursor-pointer p-1 rounded hover:bg-gray-700/50 transition-colors">
+              <input type="checkbox" :checked="node.allowedComponents?.includes(comp.id)"
+                @change="updateAllowedComponent(comp.id, ($event.target as HTMLInputElement).checked)"
+                class="checkbox-styled" />
+              <span class="text-gray-300">{{ comp.name }}</span>
+              <!-- JAVÍTÁS: properties.width használata -->
+              <span v-if="comp.properties?.width" class="text-xs text-gray-500">({{ comp.properties.width }} mm)</span>
+            </label>
+          </template>
         </div>
       </div>
 

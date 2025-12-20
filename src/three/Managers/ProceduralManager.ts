@@ -412,48 +412,111 @@ export default class ProceduralManager {
 
   // JAVÍTÁS: _conf (unused variable fix)
   private createPlinthMeshForGroup(cabinets: THREE.Object3D[], height: number, _conf: any) {
-    const polygons: any[] = []
-    const cabinetData: any[] = []
+    // 1. Csoportosítás anyag szerint
+    const cabinetsByMaterial = new Map<string, THREE.Object3D[]>()
 
     cabinets.forEach((cabinet) => {
-      const corpusConfig = this.getCorpusConfig(cabinet)
-      if (!corpusConfig) return
+      // 1. Keresés: Melyik a corpus slot ID-ja?
+      let corpusSlotId = ''
+      const furnitureConfig = cabinet.userData.config // Ez a FurnitureConfig
 
-      const rawWidth = corpusConfig.properties?.width ?? 600
-      const width = rawWidth / 1000
-
-      let physicalDepth =
-        (corpusConfig.properties?.physicalDepth ?? corpusConfig.properties?.depth ?? 560) / 1000
-
-      // JAVÍTÁS: (corpusConfig as any)
-      if ((corpusConfig as any).structureType === 'corner_L') {
-        physicalDepth = (corpusConfig.properties?.sideDepth ?? 560) / 1000
+      if (furnitureConfig && furnitureConfig.componentSlots) {
+        const corpusSlot = furnitureConfig.componentSlots.find(
+          (s: any) => s.componentType === 'corpuses' || s.componentType === 'corpus',
+        )
+        if (corpusSlot) {
+          corpusSlotId = corpusSlot.slotId
+        }
       }
 
-      const gap = this.calculateGap(cabinet)
-      const corners = this.getPlinthCorners(cabinet, width, physicalDepth, gap)
+      // 2. Keresés: Mi az anyag ehhez a slothoz?
+      let materialId = 'default'
+      const matState = cabinet.userData.materialState
 
-      polygons.push([corners])
-      cabinetData.push({ corners, center: cabinet.position.clone() })
+      if (corpusSlotId && matState && matState[corpusSlotId]) {
+        materialId = matState[corpusSlotId]
+      }
+
+      // console.log(`[PlinthDebug] Cabinet ${cabinet.id} CorpusSlot: ${corpusSlotId} Material:`, materialId)
+
+      if (!cabinetsByMaterial.has(materialId)) {
+        cabinetsByMaterial.set(materialId, [])
+      }
+      cabinetsByMaterial.get(materialId)!.push(cabinet)
     })
 
-    this.generateBridges(cabinetData, polygons, this.proceduralStore.worktop.gapThreshold)
+    // 2. Minden anyagcsoporthoz generálunk egy (vagy több) mesh-t
+    cabinetsByMaterial.forEach((groupCabinets, materialId) => {
+      const polygons: any[] = []
+      const cabinetData: any[] = []
 
-    if (polygons.length === 0) return
+      groupCabinets.forEach((cabinet) => {
+        const corpusConfig = this.getCorpusConfig(cabinet)
+        if (!corpusConfig) return
 
-    try {
-      const merged = polygonClipping.union(polygons as any)
-      const shapes = this.createShapesFromPolygon(merged)
-      const geometry = new THREE.ExtrudeGeometry(shapes, { depth: height, bevelEnabled: false })
-      const mesh = new THREE.Mesh(geometry, this.defaultPlinthMaterial)
-      mesh.name = ProceduralConstants.MESH_PLINTH
-      mesh.rotation.x = -Math.PI / 2
-      mesh.position.y = 0
-      this.applyBoxUVs(geometry)
-      this.scene.add(mesh)
-    } catch (e) {
-      console.error('Plinth generation error', e)
-    }
+        const rawWidth = corpusConfig.properties?.width ?? 600
+        const width = rawWidth / 1000
+
+        let physicalDepth =
+          (corpusConfig.properties?.physicalDepth ?? corpusConfig.properties?.depth ?? 560) / 1000
+
+        // JAVÍTÁS: (corpusConfig as any)
+        if ((corpusConfig as any).structureType === 'corner_L') {
+          physicalDepth = (corpusConfig.properties?.sideDepth ?? 560) / 1000
+        }
+
+        const gap = this.calculateGap(cabinet)
+        const corners = this.getPlinthCorners(cabinet, width, physicalDepth, gap)
+
+        polygons.push([corners])
+        cabinetData.push({ corners, center: cabinet.position.clone() })
+      })
+
+      this.generateBridges(cabinetData, polygons, this.proceduralStore.worktop.gapThreshold)
+
+      if (polygons.length === 0) return
+
+      try {
+        const merged = polygonClipping.union(polygons as any)
+        const shapes = this.createShapesFromPolygon(merged)
+        const geometry = new THREE.ExtrudeGeometry(shapes, { depth: height, bevelEnabled: false })
+
+        // ANYAG KIKERESÉSE
+        let material = this.defaultPlinthMaterial
+        if (materialId !== 'default') {
+          // Keresés a store-ban
+          const matDef = this.configStore.materials.find((m) => m.id === materialId)
+          if (matDef) {
+            // Egyszerűsített anyag létrehozás (hasonlóan a getWorktopMaterial-hoz)
+            const matParams: any = { roughness: 0.8, metalness: 0.1, side: THREE.DoubleSide }
+            if (matDef.value && !matDef.value.includes('/')) {
+              matParams.color = new THREE.Color(matDef.value)
+            } else if (matDef.value || (matDef as any).textureUrl) {
+              const url = (matDef as any).textureUrl || matDef.value
+              const texture = new THREE.TextureLoader().load(url)
+              texture.wrapS = THREE.RepeatWrapping
+              texture.wrapT = THREE.RepeatWrapping
+              texture.repeat.set(1, 1) // Lábazatnál lehet, hogy sűríteni kellene, de egyelőre jó az 1
+              texture.colorSpace = THREE.SRGBColorSpace // <--- JAVÍTÁS: SRGB Color Space
+              matParams.map = texture
+              matParams.color = 0xffffff
+            }
+            material = new THREE.MeshStandardMaterial(matParams)
+          }
+        }
+
+        const mesh = new THREE.Mesh(geometry, material)
+
+        // Fontos: Azonos név, hogy a takarítás működjön
+        mesh.name = ProceduralConstants.MESH_PLINTH + '_' + materialId
+        mesh.rotation.x = -Math.PI / 2
+        mesh.position.y = 0
+        this.applyBoxUVs(geometry)
+        this.scene.add(mesh)
+      } catch (e) {
+        console.error('Plinth generation error', e)
+      }
+    })
   }
 
   // ==========================================================================
